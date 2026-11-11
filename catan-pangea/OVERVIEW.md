@@ -23,6 +23,7 @@ and 2-spots.
 | `S` | number of land-to-land tile edges (how many pairs of tiles touch) |
 | `v1 / v2 / v3` | count of 1-, 2-, 3-resource intersections |
 | `Smax` | the highest `S` possible for `A` tiles (a perfectly round blob) |
+| `L` | enclosed lakes — separate bodies of water, however many hexes each spans |
 
 These counts are locked together by simple counting — a consequence of
 **Euler's formula**, the rule that says a shape made of flat faces meeting at
@@ -30,9 +31,9 @@ edges and corners always balances out a certain way (the same idea behind why
 a soccer ball's pentagons and hexagons always add up correctly):
 
 ```
-v3 = S − A + 1 − (enclosed lakes)
-v2 = 3A − S − 3
-v1 = 3A − S + 3
+v3 = S − A + 1 − L
+v2 = 3A − S − 3 + 3L
+v1 = 3A − S + 3 − 3L        (the generators fill lakes, so L = 0)
 ```
 
 **So `v3` depends only on `S`.** Shape matters *only* through how many tile
@@ -47,17 +48,19 @@ One shared engine, three ways to build a continent, plus a manual draft mode:
 | Mode | Frame | Ports | Compactness rule |
 |---|---|---|---|
 | **I — Open Sea** | none | 9 loose, on coast | Floor = your slider, honestly |
-| **II — Sea Lanes** | 5–6 player border, base tiles only | 11, on frame | Floor − 5% (your ship rule pays some back) |
-| **III — Surveyed** | none | 9 | Floor = `max(slider, 0.95)` — always tight |
+| **II — Sea Lanes** | 5–6 player border, base tiles only | 11, on frame | Floor − 5%, never below 0.80 (your ship rule pays some back) |
+| **III — Surveyed** | none | 9 | Floor = `max(slider, 0.95)` — always tight; every seat opens with ore + wheat, either profile |
 | **Draft** | either | matches context | not enforced — only measured live |
 
 Whichever way land gets placed, the same pipeline finishes the job:
 
 1. **Compactify** — hill-climb tile positions to raise `S` toward the floor.
-2. **Place ports** — walk the coastline, space evenly, site resource-specific
-   ports near (not on top of) that resource.
-3. **Anneal terrain + numbers** — simulated annealing (below) against a
-   scoring function.
+2. **Place ports** — walk the outer coastline (lake shores excluded), space
+   the slots evenly, and make a first pass at siting each 2:1 port near (not
+   on top of) its resource.
+3. **Anneal terrain + numbers + ports** — simulated annealing (below) against
+   a scoring function. Ports can swap slots, so the 2:1 siting survives the
+   terrain moving around.
 4. **Score** — simulate a real snake draft and report the result.
 
 ## What "simulated annealing" means
@@ -67,7 +70,7 @@ settle into a stable, low-energy arrangement instead of freezing wherever they
 happened to be. The algorithm borrows the idea:
 
 - Start with terrain/numbers randomly placed on the fixed tile positions.
-- Each step, try a random swap (two tiles, or two number tokens).
+- Each step, try a random swap (two tiles, two number tokens, or two ports).
 - A swap that makes the board *better* (lower penalty) is always kept.
 - A swap that makes it *worse* is still sometimes kept — with a probability
   that shrinks as a "temperature" value cools over the run.
@@ -88,6 +91,8 @@ Every candidate board gets a penalty score — lower is better:
 - **Resource balance** — pips should track tile *count* per resource, not be
   forced equal (ore/brick legitimately have fewer tiles, so fewer pips is
   correct, not a flaw).
+- **Port siting** — each 2:1 port wants its resource about two hexes away:
+  near enough to matter, far enough that one settlement can't hog both.
 - **Draft fairness** — the engine actually simulates a 1→N→1 snake draft
   (players greedily grabbing the best open spot) and penalizes boards where
   the best and worst seat end up far apart.
@@ -96,7 +101,7 @@ Every candidate board gets a penalty score — lower is better:
 
 ## Code breakdown
 
-One self-contained file, `catan-pangea/index.html` (~1,900 lines): hex-grid
+One self-contained file, `catan-pangea/index.html` (~2,550 lines): hex-grid
 math → topology/counting → continent growth → ports/sea-lanes → the scoring
 function → the annealer → the SVG renderer → the analysis panel → the draft
 mode's turn-based state machine. No build step, no dependencies — it opens by

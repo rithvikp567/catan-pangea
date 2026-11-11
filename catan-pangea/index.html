@@ -611,34 +611,35 @@ table.abTable tr:last-child td{border-bottom:0;}
         <div class="abDef"><b>S</b><span>number of land-to-land tile edges — how many pairs of tiles touch</span></div>
         <div class="abDef"><b>v1 / v2 / v3</b><span>count of 1-, 2-, 3-resource intersections</span></div>
         <div class="abDef"><b>Smax</b><span>the highest S possible for A tiles — a perfectly round blob</span></div>
+        <div class="abDef"><b>L</b><span>enclosed lakes — separate bodies of water, however many hexes each spans</span></div>
       </div>
 
       <p>These counts are locked together by simple counting — a consequence of <b>Euler's formula</b>, the rule that says any shape made of flat faces meeting at edges and corners always balances out a certain way (the same idea behind why a soccer ball's pentagons and hexagons always add up correctly):</p>
-      <div class="abFormula">v3 = S − A + 1 − (enclosed lakes)
-v2 = 3A − S − 3
-v1 = 3A − S + 3</div>
+      <div class="abFormula">v3 = S − A + 1 − L
+v2 = 3A − S − 3 + 3L
+v1 = 3A − S + 3 − 3L        (the generators fill lakes, so L = 0)</div>
       <p><b style="color:var(--ink)">v3 depends only on S.</b> Shape matters only through how many tile edges it creates. The maximum is <code>Smax = ⌊3A − √(12A − 3)⌋</code>; every edge short of that destroys one 3-spot and manufactures one 1-spot <em>and</em> one 2-spot. That relationship is the entire problem, in one line.</p>
 
       <h3 class="disp">What the engine actually does</h3>
       <div class="abStep"><span class="n">1</span><div><b>Compactify</b> — hill-climb tile positions to raise S toward a target floor.</div></div>
-      <div class="abStep"><span class="n">2</span><div><b>Place ports</b> — walk the coastline, space them evenly, site resource-specific ports near (not on top of) that resource.</div></div>
-      <div class="abStep"><span class="n">3</span><div><b>Anneal terrain + numbers</b> — simulated annealing against a scoring function (below).</div></div>
+      <div class="abStep"><span class="n">2</span><div><b>Place ports</b> — walk the outer coastline, space the port slots evenly, and make a first pass at siting each 2:1 port near (not on top of) its resource.</div></div>
+      <div class="abStep"><span class="n">3</span><div><b>Anneal terrain + numbers + ports</b> — simulated annealing against a scoring function (below). Ports can swap slots, so the 2:1 siting survives terrain moving around.</div></div>
       <div class="abStep"><span class="n">4</span><div><b>Score</b> — simulate a real snake draft across your table size and report the result.</div></div>
 
       <h3 class="disp">What "simulated annealing" means</h3>
-      <p>Annealing is a metallurgy term: heat metal, then cool it <em>slowly</em> so atoms settle into a stable, low-energy arrangement instead of freezing wherever they happened to be. The algorithm borrows the idea — start with terrain/numbers randomly placed, then repeatedly try a random swap. A swap that makes the board better is always kept. A swap that makes it worse is <em>still sometimes kept</em>, with a probability that shrinks as a "temperature" value cools over the run.</p>
+      <p>Annealing is a metallurgy term: heat metal, then cool it <em>slowly</em> so atoms settle into a stable, low-energy arrangement instead of freezing wherever they happened to be. The algorithm borrows the idea — start with terrain/numbers randomly placed, then repeatedly try a random swap (two tiles, two number tokens, or two ports). A swap that makes the board better is always kept. A swap that makes it worse is <em>still sometimes kept</em>, with a probability that shrinks as a "temperature" value cools over the run.</p>
       <p>That last rule is the whole point. A plain hill-climb (only ever accept improvements) gets stuck the moment every single swap looks worse, even if a genuinely good board is two swaps away. Annealing tolerates bad moves early and only tightens up near the end — which is why it needs thousands of passes rather than one clever calculation.</p>
 
       <h3 class="disp">What the score actually penalizes</h3>
-      <p>Every candidate board gets a penalty score, lower is better: a 6 touching an 8 (or another 6/8) is penalized heavily, as are duplicate adjacent numbers and same-resource clumping. Resource pips are checked against tile <em>count</em>, not forced equal — ore and brick legitimately have fewer tiles, so fewer pips is correct, not a flaw. And critically: the engine actually simulates a snake draft (players greedily grabbing the best open spot) and penalizes any board where the best and worst seat end up far apart.</p>
+      <p>Every candidate board gets a penalty score, lower is better: a 6 touching an 8 (or another 6/8) is penalized heavily, as are duplicate adjacent numbers and same-resource clumping. Resource pips are checked against tile <em>count</em>, not forced equal — ore and brick legitimately have fewer tiles, so fewer pips is correct, not a flaw. Each 2:1 port is penalized for every hex its resource sits away from two hexes off. And critically: the engine actually simulates a snake draft (players greedily grabbing the best open spot) and penalizes any board where the best and worst seat end up far apart.</p>
 
       <h3 class="disp">Tabs — the four ways to build a continent</h3>
       <div class="abTableWrap"><table class="abTable">
         <thead><tr><th>Mode</th><th>Frame</th><th>Ports</th><th>Compactness rule</th></tr></thead>
         <tbody>
           <tr><td>I — Open Sea</td><td>none</td><td>9 loose, on coast</td><td>Floor = your slider, honestly</td></tr>
-          <tr><td>II — Sea Lanes</td><td>5–6 player border, base tiles only</td><td>11, on frame</td><td>Floor − 5% (your ship rule pays some back)</td></tr>
-          <tr><td>III — Surveyed</td><td>none</td><td>9</td><td>Floor = max(slider, 0.95) — always tight</td></tr>
+          <tr><td>II — Sea Lanes</td><td>5–6 player border, base tiles only</td><td>11, on frame</td><td>Floor − 5%, never below 0.80 (your ship rule pays some back)</td></tr>
+          <tr><td>III — Surveyed</td><td>none</td><td>9</td><td>Floor = max(slider, 0.95) — always tight; every seat opens with ore + wheat, either profile</td></tr>
           <tr><td>Draft</td><td>either</td><td>matches context</td><td>not enforced — only measured live</td></tr>
         </tbody>
       </table></div>
@@ -688,6 +689,11 @@ function hexVerts(q,r){
 function vpx(vk, s){ const [a,b] = unhk(vk); return [ (SQ3*s/2)*a, (s/2)*b ]; }
 function hexpx(q,r,s){ return [ (SQ3*s/2)*(2*q+r), (s/2)*(3*r) ]; }
 const ek = (a,b) => a < b ? a+"/"+b : b+"/"+a;
+/* hex-step distance between two hex keys */
+function hexDist(a, b){
+  const [q1,r1] = unhk(a), [q2,r2] = unhk(b);
+  return (Math.abs(q1-q2) + Math.abs(r1-r2) + Math.abs(q1+r1-q2-r2)) / 2;
+}
 
 /* deterministic PRNG */
 function mulberry32(a){
@@ -743,6 +749,13 @@ const WEIGHTS = {
 
 /* Port pip-equivalent value used by the draft simulator. */
 const PORT_VALUE = { two:3.0, three:1.6 };
+/* A 2:1 port wants its resource this many hexes from the hex it sits on:
+   near enough to matter, far enough that one settlement can't hog both. */
+const PORT_SITE_DIST = 2;
+/* Annealer penalty per hex of deviation. 12 lands siting within ~0.02 hex
+   of target on average while costing the fairness terms almost nothing;
+   higher weights buy no better siting and start trading away fairness. */
+const PORT_SITE_WEIGHT = 12;
 const LANE_DISCOUNT = 0.45;   /* ship cost + one-trade-per-turn + exclusivity */
 
 const PLAYER_COLORS = ["#C6482F","#2F6FA8","#D79A28","#4A8A57","#8558A0","#3E8E8A"];
@@ -790,11 +803,16 @@ function isConnected(land){
   return seen.size === land.size;
 }
 
+/* Edge i of a hex runs from CORNER[i] to CORNER[i+1]; the hex across it
+   lies in direction DIRS[EDGE_DIR[i]]. */
+const EDGE_DIR = [1,0,5,4,3,2];
+
 /* Full vertex / edge / boundary model for a landmass. */
 function topology(land){
   const vHex = new Map();      /* vertexKey -> [hexKey,...] */
   const vAdj = new Map();      /* vertexKey -> Set(vertexKey)  (road graph) */
   const edgeHex = new Map();   /* edgeKey  -> [hexKey,...] */
+  const across = new Map();    /* edgeKey  -> hex on the far side (meaningful for boundary edges) */
 
   for(const k of land){
     const [q,r] = unhk(k);
@@ -805,6 +823,8 @@ function topology(land){
       const w = vs[(i+1)%6], e = ek(v,w);
       if(!edgeHex.has(e)) edgeHex.set(e, []);
       edgeHex.get(e).push(k);
+      const [dq,dr] = DIRS[EDGE_DIR[i]];
+      across.set(e, hk(q+dq, r+dr));
       if(!vAdj.has(v)) vAdj.set(v, new Set());
       if(!vAdj.has(w)) vAdj.set(w, new Set());
       vAdj.get(v).add(w); vAdj.get(w).add(v);
@@ -815,14 +835,27 @@ function topology(land){
   const counts = {1:0,2:0,3:0};
   for(const [,hs] of vHex) counts[hs.length]++;
 
-  /* Boundary = edges belonging to exactly one land hex. */
+  /* Boundary = edges belonging to exactly one land hex; `water` is the
+     non-land hex on the other side (open sea or a lake). */
   const boundary = [];
-  for(const [e,hs] of edgeHex) if(hs.length === 1) boundary.push({ edge:e, hex:hs[0] });
+  for(const [e,hs] of edgeHex) if(hs.length === 1) boundary.push({ edge:e, hex:hs[0], water:across.get(e) });
 
   return { land, A, S, vHex, vAdj, edgeHex, boundary, counts };
 }
 
-/* Enclosed lakes: water cells in the bounding box unreachable from outside. */
+/* Coastline facing the open sea only. Lake shores are boundary edges too,
+   but a port belongs on the outer coast — and a coastline walk that
+   starts on a lake ring never visits the real coast in order. Each corner
+   of the outer coast has exactly two outer-coast edges, so this is a
+   single clean cycle for orderBoundary to walk. */
+function outerCoast(topo){
+  const { outside } = findLakes(topo.land, null);
+  return topo.boundary.filter(b => outside.has(b.water));
+}
+
+/* Enclosed lakes: water cells in the bounding box unreachable from outside.
+   `lakes` lists lake hexes; `regions` counts separate lakes (a two-hex lake
+   is one lake — and one face in the Euler count). */
 function findLakes(land, domain){
   const cells = domain ? new Set(domain) : null;
   let minQ=1e9,maxQ=-1e9,minR=1e9,maxR=-1e9;
@@ -843,7 +876,15 @@ function findLakes(land, domain){
     const k = hk(q,r);
     if(!land.has(k) && !outside.has(k)) lakes.push(k);
   }
-  return { lakes, outside };
+  const lakeSet = new Set(lakes), seen = new Set();
+  let regions = 0;
+  for(const k of lakes){
+    if(seen.has(k)) continue;
+    regions++;
+    const st = [k]; seen.add(k);
+    while(st.length) for(const n of neighbours(st.pop())) if(lakeSet.has(n) && !seen.has(n)){ seen.add(n); st.push(n); }
+  }
+  return { lakes, outside, regions };
 }
 
 /* ==================================================================
@@ -978,30 +1019,30 @@ function portSet(count){
   return [...specific, ...generic];
 }
 
-/* Assign which port type sits at which coastal slot, so that a 2:1 port
-   is close to — but not sitting on top of — that resource's cluster. */
+/* Initial assignment of which port type sits at which coastal slot, so
+   that a 2:1 port is close to — but not sitting on top of — that
+   resource's cluster. This is only a starting point: when terrain is
+   still moving (Generators I–III), the annealer keeps swapping ports and
+   scores this same siting rule, so it survives the terrain shuffle. */
 function assignPorts(slots, ports, hexTerrain, rng){
   const best = shuffle(rng, ports);
   const dist = (slot, res) => {
     let d = 1e9;
     for(const [k,t] of hexTerrain){
       if(TERRAIN[t].res !== res) continue;
-      const [q1,r1] = unhk(k), [q2,r2] = unhk(slot.hex);
-      const hd = (Math.abs(q1-q2) + Math.abs(r1-r2) + Math.abs(q1+r1-q2-r2))/2;
-      d = Math.min(d, hd);
+      d = Math.min(d, hexDist(k, slot.hex));
     }
     return d;
   };
   /* greedy: each 2:1 port takes the free slot whose distance to its
-     resource is closest to 2 hexes — near enough to matter, far enough
-     that one settlement can't hog both. */
+     resource is closest to PORT_SITE_DIST hexes */
   const out = new Array(slots.length).fill(null);
   const taken = new Set();
   for(const p of best.filter(p => p.type === "two")){
     let bi = -1, bs = 1e9;
     slots.forEach((s,i) => {
       if(taken.has(i)) return;
-      const sc = Math.abs(dist(s, p.res) - 2);
+      const sc = Math.abs(dist(s, p.res) - PORT_SITE_DIST);
       if(sc < bs){ bs = sc; bi = i; }
     });
     if(bi >= 0){ out[bi] = p; taken.add(bi); }
@@ -1188,21 +1229,47 @@ function topIndependent(model, topo, count){
 /* ==================================================================
    9.  TERRAIN + NUMBER OPTIMISATION
    ================================================================== */
+/* Number tokens are trimmed / extended in pairs that mirror around 7, so
+   every number on the board has its twin (no "10, 11 and 12 never pay")
+   and the mean pips per token stays close to the base set's. Trim order
+   alternates thin and fat pairs (3&11 then 5&9 …) to hold that mean. */
+const TRIM_PAIRS = [[3,11],[5,9],[4,10],[6,8],[2,12]];
+const GROW_PAIRS = [[4,10],[5,9],[6,8]];
+
 function terrainAndNumberSet(A, rng){
   let terr = BASE_TERRAIN.slice();
   if(A < 19){
-    /* trim proportionally, always keep one desert */
-    const pool = terr.filter(t => t !== "desert");
-    terr = ["desert", ...shuffle(rng, pool).slice(0, A-1)];
+    /* Trim proportionally, always keep one desert: largest-remainder
+       apportionment of the base 4/4/4/3/3 mix, ties broken by the seed. */
+    const keep = A - 1;
+    const base = [["forest",4],["pasture",4],["fields",4],["hills",3],["mountains",3]];
+    const quota = base.map(([t,c]) => {
+      const q = c * keep / 18;
+      return { t, n: Math.floor(q), rem: q - Math.floor(q), tie: rng() };
+    });
+    let left = keep - quota.reduce((a,x) => a + x.n, 0);
+    quota.slice().sort((a,b) => (b.rem - a.rem) || (a.tie - b.tie))
+         .slice(0, left).forEach(x => x.n++);
+    terr = ["desert", ...quota.flatMap(x => Array(x.n).fill(x.t))];
   } else if(A > 19){
     const extra = ["forest","pasture","fields","hills","mountains"];
     for(let i=0;i<A-19;i++) terr.push(extra[i % extra.length]);
     if(A >= 27) terr[terr.length-1] = "desert";
   }
   const need = terr.filter(t => t !== "desert").length;
-  let nums = BASE_NUMBERS.slice();
-  while(nums.length < need) nums.push(...[4,5,6,8,9,10].slice(0, need - nums.length));
-  nums = nums.slice(0, need);
+  const nums = BASE_NUMBERS.slice();
+  const drop = n => { const i = nums.indexOf(n); if(i >= 0) nums.splice(i, 1); };
+  /* an odd count leaves one token without its twin — the seed picks which */
+  for(let pi = 0; nums.length > need; pi++){
+    const pair = TRIM_PAIRS[pi % TRIM_PAIRS.length];
+    if(nums.length - need >= 2) pair.forEach(drop);
+    else drop(pair[rng() < 0.5 ? 0 : 1]);
+  }
+  for(let pi = 0; nums.length < need; pi++){
+    const pair = GROW_PAIRS[pi % GROW_PAIRS.length];
+    if(need - nums.length >= 2) nums.push(...pair);
+    else nums.push(pair[rng() < 0.5 ? 0 : 1]);
+  }
   return { terr, nums };
 }
 
@@ -1219,10 +1286,43 @@ function makeState(land, rng, A){
   return { keys, tiles };
 }
 
-function objective(ctx, tiles){
-  const { topo, portSlots, lanes, profile, nPlayers, adjPairs } = ctx;
+/* Everything the objective needs that does not change during a run. */
+function buildCtx({ topo, portSlots, lanes, domain, land, genId, profile, nPlayers, seed }){
+  const adjPairs = [];
+  const seen = new Set();
+  for(const k of land) for(const n of neighbours(k)){
+    if(!land.has(n)) continue;
+    const e = ek(k,n); if(seen.has(e)) continue;
+    seen.add(e); adjPairs.push([k,n]);
+  }
+  /* slot -> (land hex -> hex distance), for scoring port siting cheaply */
+  const slotDist = portSlots.map(s => new Map([...land].map(k => [k, hexDist(k, s.hex)])));
+  return { topo, portSlots, lanes, domain, land, genId, profile, nPlayers, adjPairs, slotDist, seed };
+}
+
+/* ports: the port type at each of ctx.portSlots (the annealer moves them);
+   defaults to whatever the slots were created with. */
+function objective(ctx, tiles, ports){
+  const { topo, lanes, profile, nPlayers, adjPairs } = ctx;
+  const portSlots = ports
+    ? ctx.portSlots.map((s,i) => s.port === ports[i] ? s : { ...s, port:ports[i] })
+    : ctx.portSlots;
   let pen = 0;
   const detail = {};
+
+  /* --- port siting: each 2:1 port wants its resource PORT_SITE_DIST
+         hexes from the hex it sits on. Scored here (not just placed once)
+         because tile swaps move terrain out from under the ports. --- */
+  let siteDev = 0, siteN = 0;
+  portSlots.forEach((s,i) => {
+    if(s.port.type !== "two") return;
+    let d = Infinity;
+    for(const [k,t] of ctx.slotDist[i]) if(TERRAIN[tiles.get(k).terrain].res === s.port.res && t < d) d = t;
+    if(d === Infinity) return;
+    siteDev += Math.abs(d - PORT_SITE_DIST); siteN++;
+  });
+  detail.portSiteDev = siteN ? siteDev / siteN : 0;
+  pen += siteDev * PORT_SITE_WEIGHT;
 
   /* --- hard adjacency rules --- */
   let red = 0, same = 0, clump = 0;
@@ -1265,6 +1365,10 @@ function objective(ctx, tiles){
   const runs = [ simulateDraft(model, topo, nPlayers, profile, rngA),
                  simulateDraft(model, topo, nPlayers, profile, rngB) ];
 
+  /* Generator III promises every seat opens with ore and wheat, under
+     either profile — so it is priced like the red-number rule (effectively
+     hard). Elsewhere it is a C&K-only preference. */
+  const oreWheatFloor = ctx.genId === 3;
   let fairPen = 0, spread = 0;
   runs.forEach(pl => {
     const vals = pl.map(p => p.wpips);
@@ -1274,7 +1378,10 @@ function objective(ctx, tiles){
     fairPen += sd * 26;
     pl.forEach(p => {
       if(p.res.size < 4) fairPen += (4 - p.res.size) * 55;
-      if(profile === "ck"){
+      if(oreWheatFloor){
+        if(!p.res.has("ore"))   fairPen += 320;
+        if(!p.res.has("grain")) fairPen += 320;
+      } else if(profile === "ck"){
         if(!p.res.has("ore"))   fairPen += 80;
         if(!p.res.has("grain")) fairPen += 70;
       }
@@ -1317,15 +1424,21 @@ function objective(ctx, tiles){
 /* ==================================================================
    10.  CHUNKED SIMULATED ANNEALING (keeps the UI responsive)
    ================================================================== */
+const PORT_MOVE_P = 0.08;   /* share of anneal steps that swap two ports */
+
 function anneal(ctx, state, iters, onProgress, onDone, annealOpts={}){
   /* Draft mode calls this with tileSwap:false — terrain was placed by the
-     players and is not the optimiser's to move, only the number tokens are. */
+     players and is not the optimiser's to move, only the number tokens
+     and ports are. Port swaps only change which port sits on which of the
+     fixed coastal slots; the slots themselves never move. */
   const tileSwap = annealOpts.tileSwap !== false;
   const rng = mulberry32(ctx.seed ^ 0xC2B2AE35);
   const keys = state.keys;
   let cur = new Map([...state.tiles].map(([k,v]) => [k, {...v}]));
-  let curRes = objective(ctx, cur);
+  let curPorts = ctx.portSlots.map(s => s.port);
+  let curRes = objective(ctx, cur, curPorts);
   let best = new Map([...cur].map(([k,v]) => [k, {...v}]));
+  let bestPorts = curPorts;
   let bestRes = curRes;
 
   let i = 0;
@@ -1336,8 +1449,17 @@ function anneal(ctx, state, iters, onProgress, onDone, annealOpts={}){
     for(; i < chunkEnd; i++){
       const T = T0 * Math.pow(T1/T0, i/iters);
       const cand = new Map([...cur].map(([k,v]) => [k, {...v}]));
+      /* port arrays are never mutated in place, so sharing is safe */
+      let candPorts = curPorts;
 
-      if(tileSwap && rng() < 0.45){
+      if(curPorts.length > 1 && rng() < PORT_MOVE_P){
+        /* swap the ports on two coastal slots */
+        const a = Math.floor(rng()*curPorts.length), b = Math.floor(rng()*curPorts.length);
+        const pa = curPorts[a], pb = curPorts[b];
+        if(a === b || (pa.type === pb.type && pa.res === pb.res)) continue;
+        candPorts = curPorts.slice();
+        candPorts[a] = pb; candPorts[b] = pa;
+      } else if(tileSwap && rng() < 0.45){
         /* move a whole tile (terrain + its token) */
         const a = pick(rng, keys), b = pick(rng, keys);
         if(a === b) continue;
@@ -1352,19 +1474,20 @@ function anneal(ctx, state, iters, onProgress, onDone, annealOpts={}){
         cand.get(a).num = nb; cand.get(b).num = na;
       }
 
-      const res = objective(ctx, cand);
+      const res = objective(ctx, cand, candPorts);
       const d = res.pen - curRes.pen;
       if(d < 0 || rng() < Math.exp(-d / T)){
-        cur = cand; curRes = res;
+        cur = cand; curPorts = candPorts; curRes = res;
         if(res.pen < bestRes.pen){
           bestRes = res;
           best = new Map([...cand].map(([k,v]) => [k, {...v}]));
+          bestPorts = candPorts;
         }
       }
     }
     onProgress(i / iters);
     if(i < iters) setTimeout(step, 0);
-    else onDone(best, bestRes);
+    else onDone(best, bestRes, ctx.portSlots.map((s,j) => ({ ...s, port:bestPorts[j] })));
   }
   setTimeout(step, 0);
 }
@@ -1381,27 +1504,34 @@ const GEN_INFO = {
       blurb:"No frame. The coastline is pushed to within an adjacency or two of the theoretical maximum whatever the rail is set to, then terrain and tokens get a 35% longer anneal against the draft simulation — with a hard floor on ore and wheat access for every draft position." },
 };
 
+/* The compactness floor each generator actually targets, from the rail
+   slider. Shared by generate() and the slider label so they can't drift. */
+function effectiveFloor(genId, slider){
+  /* II: the sea-lane rule pays back roughly a quarter of what a lost
+     adjacency costs, so it can afford a little coastline — within reason.
+     III: pushed to within an adjacency or two of the theoretical maximum
+     whatever the rail says — the generator that refuses a spiky continent. */
+  if(genId === 2) return Math.max(0.80, slider - 0.05);
+  if(genId === 3) return Math.max(slider, 0.95);
+  return slider;
+}
+
 function generate(genId, opts, onProgress, onDone){
   const seedNum = hashSeed(opts.seed);
   const rng = mulberry32(seedNum);
   const A = opts.tiles;
-  const targetS = Math.round(Smax(A) * opts.compactFloor);
+  const targetS = Math.round(Smax(A) * effectiveFloor(genId, opts.compactFloor));
 
   let domain = null, land, portCount, lanes = null, portSlots;
 
   if(genId === 2){
     domain = frame56Region();
     land = growContinent(rng, A, 2.4, domain);
-    /* relaxed floor: the sea-lane rule pays back roughly a quarter of
-       what a lost adjacency costs, so we can afford a little coastline */
-    land = compactify(land, domain, Math.round(Smax(A) * Math.max(0.80, opts.compactFloor - 0.05)), rng);
+    land = compactify(land, domain, targetS, rng);
     portCount = 11;
   } else if(genId === 3){
-    /* the coastline is pushed to within one or two adjacencies of the
-       theoretical maximum regardless of the rail setting — this is the
-       generator that refuses to hand you a spiky continent */
     land = growContinent(rng, A, 3.2, null);
-    land = compactify(land, null, Math.round(Smax(A) * Math.max(opts.compactFloor, 0.95)), rng);
+    land = compactify(land, null, targetS, rng);
     portCount = 9;
   } else {
     land = growContinent(rng, A, 2.0, null);
@@ -1419,7 +1549,7 @@ function generate(genId, opts, onProgress, onDone){
     const domTopo = topology(domSet);
     slotSource = orderBoundary(domTopo.boundary);
   } else {
-    slotSource = orderBoundary(topo.boundary);
+    slotSource = orderBoundary(outerCoast(topo));
   }
   const spotIdx = evenSpots(portCount, slotSource.length);
   const rawSlots = spotIdx.map(i => slotSource[i]);
@@ -1431,23 +1561,14 @@ function generate(genId, opts, onProgress, onDone){
 
   if(genId === 2) lanes = seaLanes(land, domain, portSlots, opts.laneCost === "flat");
 
-  /* --- adjacency pair list, computed once --- */
-  const adjPairs = [];
-  const seen = new Set();
-  for(const k of land) for(const n of neighbours(k)){
-    if(!land.has(n)) continue;
-    const e = ek(k,n); if(seen.has(e)) continue;
-    seen.add(e); adjPairs.push([k,n]);
-  }
-
-  const ctx = {
+  const ctx = buildCtx({
     topo, portSlots, lanes, domain, land, genId,
-    profile: opts.profile, nPlayers: opts.players, adjPairs, seed: seedNum,
-  };
+    profile: opts.profile, nPlayers: opts.players, seed: seedNum,
+  });
 
   const iters = genId === 3 ? Math.round(opts.iters * 1.35) : opts.iters;
-  anneal(ctx, provisional, iters, onProgress, (tiles, res) => {
-    onDone({ ctx, tiles, res, domain, land, topo, portSlots, lanes, genId, opts, targetS });
+  anneal(ctx, provisional, iters, onProgress, (tiles, res, finalPorts) => {
+    onDone({ ctx, tiles, res, domain, land, topo, portSlots:finalPorts, lanes, genId, opts, targetS });
   });
 }
 
@@ -1696,7 +1817,9 @@ function paintAnalysis(result){
     </div>`).join("");
 
   /* ---- geometry ---- */
-  const holes = findLakes(land, result.domain).lakes.length;
+  /* separate lakes, not lake hexes — each enclosed body of water is one
+     face in the Euler count, however many hexes it spans */
+  const holes = findLakes(land, result.domain).regions;
   const v3 = topo.counts[3], v2 = topo.counts[2], v1 = topo.counts[1];
   const perfect = Smax(topo.A);
   document.getElementById("geoMetrics").innerHTML = `
@@ -1761,10 +1884,11 @@ function paintAnalysis(result){
   const mk = (state, txt) => f.push({ state, txt });
   mk(d.red === 0 ? "ok" : "bad", d.red === 0 ? "No 6 or 8 touches another 6 or 8" : `${d.red} red-number pair${d.red===1?"":"s"} adjacent`);
   mk(d.same === 0 ? "ok" : "warn", d.same === 0 ? "No two identical numbers adjacent" : `${d.same} identical-number pair${d.same===1?"":"s"} adjacent`);
-  mk(holes === 0 ? "ok" : "warn", holes === 0 ? "No enclosed lakes" : `${holes} enclosed lake — water that reaches no port`);
+  mk(holes === 0 ? "ok" : "warn", holes === 0 ? "No enclosed lakes" : `${holes} enclosed lake${holes===1?"":"s"} — water that reaches no port`);
   const minRes = Math.min(...d.draft.map(p => p.res.size));
   mk(minRes >= 4 ? "ok" : "bad", minRes >= 4 ? "Every seat opens on 4+ resources" : `A seat opens on only ${minRes} resources`);
-  if(opts.profile === "ck"){
+  /* Generator III guarantees ore + wheat under either profile */
+  if(opts.profile === "ck" || result.genId === 3){
     const noOre = d.draft.filter(p => !p.res.has("ore")).length;
     const noWheat = d.draft.filter(p => !p.res.has("grain")).length;
     mk(noOre === 0 ? "ok" : "bad", noOre === 0 ? "Every seat has ore — metropolis race is live" : `${noOre} seat${noOre===1?"":"s"} open without ore`);
@@ -1817,14 +1941,21 @@ function readOpts(){
 }
 
 function syncLabels(){
-  const A = +$("optTiles").value, f = +$("optCompact").value/100;
+  const A = +$("optTiles").value, slider = +$("optCompact").value/100;
+  /* show the floor the current generator will actually use (draft mode
+     only uses the slider as an unenforced reference) */
+  const f = appMode === "generate" ? effectiveFloor(currentGen, slider) : slider;
+  const adjusted = f.toFixed(2) !== slider.toFixed(2);
   const SM = Smax(A), floor = Math.round(SM*f);
   $("lblTiles").textContent = A;
-  $("lblCompact").textContent = f.toFixed(2) + " · S≥" + floor;
+  $("lblCompact").textContent = (adjusted ? slider.toFixed(2) + " → " : "") + f.toFixed(2) + " · S≥" + floor;
   $("lblIters").textContent = (+$("optIters").value).toLocaleString();
   const v3 = floor - A + 1, v3max = SM - A + 1;
+  const why = !adjusted ? ""
+    : currentGen === 2 ? " Sea Lanes aims 0.05 below the slider (never under 0.80) — the ship rule pays some coastline back."
+    : " Surveyed never aims below 0.95.";
   $("compactNote").innerHTML =
-    `Guarantees at least <b>${v3}</b> three-resource intersections (a perfect ${A}-tile blob gives ${v3max}). ` +
+    `Targets at least <b>${v3}</b> three-resource intersections (a perfect ${A}-tile blob gives ${v3max}).${why} ` +
     `Every adjacency below the max destroys one 3-spot and creates one 1-spot and one 2-spot.`;
 }
 
@@ -2294,6 +2425,7 @@ function setMode(mode){
   document.querySelectorAll(".gentab").forEach(b =>
     b.setAttribute("aria-selected", String(mode === "draft" ? b.dataset.gen === "draft" : b.dataset.gen === String(currentGen))));
   syncLaneGroupVisibility();
+  syncLabels();
 }
 
 function syncDraftUI(){
@@ -2348,7 +2480,8 @@ function finishDraft(){
     slotSource = orderBoundary(domTopo.boundary);
     portCount = 11;
   } else {
-    slotSource = orderBoundary(topo.boundary);
+    /* outer coast only — a drafted continent can enclose a lake */
+    slotSource = orderBoundary(outerCoast(topo));
     portCount = 9;
   }
   const rawSlots = evenSpots(portCount, slotSource.length).map(i => slotSource[i]);
@@ -2357,17 +2490,10 @@ function finishDraft(){
   const lanes = draftSt.boardContext === "frame"
     ? seaLanes(landSet, domain, portSlots, opts.laneCost === "flat") : null;
 
-  const adjPairs = []; const seenE = new Set();
-  for(const k of landSet) for(const n of neighbours(k)){
-    if(!landSet.has(n)) continue;
-    const e = ek(k,n); if(seenE.has(e)) continue;
-    seenE.add(e); adjPairs.push([k,n]);
-  }
-
-  const ctx = {
+  const ctx = buildCtx({
     topo, portSlots, lanes, domain, land:landSet, genId:"draft",
-    profile: opts.profile, nPlayers: draftSt.N, adjPairs, seed: baseSeed,
-  };
+    profile: opts.profile, nPlayers: draftSt.N, seed: baseSeed,
+  });
 
   const { nums } = terrainAndNumberSet(draftSt.A, rng);
   const shuffledNums = shuffle(rng, nums);
@@ -2386,11 +2512,11 @@ function finishDraft(){
   const sessionAtStart = draftSt;
   anneal(ctx, { keys, tiles }, opts.iters,
     p => { if(draftSt === sessionAtStart) $("progFill").style.width = (p*100).toFixed(0) + "%"; },
-    (finalTiles, res) => {
+    (finalTiles, res, finalPorts) => {
       /* the user may have abandoned this session, or started a new one,
          while the anneal was still running — never paint over that */
       if(draftSt !== sessionAtStart) return;
-      const result = { ctx, tiles:finalTiles, res, domain, land:landSet, topo, portSlots, lanes, genId:"draft", opts, targetS:null };
+      const result = { ctx, tiles:finalTiles, res, domain, land:landSet, topo, portSlots:finalPorts, lanes, genId:"draft", opts, targetS:null };
       draftSt.phase = "done";
       draftSt.result = result;
       currentResult = result;
