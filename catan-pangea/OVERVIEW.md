@@ -2,10 +2,10 @@
 
 ## The problem
 
-Standard Catan is a fixed hexagon. Your group instead drafts tiles onto a
-free-form "pangaea" continent — but freehand shapes create far more coastline
-than the official board, and coastline is bad for gameplay: every jagged edge
-trades a good settlement spot for a bad one.
+Standard Catan is a fixed hexagon. Your group instead plays on a free-form
+"pangaea" continent — but freehand shapes create far more coastline than the
+official board, and coastline is bad for gameplay: every jagged edge trades a
+good settlement spot for a bad one.
 
 ## Why shape hurts (the math, briefly)
 
@@ -15,24 +15,22 @@ three resources' worth of dice rolls. Reshape the *same* tiles into a spikier
 outline and the tile count doesn't change — but 3-spots get converted into 1-
 and 2-spots.
 
-**Terms used below:**
-
 | Symbol | Meaning |
 |---|---|
 | `A` | number of land tiles |
 | `S` | number of land-to-land tile edges (how many pairs of tiles touch) |
 | `v1 / v2 / v3` | count of 1-, 2-, 3-resource intersections |
 | `Smax` | the highest `S` possible for `A` tiles (a perfectly round blob) |
+| `L` | enclosed lakes — separate bodies of water, however many hexes each spans |
 
-These counts are locked together by simple counting — a consequence of
-**Euler's formula**, the rule that says a shape made of flat faces meeting at
-edges and corners always balances out a certain way (the same idea behind why
-a soccer ball's pentagons and hexagons always add up correctly):
+These counts are locked together by **Euler's formula** (the rule that says a
+shape made of flat faces meeting at edges and corners always balances out a
+certain way):
 
 ```
-v3 = S − A + 1 − (enclosed lakes)
-v2 = 3A − S − 3
-v1 = 3A − S + 3
+v3 = S − A + 1 − L
+v2 = 3A − S − 3 + 3L
+v1 = 3A − S + 3 − 3L        (the generator fills lakes, so L = 0)
 ```
 
 **So `v3` depends only on `S`.** Shape matters *only* through how many tile
@@ -40,79 +38,102 @@ edges it creates. The maximum is `Smax = ⌊3A − √(12A − 3)⌋`; every edg
 of that destroys one 3-spot and manufactures one 1-spot *and* one 2-spot. That
 one relationship is the whole problem.
 
-## The approach
+## Board types
 
-One shared engine, three ways to build a continent, plus a manual draft mode:
-
-| Mode | Frame | Ports | Compactness rule |
+| Type | Frame | Ports | Coastline floor |
 |---|---|---|---|
-| **I — Open Sea** | none | 9 loose, on coast | Floor = your slider, honestly |
-| **II — Sea Lanes** | 5–6 player border, base tiles only | 11, on frame | Floor − 5% (your ship rule pays some back) |
-| **III — Surveyed** | none | 9 | Floor = `max(slider, 0.95)` — always tight |
-| **Draft** | either | matches context | not enforced — only measured live |
+| **Open Sea** | none | 9, on the outer coast | The Coastline setting. Every seat must also open with ore + wheat. |
+| **Sea Lanes** | 5–6 player border | 11, on the frame | Coastline − 0.05, never below 0.80 (the ship rule pays some coastline back) |
 
-Whichever way land gets placed, the same pipeline finishes the job:
+Open Sea absorbed what the retired "Surveyed" generator did well: the ore +
+wheat floor, a rounder growth seed for the **Tight** coastline (which reliably
+reaches 0.95), and its longer anneal as the default **Standard** optimiser.
 
-1. **Compactify** — hill-climb tile positions to raise `S` toward the floor.
-2. **Place ports** — walk the coastline, space evenly, site resource-specific
-   ports near (not on top of) that resource.
-3. **Anneal terrain + numbers** — simulated annealing (below) against a
-   scoring function.
-4. **Score** — simulate a real snake draft and report the result.
+## The pipeline
+
+Both board types run the same pipeline (`BoardGenerator.generate`):
+
+1. **Grow + compactify** — grow a continent from the centre, hill-climb tile
+   positions to raise `S` to the floor, and fill any enclosed lake.
+2. **Place ports** — walk the outer coastline (or the frame rim), space the
+   slots evenly, and make a first pass at siting each 2:1 port near (not on
+   top of) its resource.
+3. **Anneal terrain + numbers + ports** — simulated annealing (below) against
+   a penalty function. Ports can swap slots, so the 2:1 siting survives the
+   terrain moving around.
+4. **Score** — simulate a 1→N→1 snake draft and report a 0–100 score.
 
 ## What "simulated annealing" means
 
 Annealing is a metallurgy term: heat metal, then cool it *slowly* so atoms
-settle into a stable, low-energy arrangement instead of freezing wherever they
-happened to be. The algorithm borrows the idea:
+settle into a stable, low-energy arrangement. The algorithm borrows the idea:
 
-- Start with terrain/numbers randomly placed on the fixed tile positions.
-- Each step, try a random swap (two tiles, or two number tokens).
+- Start with terrain and numbers randomly placed on the fixed tile positions.
+- Each step, try a random swap (two tiles, two number tokens, or two ports).
 - A swap that makes the board *better* (lower penalty) is always kept.
-- A swap that makes it *worse* is still sometimes kept — with a probability
-  that shrinks as a "temperature" value cools over the run.
+- A swap that makes it *worse* is still sometimes kept — with probability
+  `exp(−Δ/T)`, which shrinks as the "temperature" `T` cools over the run.
 
-That last rule is the whole point. A plain hill-climb (only ever accept
-improvements) gets stuck the moment every single swap looks worse, even if a
-genuinely good board is two swaps away. Annealing tolerates bad moves early
-(high temperature) and only tightens up near the end (temperature → ~0, which
-is effectively a hill-climb by that point). This is why it needs thousands of
-passes rather than one clever calculation.
+A plain hill-climb gets stuck the moment every single swap looks worse, even if
+a genuinely good board is two swaps away. Tolerating bad moves early is what
+lets annealing escape — and why it needs thousands of passes.
 
-## The scoring function (what "better" means)
+## The penalty function (what "better" means)
 
-Every candidate board gets a penalty score — lower is better:
+All weights live in `PENALTY` in `src/engine/objective.js`. Lower is better:
 
-- **Hard rules** — a 6 touching an 8 (or another 6/8) is penalized heavily;
-  so are duplicate adjacent numbers and same-resource clumping.
-- **Resource balance** — pips should track tile *count* per resource, not be
-  forced equal (ore/brick legitimately have fewer tiles, so fewer pips is
-  correct, not a flaw).
-- **Draft fairness** — the engine actually simulates a 1→N→1 snake draft
-  (players greedily grabbing the best open spot) and penalizes boards where
-  the best and worst seat end up far apart.
-- **Seating quality** — can all `2 × players` best spots actually be claimed
-  without conflicting with each other?
+- **Hard rules** — a 6 touching an 8 (or another 6/8), identical numbers
+  touching, same-terrain clumps.
+- **Resource balance** — pips should track tile *count* per resource (ore and
+  brick have fewer tiles, so fewer pips is correct, not a flaw).
+- **Port siting** — each 2:1 port wants its resource about two hexes away:
+  near enough to matter, far enough that one settlement can't hog both.
+- **Draft fairness** — two simulated snake drafts; penalise a wide
+  best-to-worst seat spread, seats short of 4 resources, and (Open Sea) any
+  seat without ore or wheat.
+- **Seating quality** — can `2 × players` non-conflicting strong spots be seated?
+- **Sea Lanes** — bays (2-spots with sea access) are good, spikes are traps.
 
-## Code breakdown
-
-One self-contained file, `catan-pangea/index.html` (~1,900 lines): hex-grid
-math → topology/counting → continent growth → ports/sea-lanes → the scoring
-function → the annealer → the SVG renderer → the analysis panel → the draft
-mode's turn-based state machine. No build step, no dependencies — it opens by
-double-click and runs entirely in the browser.
-
-## Tabs and sliders — what they actually change
+## Settings
 
 | Control | Effect |
 |---|---|
-| **Tabs I / II / III** | Pick the board-shaping strategy (see table above) |
-| **Draft tab** | Hand-place tiles yourself; engine only auto-places numbers + ports after |
-| **Land tiles** | `A` — how many hexes are in play |
-| **Compactness floor** | Target `S / Smax` — directly controls how many 3-spots you're guaranteed |
-| **Players** | How many seats the fairness simulation and port math optimize for |
-| **Balance profile** | C&K weights forest/pasture/mountains higher (they yield commodities); Base treats terrain evenly |
-| **Ship-to-port rule** | Flat = every port equally reachable by any ship; Per hop = distance actually matters (Seafarers-style) |
-| **Annealing passes** | More = tighter optimization, longer wait (diminishing returns past ~15,000) |
-| **Board overlays** | Visualize what the numbers already imply (spot quality, simulated settlements, sea lanes) |
-| **Seed** | Same seed + settings = identical board, every time |
+| **Board type** | Open Sea or Sea Lanes (top of the screen) |
+| **Players** | Seats the fairness simulation optimises for |
+| **Land tiles** | `A`. Below 19 the tile and number mix is trimmed proportionally (numbers in pairs mirrored around 7); above 19 it is extended |
+| **Game** | Cities & Knights weights forest / pasture / mountains higher (commodities); Base treats terrain evenly |
+| **Ship to port** | Sea Lanes only. Flat: any ship reaches any port. Per hop: water distance matters |
+| **Coastline** *(Advanced)* | Loose 0.80 · Standard 0.90 · Tight 0.95 of `Smax` |
+| **Optimiser** *(Advanced)* | Quick 6k · Standard 12k · Thorough 20k annealing steps |
+| **Replay a seed** *(Advanced)* | Same seed + same settings = the identical board |
+
+**New map** always rolls a fresh seed. The current seed is shown under the
+score, and settings are remembered on the device.
+
+## Code layout
+
+```
+catan-pangea/                 deployed as-is to GitHub Pages
+  index.html                  markup shell + "How it works" dialog
+  css/tokens.css              colour tokens (light + dark)
+  css/app.css                 layout (phone portrait / landscape / desktop) + components
+  src/main.js                 entry point
+  src/engine/                 pure, DOM-free map engine (runs in browser + Node)
+    hex.js shapes.js topology.js continent.js tileSet.js ports.js
+    seaLanes.js vertexModel.js objective.js Annealer.js scoring.js Board.js
+    generators/               BoardGenerator (template method) + OpenSea + SeaLanes + registry
+  src/app/                    App controller, Settings value object, safe storage
+  src/ui/                     BoardView (SVG), SettingsPanel, controls, ScoreCard,
+                              Sheet, ThemeController, imageExport, palette
+tests/                        node:test suite for the engine
+scripts/serve.js              zero-dependency local server
+```
+
+The engine never touches the DOM, so it can be tested in Node and moved into
+a Web Worker later without changes. UI components report intent to `App`;
+they never talk to each other or to the engine directly.
+
+**Adding a board type:** subclass `BoardGenerator`, override the hooks that
+differ (`domain`, `effectiveFloor`, `growthExponent`, `portSlotSource`,
+`buildLanes`), and add an instance to `GENERATORS` in
+`src/engine/generators/index.js`. The mode switch is built from that list.
