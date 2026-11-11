@@ -1,12 +1,41 @@
 # Catan Pangea
 
-Random-continent Catan map generators, plus a pass-the-phone tile draft mode —
-a single self-contained HTML file, no build step, no dependencies.
+Random-continent Catan map generator for game night: free-form continents
+with the coastline kept tight, numbers and ports optimised for a fair draft.
+Two board types — **Open Sea** and **Sea Lanes** — built mobile-first.
 
-**Run it:** open [catan-pangea/index.html](catan-pangea/index.html) in a browser.
+No build step and no runtime dependencies: plain ES modules, served as static
+files.
 
-**How it works:** see [catan-pangea/OVERVIEW.md](catan-pangea/OVERVIEW.md), or
-click "How it works" inside the app itself.
+## Run it locally
 
-**Live site:** published automatically from `catan-pangea/` via the GitHub
-Actions workflow in `.github/workflows/deploy-pages.yml`.
+ES modules don't load from `file://`, so serve the folder:
+
+```bash
+npm start
+```
+
+Then open http://localhost:8000. To try it on your phone on the same Wi-Fi:
+
+```bash
+HOST=0.0.0.0 npm start
+```
+
+## Test
+
+```bash
+npm test
+```
+
+Runs the engine test suite with Node's built-in test runner (Node 20+).
+
+## Deploy
+
+Pushing to `main` runs the tests, then publishes `catan-pangea/` to GitHub
+Pages via `.github/workflows/deploy-pages.yml`.
+
+## How it works
+
+See [catan-pangea/OVERVIEW.md](catan-pangea/OVERVIEW.md) — the math, the
+generator pipeline, the settings, and the code layout — or tap **?** in the
+app.

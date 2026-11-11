@@ -1,0 +1,65 @@
+/* ==========================================================================
+   Design tokens. A quiet, near-monochrome UI so the board carries the
+   colour. Light and dark are both first-class (dark suits game night).
+   The board renderer reads the board-* tokens at draw time, so exported
+   images match the theme on screen.
+   ========================================================================== */
+:root{
+  color-scheme: light;
+
+  --bg:        #F5F4F0;
+  --surface:   #FFFFFF;
+  --surface-2: #EDEBE6;
+  --raised:    #FFFFFF;
+  --ink:       #1B1B19;
+  --ink-2:     #5E5C57;
+  --ink-3:     #95928B;
+  --line:      #E2DFD8;
+
+  --primary:     #1B1B19;
+  --primary-ink: #FFFFFF;
+  --focus:       #2C6E8E;
+
+  --good: #3D7A52;
+  --ok:   #A8741F;
+  --bad:  #B4483A;
+
+  --board-gap:      #F5F4F0;   /* gutter between tiles */
+  --board-sea:      #DCE5E8;
+  --board-token:    #FBF8F1;
+  --board-token-ink:#22211F;
+  --board-red:      #B3382C;
+  --board-port:     #8B8579;
+  --board-port-3:   #F1EDE3;
+  --board-label:    #5E5C57;
+
+  --radius: 12px;
+  --shadow: 0 1px 2px rgb(0 0 0 / .05), 0 10px 30px -12px rgb(0 0 0 / .22);
+
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI",
+          system-ui, Roboto, "Helvetica Neue", sans-serif;
+}
+
+/* dark — once for "follow the system", once for an explicit choice */
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --bg:#121211; --surface:#1B1B19; --surface-2:#262522; --raised:#33322E;
+    --ink:#ECEAE4; --ink-2:#A8A59E; --ink-3:#6F6C66; --line:#2C2B28;
+    --primary:#ECEAE4; --primary-ink:#121211; --focus:#7DB6D2;
+    --good:#6DB088; --ok:#D9A350; --bad:#E07A68;
+    --board-gap:#121211; --board-sea:#1B2529; --board-token:#F1EDE4; --board-token-ink:#1D1C1A;
+    --board-red:#B3382C; --board-port:#8E897F; --board-port-3:#E9E4D8; --board-label:#A8A59E;
+    --shadow: 0 1px 2px rgb(0 0 0 / .4), 0 12px 34px -14px rgb(0 0 0 / .8);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --bg:#121211; --surface:#1B1B19; --surface-2:#262522; --raised:#33322E;
+  --ink:#ECEAE4; --ink-2:#A8A59E; --ink-3:#6F6C66; --line:#2C2B28;
+  --primary:#ECEAE4; --primary-ink:#121211; --focus:#7DB6D2;
+  --good:#6DB088; --ok:#D9A350; --bad:#E07A68;
+  --board-gap:#121211; --board-sea:#1B2529; --board-token:#F1EDE4; --board-token-ink:#1D1C1A;
+  --board-red:#B3382C; --board-port:#8E897F; --board-port-3:#E9E4D8; --board-label:#A8A59E;
+  --shadow: 0 1px 2px rgb(0 0 0 / .4), 0 12px 34px -14px rgb(0 0 0 / .8);
+}
