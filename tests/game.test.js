@@ -2,7 +2,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { MemoryStore } from "../catan-pangea/src/sync/MemoryStore.js";
 import { GameService, GameError } from "../catan-pangea/src/game/GameService.js";
-import { MAX_VP, KNIGHTS_PER_PLAYER, CITIES_PER_PLAYER, KARMA_LIMIT, ISLANDS, KNIGHT_TIERS, knightCounter, knightsLeft, stepWithin, nextRobber, validateName, seasonOf } from "../catan-pangea/src/game/rules.js";
+import { MAX_VP, KNIGHTS_PER_PLAYER, CITIES_PER_PLAYER, KARMA_LIMIT, stepWithin, nextRobber, validateName, seasonOf } from "../catan-pangea/src/game/rules.js";
 
 /* a tiny fake board snapshot is enough — the service never inspects tiles */
 const board = (players = 3, seed = "test-seed") => ({
@@ -91,38 +91,15 @@ test("coins start honorable and only their owner can flip them", async () => {
   assert.equal((await state()).seatOf(ids.alice).honorable, true);
 });
 
-test("each knight tier is one pool of 2 × players for both islands; strength adds up per island", async () => {
-  assert.deepEqual(KNIGHT_TIERS.map(t => t.strength), [3, 2, 1]);
-  for(let i = 0; i < 4; i++) await alice.adjustCounter("mainMighty", +1);
-  for(let i = 0; i < 5; i++) await bob.adjustCounter("offMighty", +1);     /* 3 players → 6 mighty: only 2 left */
-  await alice.adjustCounter("mainMighty", +1);                               /* none left for either island */
-  await bob.adjustCounter("mainStrong", +1);
-  await carol.adjustCounter("mainBasic", +1);
-  await carol.adjustCounter("mainBasic", +1);
-  await bob.adjustCounter("offBasic", -3);
+test("knights: main island and off island are separate counters, each 0 to 12 × players", async () => {
+  for(let i = 0; i < 40; i++) await alice.adjustCounter("knightsMain", +1);   /* 3 players → max 36 */
+  await bob.adjustCounter("knightsOff", +2);
+  await carol.adjustCounter("knightsOff", -5);
   let s = await state();
-  assert.deepEqual([s.counters.mainMighty, s.counters.offMighty], [4, 2]);
-  assert.equal(knightsLeft(s.counters, "mighty", 3), 0);
-  assert.equal(knightsLeft(s.counters, "strong", 3), KNIGHTS_PER_PLAYER * 3 - 1, "tiers have separate pools");
-  assert.equal(s.counters.offBasic, 0);
-  assert.deepEqual(s.knightStrength, { main:4 * 3 + 1 * 2 + 2 * 1, off:2 * 3 });
-
-  await alice.adjustCounter("mainMighty", -1);                               /* frees one for either island */
-  await bob.adjustCounter("offMighty", +1);
-  s = await state();
-  assert.deepEqual([s.counters.mainMighty, s.counters.offMighty], [3, 3]);
-  assert.deepEqual(s.knightStrength, { main:3 * 3 + 2 + 2, off:3 * 3 }, "strength follows every change");
-  /* every island × tier is its own counter */
-  assert.equal(ISLANDS.length * KNIGHT_TIERS.length, 6);
-  for(const i of ISLANDS) for(const t of KNIGHT_TIERS) assert.equal(typeof s.counters[knightCounter(i.id, t.id)], "number");
-});
-
-test("a game saved with more knights than the pool can only step back down, one at a time", async () => {
-  await store.set("v1/session/counters", { ...(await state()).counters, mainMighty:5, offMighty:5 });   /* 10 > 6 */
-  await alice.adjustCounter("offMighty", +1);
-  assert.equal((await state()).counters.offMighty, 5, "no more while over");
-  await alice.adjustCounter("mainMighty", -1);
-  assert.equal((await state()).counters.mainMighty, 4, "not snapped down to the cap");
+  assert.equal(s.counters.knightsMain, KNIGHTS_PER_PLAYER * 3);
+  assert.equal(s.counters.knightsOff, 0, "never below 0");
+  await bob.adjustCounter("knightsOff", +1);
+  assert.equal((await state()).counters.knightsOff, 1, "a full main island doesn't limit the off island");
 });
 
 test("cities are a shared ±1 counter from 0 to 4 × players", async () => {
@@ -132,10 +109,10 @@ test("cities are a shared ±1 counter from 0 to 4 × players", async () => {
   assert.equal((await state()).counters.cities, CITIES_PER_PLAYER * 3);
 });
 
-test("older games without the new counters read as 0 and can still be changed", async () => {
+test("older games without the cities counter read it as 0 and can still change it", async () => {
   await store.set("v1/session/counters", { knightsMain:4, knightsOff:2, karma:1, robber:2 });
   let s = await state();
-  assert.equal(s.counters.mainMighty, 0);
+  assert.deepEqual([s.counters.knightsMain, s.counters.knightsOff], [4, 2]);
   assert.equal(s.counters.cities, 0);
   await alice.adjustCounter("cities", +1);
   assert.equal((await state()).counters.cities, 1);
@@ -162,7 +139,7 @@ test("a new board starts a fresh session: trackers reset, seats and colors carry
   const key = (await state()).seatOf(ids.alice).key;
   for(let i = 0; i < 13; i++) await alice.adjustVP(key, +1);
   await alice.adjustCounter("karma", +3);
-  await alice.adjustCounter("offStrong", +2);
+  await alice.adjustCounter("knightsOff", +2);
   await carol.flipCoin((await state()).seatOf(ids.carol).key, ids.carol);
   const firstId = (await state()).sessionId;
   assert.equal((await state()).hasProgress, true);
@@ -174,7 +151,7 @@ test("a new board starts a fresh session: trackers reset, seats and colors carry
   assert.deepEqual(s.seats.map(x => [x.profile?.name ?? null, x.color]), [["Alice","red"], ["Carol","green"], [null, null], [null, null]]);
   assert.ok(s.seats.every(x => x.vp === 0 && x.honorable), "scores and coins start over");
   assert.equal(s.counters.karma, 0);
-  assert.equal(s.counters.offStrong, 0);
+  assert.equal(s.counters.knightsOff, 0);
   assert.equal(s.hasProgress, false, "kept seats alone aren't progress");
   assert.equal(s.winsFor(seasonOf(NOW)).find(r => r.profile.id === ids.alice).wins, 1, "the win survives the new game");
 });

@@ -3,7 +3,7 @@
  * the wins ledger) with the derived facts the UI needs. Built fresh on
  * every change; never mutated.
  */
-import { MAX_VP, COUNTERS, ISLANDS, knightStrength, colorById, seatKey, seasonOf } from "./rules.js";
+import { MAX_VP, COUNTERS, colorById, seatKey, seasonOf } from "./rules.js";
 
 /**
  * @typedef {{ id:string, name:string, createdAt:number, deviceId:string }} Profile
@@ -38,12 +38,6 @@ export class GameState {
   get counters(){
     const c = this.session?.counters ?? {};
     return { ...Object.fromEntries(Object.keys(COUNTERS).map(k => [k, c[k] ?? 0])), robber:c.robber ?? 1 };
-  }
-
-  /** Knight strength per island, e.g. { main:7, off:0 } (derived, never stored). */
-  get knightStrength(){
-    const c = this.counters;
-    return Object.fromEntries(ISLANDS.map(i => [i.id, knightStrength(c, i.id)]));
   }
 
   /** @returns {Seat[]} */
