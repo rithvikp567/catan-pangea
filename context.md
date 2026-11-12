@@ -36,7 +36,7 @@ It is used mostly **on phones at game night**, so the UI is mobile-first.
 | **Sea Lanes** board | Land inside the 5–6 player frame; leftover frame slots are navigable water. A player may pay a ship to claim one otherwise unreachable frame port, one player per port. "Flat" ship cost = any ship reaches any port; "Per hop" = water distance matters. |
 | **Cities & Knights** | Optional balance profile: forest / pasture / mountains are worth more (commodities). |
 | **13 VP to win** | Tracker caps VP at 13 and shows Victory / Defeat. |
-| **Knights: tiers, per island** | Knights are Mighty (strength 3), Strong (2) or Basic (1); each player has 2 of each tier. Tracked separately on the main island and off island, but each tier is **one pool for both islands**: main + off ≤ 2 × players (3 players → 6 mighty in total, however they're split). Each island's **knight strength** = 3·mighty + 2·strong + 1·basic (derived, never stored). |
+| **Knights, per island** | Two shared counters, **Main island** and **Off island**, each 0 … 12 × players on its own. (A tiered version — mighty / strong / basic with a derived knight strength — was tried in 2.1.0 and reverted in 2.1.1 as too much for the table.) |
 | **Cities** | A shared counter, 0 … 4 × players (city pieces in the box). |
 | **Karma** | A shared ± number (homebrew; the app only tracks it). |
 | **Robber points** | A shared value cycling 1 → 2 → 3; **Collect** subtracts it from karma. |
@@ -121,17 +121,21 @@ on the tracker): everything works, but nothing is shared between phones.
   their seat and color** (if the new map has fewer seats, the players who
   don't fit pick again), **season wins are kept**.
 - **Tracker screen** (`#/tracker`, *Tracker* button in the dock):
-  - Victory points — one row per seat (seat count = the map's player
-    count), 0–13. **Anyone can edit any player's VP.**
-  - Honor — one coin per seat in that player's color; only the owner can
-    flip theirs.
-  - Cities and Knights — for Main island and Off island: Mighty (×3),
-    Strong (×2) and Basic (×1) knights, with the island's **Knight
-    strength** shown beside its name. Each tier is one pool of 2 × players
-    shared by both islands; every tier row shows "N of M left" and + stops
-    when the pool is empty. Then **Cities** (0…4 × players).
-  - Karma (±99, the digits stay centred with the sign hanging left) and
-    Robber (tap cycles 1→2→3; **Collect: −N** subtracts it from karma).
+  - **Fits one phone screen without scrolling** (4 players down to an
+    iPhone SE in Safari; 6 players on any current iPhone or Android — on
+    an SE-sized screen 6 players scroll a little). The seat rows share the
+    height the rest leaves: `--tracker-chrome` in `screens.css` is the
+    measured height of everything else.
+  - Victory points & honor — one row per seat (seat count = the map's
+    player count): that player's honor coin in their color (only the owner
+    can flip it; "Honorable" / "Dishonorable" under the name), then VP
+    0–13. **Anyone can edit any player's VP.**
+  - Cities and Knights — three compact tiles in one row: Main island
+    knights, Off island knights (each 0…12 × players) and Cities
+    (0…4 × players).
+  - Karma & robber — one row: Karma (±99, the digits stay centred with the
+    sign hanging left), Robber (just the number, exactly centred; tap
+    cycles 1→2→3) and **Collect: −N** (subtracts it from karma).
 - **Victory screen**: when a seated player hits 13 VP, they see *Victory*,
   other seated players see *Defeat* (spectators see "X wins"). **Continue**
   returns to the tracker with numbers intact. If that player drops below 13
@@ -354,7 +358,7 @@ v1/
     board:    BoardSnapshot  { v:1, generatorId, request, tiles:["q,r|terrain|num"], ports:["edge|hex|type|res"] }
     settings: Settings#toJSON()
     seats:    { s0:{ vp, honorable, profileId?, color? }, s1:…, … }   (keys "s0…" — numeric keys become arrays)
-    counters: { mainMighty, mainStrong, mainBasic, offMighty, offStrong, offBasic, cities, karma, robber }
+    counters: { knightsMain, knightsOff, cities, karma, robber }
               (one key per COUNTERS entry; a missing key reads as 0, so older games keep working)
   wins/{season}/{entryId}: { profileId, delta (±1), source:"game"|"admin", sessionId?, at }
 ```
@@ -365,7 +369,7 @@ v1/
 - Nulls are never stored (RTDB semantics); `prune()` in `MemoryStore`
   normalises writes identically for every adapter.
 - **Concurrency:** every change to shared numbers is a transaction with the
-  limits applied inside it (VP 0–13, each knight tier main + off ≤ 2×N, cities 0–4×N, karma ±99, color
+  limits applied inside it (VP 0–13, knights 0–12×N per island, cities 0–4×N, karma ±99, color
   uniqueness, seat availability), so simultaneous taps from several phones
   never lose updates or break a limit. Counter controls send **deltas**.
 - **RTDB caveat:** a transaction may first run with `null` if nothing is
@@ -416,16 +420,13 @@ your run created afterwards — never `DELETE /v1` once real data exists.
   `oreWheatFloor`, `usesShipRule`), add an instance to `GENERATORS`. Add
   tests in `generators.test.js` (they iterate over `GENERATORS`).
 - **New shared counter:** add it to `COUNTERS` in `game/rules.js` (label +
-  bounds as functions of the player count and the current counters —
-  `max(players, counters)`, which is how a knight tier sees the other
-  island's share of its pool). `newSession()`,
+  bounds as functions of the player count). `newSession()`,
   `GameState.counters`, `hasProgress` and `GameService.adjustCounter` all
   derive from `COUNTERS`; render it in `TrackerScreen` with the
-  `scaled(name, hintOf)` helper (bounds follow the table size). Steps go
+  `tile(name, label)` helper (bounds follow the table size). Steps go
   through `stepWithin`, so a value saved past a later, tighter bound can
-  still step back one at a time. Add a test.
-- **New knight tier or island:** add it to `KNIGHT_TIERS` / `ISLANDS` in
-  `rules.js` — counters, strength and the tracker rows are generated from them.
+  still step back one at a time. Adding a row of tiles makes the screen
+  taller: re-measure and update `--tracker-chrome`. Add a test.
 - **New per-player stat:** add the field to seats in `newSession()`, read it
   in `GameState.seats`, add a `GameService` method using a seat
   transaction, render it in `TrackerScreen.#buildSeats`.
@@ -465,11 +466,18 @@ your run created afterwards — never `DELETE /v1` once real data exists.
 
 Keep newest first. Every feature PR adds an entry and updates the sections above.
 
+- **2.1.1 — Compact tracker.** The tracker fits one phone screen without
+  scrolling: honor coins moved into the victory-point rows, Cities and
+  Knights and Karma & robber are single rows of compact tiles, and the
+  seat rows share the leftover height. Knights back to the two simple
+  counters (main island / off island, 0–12 × players each); the
+  mighty / strong / basic tiers and knight strength are gone. The robber
+  number is exactly centred in its button (it was laid out on the text
+  baseline). On desktop, players sit left with the shared cards right.
 - **2.1.0 — Game tracker (multiplayer).** Profiles (one per device), join
   with a unique color, session = map seed shared by every phone (board
   snapshots), live tracker (VP 0–13, honor coins, Cities and Knights —
-  mighty/strong/basic knights per island with knight strength, each tier
-  one pool of 2 × players for both islands, cities —
+  knights per island, briefly in tiers, and cities —
   karma, robber cycle + "Collect: −N"), New map keeps seats and colors, victory / defeat screen with Continue and
   re-trigger, season wins ledger (record / revoke at 13), admin (remove
   profiles, edit wins), sync adapters (Firebase / this device / memory),

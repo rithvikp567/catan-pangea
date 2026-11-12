@@ -168,11 +168,7 @@ export class GameService {
     if(!res.committed) throw new GameError("not-your-coin", "You can only flip your own coin.");
   }
 
-  /**
-   * Any COUNTERS entry (knight tiers, cities, karma) by ±n, within its
-   * bounds. The bounds are read inside the transaction, so two phones adding
-   * the last knight of a tier on different islands can't both get it.
-   */
+  /** Any COUNTERS entry (knights per island, cities, karma) by ±n, within its bounds. */
   async adjustCounter(name, delta){
     const rule = COUNTERS[name];
     if(!rule) throw new GameError("bad-counter", `Unknown counter ${name}`);
@@ -180,7 +176,7 @@ export class GameService {
     if(!players) return;
     await this.store.transact(this.#p("session", "counters"), c => {
       if(!c) return undefined;
-      const next = stepWithin(c[name] ?? 0, delta, rule.min(players), rule.max(players, c));
+      const next = stepWithin(c[name] ?? 0, delta, rule.min(players), rule.max(players));
       return next === (c[name] ?? 0) ? undefined : { ...c, [name]: next };
     });
   }

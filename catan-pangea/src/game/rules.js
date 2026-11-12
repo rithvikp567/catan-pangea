@@ -5,7 +5,7 @@
  */
 
 export const MAX_VP = 13;
-export const KNIGHTS_PER_PLAYER = 2;           /* each player has 2 knights of each tier */
+export const KNIGHTS_PER_PLAYER = 12;          /* each island's knight track tops out at 12 × players */
 export const CITIES_PER_PLAYER = 4;            /* city pieces in the box */
 export const KARMA_LIMIT = 99;                  /* karma is ± and unbounded in spirit; ±99 keeps the display sane */
 export const ROBBER_VALUES = Object.freeze([1, 2, 3]);
@@ -22,47 +22,13 @@ export const PLAYER_COLORS = Object.freeze([
 ]);
 export const colorById = id => PLAYER_COLORS.find(c => c.id === id) ?? null;
 
-/** Knights are tracked per island (house rule) and per tier. */
-export const ISLANDS = Object.freeze([
-  { id:"main", label:"Main island" },
-  { id:"off",  label:"Off island" },
-]);
-export const KNIGHT_TIERS = Object.freeze([
-  { id:"mighty", label:"Mighty", strength:3 },
-  { id:"strong", label:"Strong", strength:2 },
-  { id:"basic",  label:"Basic",  strength:1 },
-]);
-/** Counter name for one island's knights of one tier, e.g. "mainMighty". */
-export const knightCounter = (island, tier) => island + tier[0].toUpperCase() + tier.slice(1);
-
-/** Knights of one tier in the box: 2 per player, shared by both islands. */
-export const knightPool = players => KNIGHTS_PER_PLAYER * players;
-/** Knights of one tier on every island together. */
-export const knightsInPlay = (counters, tier) =>
-  ISLANDS.reduce((sum, i) => sum + (counters?.[knightCounter(i.id, tier)] ?? 0), 0);
-/** Knights of one tier still in the box (never below 0). */
-export const knightsLeft = (counters, tier, players) => Math.max(0, knightPool(players) - knightsInPlay(counters, tier));
-
-/**
- * Shared counters on the board, with their bounds for a given table size
- * and the current counters. A knight tier is one pool for both islands:
- * an island can hold whatever the other island leaves of 2 × players.
- */
+/** Shared counters on the board, with their bounds for a given table size. */
 export const COUNTERS = Object.freeze({
-  ...Object.fromEntries(ISLANDS.flatMap(i => KNIGHT_TIERS.map(t => {
-    const name = knightCounter(i.id, t.id);
-    return [name, {
-      label:`${i.label} ${t.label.toLowerCase()} knights`, min:() => 0,
-      max:(players, counters = {}) => (counters[name] ?? 0) + knightsLeft(counters, t.id, players),
-    }];
-  }))),
-  cities:{ label:"Cities", min:() => 0, max:players => CITIES_PER_PLAYER * players },
-  karma: { label:"Karma",  min:() => -KARMA_LIMIT, max:() => KARMA_LIMIT },
+  knightsMain:{ label:"Main island knights", min:() => 0, max:players => KNIGHTS_PER_PLAYER * players },
+  knightsOff: { label:"Off island knights",  min:() => 0, max:players => KNIGHTS_PER_PLAYER * players },
+  cities:     { label:"Cities",              min:() => 0, max:players => CITIES_PER_PLAYER * players },
+  karma:      { label:"Karma",               min:() => -KARMA_LIMIT, max:() => KARMA_LIMIT },
 });
-
-/** Knight strength on one island: mighty × 3 + strong × 2 + basic × 1. */
-export const knightStrength = (counters, island) =>
-  KNIGHT_TIERS.reduce((sum, t) => sum + t.strength * (counters[knightCounter(island, t.id)] ?? 0), 0);
 
 export const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 export const clampVP = vp => clamp(vp, 0, MAX_VP);

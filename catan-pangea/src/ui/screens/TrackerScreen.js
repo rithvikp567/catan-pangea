@@ -1,12 +1,13 @@
 /**
- * The in-game tracker, shared live by everyone at the table:
- *   Victory points  — one row per seat, 0–13 (13 triggers the victory screen)
- *   Honor             — one coin per seat; you can only flip your own
- *   Cities and Knights — per island: mighty / strong / basic knights and
- *                        the knight strength they add up to (each tier is
- *                        one pool of 2 × players for both islands); plus
- *                        the shared city count (0–4 × players)
- *   Karma & robber    — karma ±; robber cycles 1→2→3, Collect takes it off karma
+ * The in-game tracker, shared live by everyone at the table. Laid out to
+ * fit one phone screen without scrolling:
+ *   Victory points & honor — one row per seat: that player's honor coin
+ *                            (only its owner can flip it), name, and VP
+ *                            0–13 (13 triggers the victory screen)
+ *   Cities and Knights     — main island knights, off island knights (each
+ *                            0–12 × players) and cities (0–4 × players)
+ *   Karma & robber         — karma ±; robber cycles 1→2→3, Collect takes
+ *                            its value off karma
  *
  * Structure is rebuilt only when the seating changes; values update in
  * place so a press-and-hold isn't interrupted by other phones' updates.
@@ -14,7 +15,7 @@
 import { h } from "../dom.js";
 import { Screen } from "./Screen.js";
 import { CounterControl } from "../controls.js";
-import { MAX_VP, COUNTERS, CITIES_PER_PLAYER, ISLANDS, KNIGHT_TIERS, knightCounter, knightPool, knightsLeft } from "../../game/rules.js";
+import { MAX_VP, COUNTERS } from "../../game/rules.js";
 import { syncStatusPill, section, inkOn, ICONS } from "./widgets.js";
 
 const EMPTY_SEAT_HEX = "#B9B5AC";
@@ -25,7 +26,6 @@ export class TrackerScreen extends Screen {
   build(){
     this.layoutKey = null;
     this.lastFaces = new Map();
-    const row = (label, control, hint) => h("div", { class:"track-row" }, h("span", { class:"track-label" }, label, hint), control);
 
     const wins = h("button", { type:"button", class:"icon-btn", "aria-label":"Season wins", title:"Season wins", onClick:() => this.router.go("wins") });
     wins.innerHTML = ICONS.trophy;
@@ -34,53 +34,31 @@ export class TrackerScreen extends Screen {
 
     this.meta = h("div", { class:"tracker-meta" });
     this.empty = h("p", { class:"card empty" }, "No game yet — generate a map to start one.");
-
     this.vpList = h("div", { class:"vp-list" });
-    this.coinRow = h("div", { class:"coin-row" });
 
-    /* bounded counters that scale with the table: name → { ctl, hint, hintOf(state) } */
-    this.scaled = new Map();
-    const scaled = (name, hintOf) => {
-      const ctl = new CounterControl({ label:COUNTERS[name].label, min:0, max:0, onStep:d => this.game.adjustCounter(name, d) });
-      const hint = h("small");
-      this.scaled.set(name, { ctl, hint, hintOf });
-      return { ctl, hint };
+    /* shared counters as compact tiles — a label over a stepper; bounds follow the table size */
+    this.shared = new Map();
+    const tile = (name, label, opts = {}) => {
+      const rule = COUNTERS[name];
+      const ctl = new CounterControl({ label:rule.label, min:rule.min(0), max:rule.max(0), onStep:d => this.game.adjustCounter(name, d), ...opts });
+      this.shared.set(name, ctl);
+      return h("div", { class:"tile" }, h("span", { class:"tile-label", "aria-hidden":"true" }, label), ctl.el);
     };
-    this.strength = new Map();
-    const islandBlocks = ISLANDS.map(island => {
-      const total = h("b", { class:"strength-value" }, "0");
-      this.strength.set(island.id, total);
-      return h("div", { class:"island" },
-        h("div", { class:"island-head" },
-          h("h3", {}, island.label),
-          h("span", { class:"strength", "aria-label":`${island.label} knight strength` }, "Knight strength", total)),
-        ...KNIGHT_TIERS.map(t => {
-          const { ctl, hint } = scaled(knightCounter(island.id, t.id),
-            st => `×${t.strength} · ${knightsLeft(st.counters, t.id, st.players)} of ${knightPool(st.players)} left`);
-          return row(t.label, ctl.el, hint);
-        }));
-    });
-    const cities = scaled("cities", st => `max ${CITIES_PER_PLAYER * st.players}`);
 
-    this.karma = new CounterControl({
-      label:"Karma", min:COUNTERS.karma.min(), max:COUNTERS.karma.max(),
-      onStep:d => this.game.adjustCounter("karma", d), signed:true,
-    });
-    this.robberBtn = h("button", { type:"button", class:"robber-btn", onClick:() => this.game.cycleRobber() });
+    this.robberValue = h("span", { class:"robber-value" });
+    this.robberBtn = h("button", { type:"button", class:"robber-btn", title:"Tap to cycle 1 → 2 → 3", onClick:() => this.game.cycleRobber() }, this.robberValue);
     this.collectBtn = h("button", { type:"button", class:"btn collect-btn", onClick:() => this.game.collectRobber() });
 
-    const citiesKnights = section("Cities and Knights", ...islandBlocks, h("div", { class:"island cities" }, row("Cities", cities.ctl.el, cities.hint)));
-    citiesKnights.classList.add("is-tall");     /* spans two rows beside Honor + Karma on wide screens */
     this.sections = h("div", { class:"tracker-grid" },
-      section("Victory points", this.vpList),
-      section("Honor", this.coinRow),
-      citiesKnights,
-      section("Karma & robber",
-        row("Karma", this.karma.el),
-        h("div", { class:"track-row" },
-          h("span", { class:"track-label" }, "Robber", h("small", {}, "Tap to cycle 1 → 2 → 3")),
-          this.robberBtn),
-        this.collectBtn));
+      section("Victory points & honor", this.vpList),
+      section("Cities and Knights", h("div", { class:"tiles" },
+        tile("knightsMain", "Main island"),
+        tile("knightsOff", "Off island"),
+        tile("cities", "Cities"))),
+      section("Karma & robber", h("div", { class:"tiles is-karma" },
+        tile("karma", "Karma", { signed:true }),
+        h("div", { class:"tile" }, h("span", { class:"tile-label", "aria-hidden":"true" }, "Robber"), this.robberBtn),
+        this.collectBtn)));
 
     this.body.append(this.meta, this.empty, this.sections);
   }
@@ -94,7 +72,7 @@ export class TrackerScreen extends Screen {
 
     const me = this.game.me, mySeat = this.game.mySeat, seats = state.seats;
     this.meta.replaceChildren(
-      h("span", {}, `Seed ${session.meta.seed} · ${state.players} players`),
+      h("span", { class:"tracker-seed" }, `Seed ${session.meta.seed} · ${state.players} players`),
       h("button", { type:"button", class:"link-btn", onClick:() => this.router.go("join") },
         mySeat ? `Playing as ${me.name} · change` : me ? `Join as ${me.name}` : "Join the game"));
 
@@ -107,41 +85,41 @@ export class TrackerScreen extends Screen {
       this.#paintCoin(s);
     }
     const c = state.counters;
-    for(const [name, { ctl, hint, hintOf }] of this.scaled){
-      ctl.setBounds(COUNTERS[name].min(state.players), COUNTERS[name].max(state.players, c)); ctl.set(c[name]);
-      hint.textContent = hintOf(state);
+    for(const [name, ctl] of this.shared){
+      const rule = COUNTERS[name];
+      ctl.setBounds(rule.min(state.players), rule.max(state.players));
+      ctl.set(c[name]);
     }
-    for(const [island, el] of this.strength) el.textContent = String(state.knightStrength[island]);
-    this.karma.set(c.karma);
-    this.robberBtn.replaceChildren(h("span", { class:"robber-value" }, String(c.robber)), h("span", {}, c.robber === 1 ? "point" : "points"));
-    this.robberBtn.setAttribute("aria-label", `Robber worth ${c.robber}. Tap to change.`);
+    this.robberValue.textContent = String(c.robber);
+    this.robberBtn.setAttribute("aria-label", `Robber worth ${c.robber} ${c.robber === 1 ? "point" : "points"}. Tap to cycle 1, 2, 3.`);
     this.collectBtn.textContent = `Collect: −${c.robber}`;
   }
 
   #buildSeats(seats, mySeat){
     this.vpControls = new Map();
     this.coins = new Map();
+    this.vpList.style.setProperty("--seats", String(seats.length));   /* rows share the height left over */
     this.vpList.replaceChildren(...seats.map(s => {
       const name = s.profile ? s.profile.name : `Open seat ${s.index + 1}`;
+      const mine = s.key === mySeat?.key;
+      const hex = s.colorHex ?? EMPTY_SEAT_HEX;
       const ctl = new CounterControl({ label:`${name} victory points`, min:0, max:MAX_VP, onStep:d => this.game.adjustVP(s.key, d) });
       this.vpControls.set(s.key, ctl);
-      return h("div", { class:"vp-row", "data-me":String(s.key === mySeat?.key), "data-open":String(!s.profile) },
-        h("span", { class:"seat-dot", style:`--c:${s.colorHex ?? EMPTY_SEAT_HEX}` }),
-        h("span", { class:"vp-name" }, name, s.key === mySeat?.key ? h("small", {}, "you") : null),
-        h("span", { class:"vp-control" }, ctl.el, h("small", { class:"vp-max" }, `/${MAX_VP}`)));
-    }));
 
-    this.coinRow.replaceChildren(...seats.map(s => {
-      const hex = s.colorHex ?? EMPTY_SEAT_HEX;
-      const mine = s.key === mySeat?.key;
-      const face = h("span", { class:"coin-face", style:`--c:${hex};--coin-ink:${inkOn(hex)};--coin:${hex}` });
-      const state = h("small", { class:"coin-state" });
-      const label = h("span", { class:"coin-name" }, s.profile ? s.profile.name : "Open");
-      const el = mine
-        ? h("button", { type:"button", class:"coin is-mine", onClick:() => this.game.flipMyCoin() }, face, label, state)
-        : h("div", { class:"coin", "data-open":String(!s.profile) }, face, label, state);
-      this.coins.set(s.key, { el, face, state, mine, name:s.profile?.name ?? "Open seat" });
-      return el;
+      /* the seat's honor coin, in its color — a button only for its owner */
+      const face = h("span", { class:"coin-face", style:`--c:${hex};--coin-ink:${inkOn(hex)}` });
+      const coin = mine
+        ? h("button", { type:"button", class:"coin is-mine", onClick:() => this.game.flipMyCoin() }, face)
+        : h("span", { class:"coin", role:"img" }, face);
+      const honor = h("small", { class:"coin-state" });
+      this.coins.set(s.key, { el:coin, face, state:honor, mine, name:s.profile?.name ?? "Open seat" });
+
+      return h("div", { class:"vp-row", "data-me":String(mine), "data-open":String(!s.profile) },
+        coin,
+        h("span", { class:"vp-name" },
+          h("span", { class:"vp-name-line" }, h("span", { class:"vp-name-text" }, name), mine ? h("small", { class:"you" }, "you") : null),
+          honor),
+        h("span", { class:"vp-control" }, ctl.el, h("small", { class:"vp-max" }, `/${MAX_VP}`)));
     }));
     this.lastFaces.clear();
   }
