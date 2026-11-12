@@ -10,7 +10,7 @@ import { Smax, topology, outerCoast } from "../topology.js";
 import { growContinent, compactify } from "../continent.js";
 import { dealTiles } from "../tileSet.js";
 import { orderBoundary, evenSpots, portSet, assignPorts } from "../ports.js";
-import { buildContext } from "../objective.js";
+import { buildContext, evaluate } from "../objective.js";
 import { Annealer } from "../Annealer.js";
 import { Board } from "../Board.js";
 
@@ -92,6 +92,40 @@ export class BoardGenerator {
     return new Board({
       generatorId:this.id, request, topo, domain, targetS, lanes,
       tiles:out.tiles, portSlots:out.portSlots, evaluation:out.evaluation,
+    });
+  }
+
+  /**
+   * Rebuild a Board from Board#toSnapshot() — no annealing, so it is
+   * instant and identical on every device. The score is re-derived with
+   * the same seeded draft simulation, so it matches the original.
+   * @param {import("../Board.js").BoardSnapshot} snapshot
+   * @returns {Board}
+   */
+  restore(snapshot){
+    if(snapshot?.v !== 1 || snapshot.generatorId !== this.id) throw new Error("Unsupported board snapshot");
+    const request = this.normalise(snapshot.request);
+    const tiles = new Map();
+    for(const row of snapshot.tiles){
+      const [key, terrain, num] = row.split("|");
+      tiles.set(key, { key, terrain, num: Number(num) || null });
+    }
+    const portSlots = snapshot.ports.map(row => {
+      const [edge, hex, type, res] = row.split("|");
+      return { edge, hex, port:{ type, res: res === "-" ? null : res } };
+    });
+    const land = new Set(tiles.keys());
+    const topo = topology(land);
+    const domain = this.domain();
+    const lanes = this.buildLanes(land, domain, portSlots, request);
+    const ctx = buildContext({
+      topo, portSlots, lanes, seed:hashSeed(request.seed),
+      profile:request.profile, nPlayers:request.players, oreWheatFloor:this.oreWheatFloor,
+    });
+    return new Board({
+      generatorId:this.id, request, topo, domain, lanes, tiles, portSlots,
+      evaluation:evaluate(ctx, tiles),
+      targetS:Math.round(Smax(request.tiles) * this.effectiveFloor(request.compactness)),
     });
   }
 }

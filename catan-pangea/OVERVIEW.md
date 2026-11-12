@@ -110,7 +110,21 @@ All weights live in `PENALTY` in `src/engine/objective.js`. Lower is better:
 **New map** always rolls a fresh seed. The current seed is shown under the
 score, and settings are remembered on the device.
 
+## Game tracker
+
+Tap **Tracker** during the game. Everyone joins with a profile (one per
+device, username only) and picks a colour nobody else has; the session is
+the map on screen, so a **New map** starts a fresh game for everyone. It
+tracks, live on every phone: victory points (0–13 — hitting 13 shows
+Victory / Defeat), each player's honour coin (flip your own), knights on the
+main island and off island (0–12 × players each), karma, and the robber
+(1 → 2 → 3, **Collect** takes it off karma). Wins are tallied per season
+(calendar year); an admin profile can fix wins and remove profiles.
+
 ## Code layout
+
+The full technical reference — architecture, data model, how to extend,
+changelog — is [`context.md`](../context.md) at the repo root.
 
 ```
 catan-pangea/                 deployed as-is to GitHub Pages

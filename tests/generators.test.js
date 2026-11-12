@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { GENERATORS, getGenerator, BoardGenerator, Annealer, AbortError } from "../catan-pangea/src/engine/index.js";
+import { GENERATORS, getGenerator, restoreBoard, BoardGenerator, Annealer, AbortError } from "../catan-pangea/src/engine/index.js";
 import { TERRAIN, PORT_SITE_DIST } from "../catan-pangea/src/engine/catalog.js";
 import { hexDist } from "../catan-pangea/src/engine/hex.js";
 
@@ -77,6 +77,23 @@ test("Sea Lanes: land stays inside the frame and leftover frame hexes are water"
 test("tile counts are clamped to what a board type supports", async () => {
   const board = await getGenerator("lanes").generate(request("clamp", { tiles:99, iterations:500 }), { annealer });
   assert.equal(board.tiles.size, 30);
+});
+
+for(const gen of GENERATORS){
+  test(`${gen.name}: a snapshot restores the identical board and score`, async () => {
+    const board = await gen.generate(request("snap", { tiles:21 }), { annealer });
+    const snap = JSON.parse(JSON.stringify(board.toSnapshot()));   /* survives a JSON round trip */
+    const back = restoreBoard(snap);
+    assert.equal(fingerprint(back), fingerprint(board));
+    assert.equal(back.score.total, board.score.total);
+    assert.equal(back.seed, "snap");
+    assert.equal(!!back.lanes, !!board.lanes);
+  });
+}
+
+test("restoreBoard rejects unknown snapshots", () => {
+  assert.throws(() => restoreBoard({ v:1, generatorId:"nope" }));
+  assert.throws(() => getGenerator("open").restore({ v:2, generatorId:"open" }));
 });
 
 test("an aborted anneal rejects with AbortError", async () => {

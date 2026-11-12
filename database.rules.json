@@ -1,0 +1,20 @@
+{
+  "rules": {
+    "v1": {
+      ".read": true,
+      ".write": true,
+      "profiles": {
+        "$profileId": {
+          ".validate": "newData.hasChildren(['name', 'createdAt', 'deviceId'])",
+          "name": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 20"
+          }
+        }
+      }
+    },
+    "$other": {
+      ".read": false,
+      ".write": false
+    }
+  }
+}

@@ -14,3 +14,10 @@ export const GENERATORS = Object.freeze([new OpenSeaGenerator(), new SeaLanesGen
 export function getGenerator(id){
   return GENERATORS.find(g => g.id === id) ?? GENERATORS[0];
 }
+
+/** Rebuild a shared board from its snapshot (see Board#toSnapshot). */
+export function restoreBoard(snapshot){
+  const gen = GENERATORS.find(g => g.id === snapshot?.generatorId);
+  if(!gen) throw new Error(`Unknown board type "${snapshot?.generatorId}"`);
+  return gen.restore(snapshot);
+}

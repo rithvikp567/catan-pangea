@@ -90,18 +90,73 @@ export class Stepper {
 
   #button(text, ariaLabel, delta){
     const btn = h("button", { type:"button", "aria-label":ariaLabel }, text);
-    let delay = null, repeat = null;
-    const stop = () => { clearTimeout(delay); clearInterval(repeat); delay = repeat = null; };
-    btn.addEventListener("pointerdown", e => {
-      if(e.button !== 0 || btn.disabled) return;
-      e.preventDefault();
-      this.#step(delta);
-      delay = setTimeout(() => { repeat = setInterval(() => { if(!this.#step(delta)) stop(); }, 90); }, 380);
-    });
-    for(const ev of ["pointerup", "pointerleave", "pointercancel"]) btn.addEventListener(ev, stop);
-    /* keyboard activation (pointer presses are handled above) */
-    btn.addEventListener("click", e => { if(e.detail === 0) this.#step(delta); });
+    holdRepeat(btn, () => this.#step(delta));
     return btn;
+  }
+}
+
+/**
+ * Press-and-hold repeat for a button: one step on press, then repeating
+ * after a short delay until release (or until `step` returns false).
+ * Keyboard activation still gives a single step.
+ * @param {HTMLButtonElement} btn
+ * @param {() => boolean|void} step  return false to stop repeating
+ */
+export function holdRepeat(btn, step, { delay = 380, interval = 110 } = {}){
+  let wait = null, repeat = null;
+  const stop = () => { clearTimeout(wait); clearInterval(repeat); wait = repeat = null; };
+  btn.addEventListener("pointerdown", e => {
+    if(e.button !== 0 || btn.disabled) return;
+    e.preventDefault();
+    if(step() === false) return;
+    wait = setTimeout(() => { repeat = setInterval(() => { if(btn.disabled || step() === false) stop(); }, interval); }, delay);
+  });
+  for(const ev of ["pointerup", "pointerleave", "pointercancel"]) btn.addEventListener(ev, stop);
+  btn.addEventListener("click", e => { if(e.detail === 0) step(); });
+}
+
+/**
+ * − value + for a number that lives elsewhere (a shared tracker): it
+ * reports steps (+1 / −1) instead of owning the value, so concurrent taps
+ * from several phones all count. Call set() with the synced value.
+ */
+export class CounterControl {
+  /**
+   * @param {object} p
+   * @param {string} p.label    accessible name, e.g. "Alice's victory points"
+   * @param {number} p.min
+   * @param {number} p.max
+   * @param {(delta:number) => void} p.onStep
+   * @param {(value:number) => string} [p.format]
+   */
+  constructor({ label, min, max, onStep, format = String }){
+    Object.assign(this, { min, max, format, value:0 });
+    this.out = h("output", { class:"counter-value", "aria-live":"polite" });
+    const btn = (text, aria, delta) => {
+      const b = h("button", { type:"button", class:"counter-btn", "aria-label":aria }, text);
+      holdRepeat(b, () => {
+        const next = this.value + delta;
+        if(next < this.min || next > this.max) return false;
+        this.value = next;                 /* optimistic; the synced value follows */
+        this.#paint();
+        onStep(delta);
+        return true;
+      });
+      return b;
+    };
+    this.dec = btn("−", `Decrease ${label}`, -1);
+    this.inc = btn("+", `Increase ${label}`, +1);
+    this.el = h("div", { class:"counter", role:"group", "aria-label":label }, this.dec, this.out, this.inc);
+    this.#paint();
+  }
+
+  set(value){ this.value = value; this.#paint(); }
+  setBounds(min, max){ Object.assign(this, { min, max }); this.#paint(); }
+
+  #paint(){
+    this.out.textContent = this.format(this.value);
+    this.dec.disabled = this.value <= this.min;
+    this.inc.disabled = this.value >= this.max;
   }
 }
 
