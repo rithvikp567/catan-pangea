@@ -77,7 +77,7 @@ export function buildVertexModel(topo, tiles, portSlots, lanes, profile){
 
 /**
  * Greedy 1→N→1 snake draft: each seat takes the best open intersection
- * (value + a bonus for resources it doesn't have yet), honouring the
+ * (value + a bonus for resources it doesn't have yet), honoring the
  * distance rule. @returns {SeatResult[]}
  */
 export function simulateDraft(model, topo, nPlayers, profile, rng){

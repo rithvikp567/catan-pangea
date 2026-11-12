@@ -3,7 +3,7 @@
  * board and scaled with "meet", so the whole map always fits its box —
  * portrait, landscape or desktop — without scrolling.
  *
- * Colours are resolved to concrete values at draw time (no CSS var()
+ * Colors are resolved to concrete values at draw time (no CSS var()
  * references in the markup), so the SVG can be serialised straight to an
  * image that matches the screen.
  */

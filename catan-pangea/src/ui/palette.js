@@ -1,5 +1,5 @@
 /**
- * Board colours. Terrain is the same in both themes (it's the board, not
+ * Board colors. Terrain is the same in both themes (it's the board, not
  * the chrome); everything else comes from the board-* CSS tokens so the
  * board — and any exported image — follows the current theme.
  */
@@ -17,7 +17,7 @@ export const RESOURCE_COLOR = {
   lumber:"#3E6B48", wool:"#9DBE6B", grain:"#E1B04B", brick:"#C46A45", ore:"#8C969E",
 };
 
-/** Resolve the theme-dependent board colours from CSS custom properties. */
+/** Resolve the theme-dependent board colors from CSS custom properties. */
 export function readBoardPalette(root = document.documentElement){
   const cs = getComputedStyle(root);
   const v = name => cs.getPropertyValue(name).trim();

@@ -1,7 +1,7 @@
 /**
  * Light / dark theme. Follows the system until the user picks one, then
  * remembers the choice. Notifies listeners so the board (which bakes
- * colours in) can redraw.
+ * colors in) can redraw.
  */
 export class ThemeController {
   /** @param {import("../app/storage.js").SafeStorage} storage */
