@@ -43,8 +43,10 @@ export class Router {
   #apply(){
     const route = this.route;
     if(route !== this.current){ this.previous = this.current; this.current = route; }
+    /* screen → screen swaps the content in place; only map → screen rises over the map */
+    const swap = [...this.screens.values()].some(s => s.visible);
     for(const [name, screen] of this.screens){
-      if(name === route){ if(!screen.visible) screen.show(); }
+      if(name === route){ if(!screen.visible) screen.show({ swap }); }
       else if(screen.visible) screen.hide();
     }
     this.mapEl.inert = !!route;

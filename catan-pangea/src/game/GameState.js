@@ -3,7 +3,7 @@
  * the wins ledger) with the derived facts the UI needs. Built fresh on
  * every change; never mutated.
  */
-import { MAX_VP, colorById, seatKey, seasonOf } from "./rules.js";
+import { MAX_VP, COUNTERS, ISLANDS, knightStrength, colorById, seatKey, seasonOf } from "./rules.js";
 
 /**
  * @typedef {{ id:string, name:string, createdAt:number, deviceId:string }} Profile
@@ -12,7 +12,7 @@ import { MAX_VP, colorById, seatKey, seasonOf } from "./rules.js";
  * @property {number} index
  * @property {string|null} profileId
  * @property {Profile|null} profile
- * @property {string|null} color      colour id
+ * @property {string|null} color      color id
  * @property {string|null} colorHex
  * @property {number} vp
  * @property {boolean} honorable
@@ -34,9 +34,16 @@ export class GameState {
   get sessionId(){ return this.session?.meta.id ?? null; }
   get players(){ return this.session?.meta.players ?? 0; }
 
+  /** Every COUNTERS value (0 if never set — older games lack newer counters) plus the robber. */
   get counters(){
     const c = this.session?.counters ?? {};
-    return { knightsMain:c.knightsMain ?? 0, knightsOff:c.knightsOff ?? 0, karma:c.karma ?? 0, robber:c.robber ?? 1 };
+    return { ...Object.fromEntries(Object.keys(COUNTERS).map(k => [k, c[k] ?? 0])), robber:c.robber ?? 1 };
+  }
+
+  /** Knight strength per island, e.g. { main:7, off:0 } (derived, never stored). */
+  get knightStrength(){
+    const c = this.counters;
+    return Object.fromEntries(ISLANDS.map(i => [i.id, knightStrength(c, i.id)]));
   }
 
   /** @returns {Seat[]} */
@@ -62,7 +69,7 @@ export class GameState {
   /** Seated players currently on MAX_VP. */
   get winners(){ return this.seats.filter(s => s.profileId && s.vp >= MAX_VP); }
 
-  /** colour id -> name of the profile holding it (excluding `exceptProfileId`). */
+  /** color id -> name of the profile holding it (excluding `exceptProfileId`). */
   takenColors(exceptProfileId = null){
     const out = new Map();
     for(const s of this.seats) if(s.color && s.profileId !== exceptProfileId) out.set(s.color, s.profile.name);
@@ -71,12 +78,12 @@ export class GameState {
 
   get openSeats(){ return this.seats.filter(s => !s.profileId).length; }
 
-  /** Anything worth warning about before starting over. */
+  /** Anything a new game would lose (seats carry over, so they don't count). */
   get hasProgress(){
     if(!this.session) return false;
     const c = this.counters;
-    return this.seats.some(s => s.profileId || s.vp > 0 || !s.honorable)
-        || c.knightsMain > 0 || c.knightsOff > 0 || c.karma !== 0;
+    return this.seats.some(s => s.vp > 0 || !s.honorable)
+        || Object.keys(COUNTERS).some(k => c[k] !== 0);
   }
 
   /** Years with any wins recorded, plus the current one, newest first. */

@@ -1,5 +1,5 @@
 /**
- * Game data and tuning constants. Pure data — no colours or other
+ * Game data and tuning constants. Pure data — no colors or other
  * presentation concerns live here (see ui/palette.js).
  */
 

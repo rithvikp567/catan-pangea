@@ -16,8 +16,8 @@ hexagonal board. It does two jobs:
 1. **Map generator** — builds a random continent, places terrain, number
    tokens and ports, and optimises them so the game is fair.
 2. **Game tracker** — a shared, live scoreboard used on everyone's phone
-   during the game: victory points, knights, karma, the robber, and each
-   player's honour coin, with a victory screen and season win tallies.
+   during the game: victory points, knights, cities, karma, the robber, and each
+   player's honor coin, with a victory screen and season win tallies.
 
 It is used mostly **on phones at game night**, so the UI is mobile-first.
 
@@ -36,10 +36,11 @@ It is used mostly **on phones at game night**, so the UI is mobile-first.
 | **Sea Lanes** board | Land inside the 5–6 player frame; leftover frame slots are navigable water. A player may pay a ship to claim one otherwise unreachable frame port, one player per port. "Flat" ship cost = any ship reaches any port; "Per hop" = water distance matters. |
 | **Cities & Knights** | Optional balance profile: forest / pasture / mountains are worth more (commodities). |
 | **13 VP to win** | Tracker caps VP at 13 and shows Victory / Defeat. |
-| **Knights: main island / off island** | Two shared tracks, each 0 … 12 × players. |
+| **Knights: tiers, per island** | Knights are Mighty (strength 3), Strong (2) or Basic (1); each player has 2 of each tier. Tracked separately on the main island and off island, but each tier is **one pool for both islands**: main + off ≤ 2 × players (3 players → 6 mighty in total, however they're split). Each island's **knight strength** = 3·mighty + 2·strong + 1·basic (derived, never stored). |
+| **Cities** | A shared counter, 0 … 4 × players (city pieces in the box). |
 | **Karma** | A shared ± number (homebrew; the app only tracks it). |
 | **Robber points** | A shared value cycling 1 → 2 → 3; **Collect** subtracts it from karma. |
-| **Honour coin** | Each player has a coin: heads = honourable (start), tails = dishonourable. Only its owner can flip it; everyone sees it. |
+| **Honor coin** | Each player has a coin: heads = honorable (start), tails = dishonorable. Only its owner can flip it; everyone sees it. |
 
 ---
 
@@ -107,21 +108,30 @@ on the tracker): everything works, but nothing is shared between phones.
 - "How it works" dialog explaining the math.
 
 ### Game tracker (multiplayer)
-- **Welcome / join screen** (`#/join`): all profiles; create one (**one per
-  device**, username only); pick a profile → pick a **colour** (colours taken
-  in this game are disabled) → **Join game**.
+- **Welcome / join screen** (`#/join`): a centred welcome page — brand,
+  "Who's playing?", the game in one line (board · players · seats taken),
+  then every profile as a list. Create one (**one per device**, username
+  only — the limit is enforced, not explained on screen); pick a profile →
+  pick a **color** (colors taken in this game are disabled) → **Join
+  game**. Underneath: Season wins · Admin · View map, and the sync pill.
 - **Session = the map's seed.** The first device online publishes its map
   as the shared game; every phone shows that exact board. **New map**
   starts a new game for everyone (after a confirm if anything is in
-  progress): trackers and seats reset, everyone re-picks a colour, **season
-  wins are kept**.
+  progress): points, coins and counters reset, **everyone seated keeps
+  their seat and color** (if the new map has fewer seats, the players who
+  don't fit pick again), **season wins are kept**.
 - **Tracker screen** (`#/tracker`, *Tracker* button in the dock):
   - Victory points — one row per seat (seat count = the map's player
     count), 0–13. **Anyone can edit any player's VP.**
-  - Honour — one coin per seat in that player's colour; only the owner can
+  - Honor — one coin per seat in that player's color; only the owner can
     flip theirs.
-  - Knights — Main island / Off island, each 0…12 × players.
-  - Karma (±99) and Robber (tap cycles 1→2→3; **Collect** subtracts it from karma).
+  - Cities and Knights — for Main island and Off island: Mighty (×3),
+    Strong (×2) and Basic (×1) knights, with the island's **Knight
+    strength** shown beside its name. Each tier is one pool of 2 × players
+    shared by both islands; every tier row shows "N of M left" and + stops
+    when the pool is empty. Then **Cities** (0…4 × players).
+  - Karma (±99, the digits stay centred with the sign hanging left) and
+    Robber (tap cycles 1→2→3; **Collect: −N** subtracts it from karma).
 - **Victory screen**: when a seated player hits 13 VP, they see *Victory*,
   other seated players see *Defeat* (spectators see "X wins"). **Continue**
   returns to the tracker with numbers intact. If that player drops below 13
@@ -228,14 +238,14 @@ relative to the mean); numbers `1 − 0.34·red − 0.05·same − min(0.5,
 ```
 catan-pangea/                       ← deployed as-is to GitHub Pages
   index.html                        markup shell + "How it works" dialog
-  css/tokens.css                    colour tokens (light + dark)
+  css/tokens.css                    color tokens (light + dark)
   css/app.css                       map layout (phone portrait / landscape / desktop)
   css/screens.css                   join / tracker / wins / admin / victory / toast
   src/main.js                       entry point → new App(document).start()
   src/engine/                       MAP ENGINE — pure, DOM-free (browser, Node, or a worker)
     hex.js                          axial coords, integer vertex lattice, distances, pixels
     random.js                       seeded PRNG (mulberry32), hashSeed, shuffle, seed names
-    catalog.js                      game data + constants (no colours)
+    catalog.js                      game data + constants (no colors)
     shapes.js                       hexagon / 5–6 frame outlines
     topology.js                     Smax, S, intersections, coastline, lakes, outerCoast
     continent.js                    growContinent, compactify
@@ -253,8 +263,8 @@ catan-pangea/                       ← deployed as-is to GitHub Pages
     generators/index.js             GENERATORS registry, getGenerator, restoreBoard
     index.js                        public API barrel
   src/game/                         GAME TRACKER DOMAIN — pure logic over a store
-    rules.js                        limits, colours, robber cycle, newSession(), validateName
-    GameState.js                    read-only view: seats, winners, taken colours, wins tally
+    rules.js                        limits, colors, robber cycle, newSession(), validateName
+    GameState.js                    read-only view: seats, winners, taken colors, wins tally
     GameService.js                  every operation as store transactions
   src/sync/                         STORE ADAPTERS (same contract, see MemoryStore.js)
     MemoryStore.js                  reference impl + contract docs (tests)
@@ -270,10 +280,10 @@ catan-pangea/                       ← deployed as-is to GitHub Pages
     Router.js                       hash routes: "" (map), join, tracker, wins, admin
     storage.js                      SafeStorage (never-throwing localStorage)
   src/ui/                           VIEWS
-    BoardView.js                    SVG board renderer (concrete colours → exportable)
+    BoardView.js                    SVG board renderer (concrete colors → exportable)
     SettingsPanel.js, controls.js   settings form; SegmentedControl, Stepper, CounterControl, holdRepeat
     ScoreCard.js, Sheet.js          score card/chip; settings bottom-sheet / drawer
-    ThemeController.js, palette.js  theme; board colours
+    ThemeController.js, palette.js  theme; board colors
     imageExport.js, Toast.js, dom.js  PNG/share; toasts; h()/s() DOM builders
     VictoryOverlay.js               victory / defeat screen
     screens/Screen.js               base class for full-screen views
@@ -299,10 +309,19 @@ ui/  ──intent──▶  app/  ──▶  engine/        (map)
 - Screens build their DOM once and update values in place; full rebuilds
   only when structure changes (e.g. seating) — otherwise a remote update
   would cut off a press-and-hold or wipe a text field mid-typing.
+- `Screen` has two layouts: `"page"` (sticky header: back, title, actions)
+  and `"centered"` (no header, content in the middle of the screen; the
+  subclass places `this.heading` — used by the welcome screen).
+- **Transitions:** map → screen rises over the map (`data-enter="rise"`);
+  screen → screen keeps the backdrop opaque and only fades the content in
+  (`data-enter="swap"`, set by `Router`). Never fade a whole screen in over
+  another one — the map would flash through for a frame.
+- Native `<select>`s go through `selectField()` (`screens/widgets.js`): the
+  browser arrow is hidden and a centred chevron drawn instead.
 - DOM is built with `h()` / `s()` from `ui/dom.js`. `innerHTML` is used only
   for static, trusted SVG icons. User text always goes through text nodes.
 - Style: modern JS (classes, private `#fields`), JSDoc types, no framework.
-  Colours only via CSS tokens (`css/tokens.css`) except terrain colours in
+  Colors only via CSS tokens (`css/tokens.css`) except terrain colors in
   `ui/palette.js`.
 
 ### Map ↔ session flow (`App`)
@@ -314,8 +333,12 @@ ui/  ──intent──▶  app/  ──▶  engine/        (map)
 - A session arriving from another phone → `restoreBoard(snapshot)` (no
   annealing; identical board and score on every device — this avoids any
   cross-browser floating-point drift in re-generation).
-- If this device was seated in the previous session and isn't in the new
-  one, it's sent to the join screen.
+- A new game carries the seated players over (`carrySeats` in
+  `rules.js`). If this device was seated before and isn't any more (the
+  new map has fewer seats), it's sent to the join screen.
+- **Join** first makes sure a game exists (`App.#ensureSession`): if the
+  app was opened straight on the join screen and the first map is still
+  generating, it waits for that map (`inflight.done`) — or makes one.
 - If the store doesn't deliver a first state within 6 s, a local map is
   shown and a toast explains; the game attaches when the data arrives.
 
@@ -331,7 +354,8 @@ v1/
     board:    BoardSnapshot  { v:1, generatorId, request, tiles:["q,r|terrain|num"], ports:["edge|hex|type|res"] }
     settings: Settings#toJSON()
     seats:    { s0:{ vp, honorable, profileId?, color? }, s1:…, … }   (keys "s0…" — numeric keys become arrays)
-    counters: { knightsMain, knightsOff, karma, robber }
+    counters: { mainMighty, mainStrong, mainBasic, offMighty, offStrong, offBasic, cities, karma, robber }
+              (one key per COUNTERS entry; a missing key reads as 0, so older games keep working)
   wins/{season}/{entryId}: { profileId, delta (±1), source:"game"|"admin", sessionId?, at }
 ```
 - **Wins are a ledger.** A game win's entry id is `${sessionId}_${profileId}`
@@ -341,7 +365,7 @@ v1/
 - Nulls are never stored (RTDB semantics); `prune()` in `MemoryStore`
   normalises writes identically for every adapter.
 - **Concurrency:** every change to shared numbers is a transaction with the
-  limits applied inside it (VP 0–13, knights 0–12×N, karma ±99, colour
+  limits applied inside it (VP 0–13, each knight tier main + off ≤ 2×N, cities 0–4×N, karma ±99, color
   uniqueness, seat availability), so simultaneous taps from several phones
   never lose updates or break a limit. Counter controls send **deltas**.
 - **RTDB caveat:** a transaction may first run with `null` if nothing is
@@ -367,7 +391,7 @@ v1/
   floor, frame bounds, snapshot round-trip (identical board + score), abort.
 - `store.test.js` — the store contract (`MemoryStore`).
 - `game.test.js` — the tracker as several devices on one shared store:
-  profiles, seats/colours, VP + win record/revoke, coins, knights, karma,
+  profiles, seats/colors, VP + win record/revoke, coins, knights, karma,
   robber, session rotation, admin.
 
 UI is verified by driving the real app in a headless Chromium browser via
@@ -391,10 +415,17 @@ your run created afterwards — never `DELETE /v1` once real data exists.
   `portSlotSource`, `buildLanes`, constructor options such as `portCount`,
   `oreWheatFloor`, `usesShipRule`), add an instance to `GENERATORS`. Add
   tests in `generators.test.js` (they iterate over `GENERATORS`).
-- **New shared counter:** add it to `COUNTERS` in `game/rules.js` (bounds),
-  to `newSession()` (initial value), to `GameState.counters`, and render a
-  `CounterControl` in `TrackerScreen`; `GameService.adjustCounter` already
-  handles any `COUNTERS` entry. Add a test.
+- **New shared counter:** add it to `COUNTERS` in `game/rules.js` (label +
+  bounds as functions of the player count and the current counters —
+  `max(players, counters)`, which is how a knight tier sees the other
+  island's share of its pool). `newSession()`,
+  `GameState.counters`, `hasProgress` and `GameService.adjustCounter` all
+  derive from `COUNTERS`; render it in `TrackerScreen` with the
+  `scaled(name, hintOf)` helper (bounds follow the table size). Steps go
+  through `stepWithin`, so a value saved past a later, tighter bound can
+  still step back one at a time. Add a test.
+- **New knight tier or island:** add it to `KNIGHT_TIERS` / `ISLANDS` in
+  `rules.js` — counters, strength and the tracker rows are generated from them.
 - **New per-player stat:** add the field to seats in `newSession()`, read it
   in `GameState.seats`, add a `GameService` method using a seat
   transaction, render it in `TrackerScreen.#buildSeats`.
@@ -435,14 +466,19 @@ your run created afterwards — never `DELETE /v1` once real data exists.
 Keep newest first. Every feature PR adds an entry and updates the sections above.
 
 - **2.1.0 — Game tracker (multiplayer).** Profiles (one per device), join
-  with a unique colour, session = map seed shared by every phone (board
-  snapshots), live tracker (VP 0–13, honour coins, knights main/off, karma,
-  robber cycle + collect), victory / defeat screen with Continue and
+  with a unique color, session = map seed shared by every phone (board
+  snapshots), live tracker (VP 0–13, honor coins, Cities and Knights —
+  mighty/strong/basic knights per island with knight strength, each tier
+  one pool of 2 × players for both islands, cities —
+  karma, robber cycle + "Collect: −N"), New map keeps seats and colors, victory / defeat screen with Continue and
   re-trigger, season wins ledger (record / revoke at 13), admin (remove
   profiles, edit wins), sync adapters (Firebase / this device / memory),
   hash routing, toasts, tests for the store and game service, this doc.
   Live on Firebase project `catan-pangea` (verified with two phones against
-  the real database); `?store=local` keeps test runs off it.
+  the real database); `?store=local` keeps test runs off it. Polish: centred
+  welcome screen without helper text, US spelling (color, honor), drawn
+  −/+ icons and centred counter values, Join waits for the first map, no map flash between screens, custom
+  centred chevron on the season dropdowns.
 - **2.0.0 — Redesign.** Only Open Sea and Sea Lanes (Surveyed's strengths
   merged into Open Sea; Draft mode removed). Overlays and analysis panels
   removed. New minimal light/dark theme; mobile-first layout where the

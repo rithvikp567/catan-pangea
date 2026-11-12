@@ -4,7 +4,7 @@
  */
 const SCALE = 2.5;
 
-/** Render an <svg> (with concrete colours) to a PNG Blob. */
+/** Render an <svg> (with concrete colors) to a PNG Blob. */
 export async function svgToPngBlob(svg, background){
   const [, , vw, vh] = svg.getAttribute("viewBox").split(" ").map(Number);
   const W = Math.round(vw * SCALE), H = Math.round(vh * SCALE);

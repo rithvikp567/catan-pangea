@@ -1,6 +1,6 @@
 /* ==========================================================================
    Design tokens. A quiet, near-monochrome UI so the board carries the
-   colour. Light and dark are both first-class (dark suits game night).
+   color. Light and dark are both first-class (dark suits game night).
    The board renderer reads the board-* tokens at draw time, so exported
    images match the theme on screen.
    ========================================================================== */

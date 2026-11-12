@@ -6,6 +6,7 @@ import { h } from "../dom.js";
 import { Screen } from "./Screen.js";
 import { CounterControl } from "../controls.js";
 import { ADMIN_PASSWORD, seasonOf } from "../../game/rules.js";
+import { selectField } from "./widgets.js";
 
 export class AdminScreen extends Screen {
   constructor(deps){ super("admin", "Admin", deps); }
@@ -19,15 +20,14 @@ export class AdminScreen extends Screen {
     this.gate = h("form", { class:"card", onSubmit:e => { e.preventDefault(); this.#unlock(); } },
       h("h2", { class:"card-title" }, "Admin sign-in"),
       h("div", { class:"seed-row" }, this.password, h("button", { type:"submit", class:"btn" }, "Unlock")),
-      this.error,
-      h("p", { class:"field-hint" }, "For fixing wins and removing profiles."));
+      this.error);
 
     this.profileList = h("div", { class:"admin-list" });
     this.select = h("select", { class:"season-select", "aria-label":"Season", onChange:e => { this.season = Number(e.target.value); this.layoutKey = null; this.render(this.game.state); } });
     this.winsList = h("div", { class:"admin-list" });
     this.panel = h("div", { hidden:true },
       h("section", { class:"card" }, h("h2", { class:"card-title" }, "Profiles"), this.profileList),
-      h("section", { class:"card" }, h("div", { class:"card-title-row" }, h("h2", { class:"card-title" }, "Wins"), this.select), this.winsList),
+      h("section", { class:"card" }, h("div", { class:"card-title-row" }, h("h2", { class:"card-title" }, "Wins"), selectField(this.select)), this.winsList),
       h("button", { type:"button", class:"link-btn", onClick:() => { this.unlocked = false; this.render(this.game.state); } }, "Lock admin"));
     this.body.append(this.gate, this.panel);
   }

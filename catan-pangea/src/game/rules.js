@@ -1,11 +1,12 @@
 /**
- * Game-tracker rules: limits, colours and the pure state transitions.
+ * Game-tracker rules: limits, colors and the pure state transitions.
  * No I/O — GameService applies these inside store transactions, and the
  * UI uses the same bounds to enable / disable buttons.
  */
 
 export const MAX_VP = 13;
-export const KNIGHTS_PER_PLAYER = 12;          /* each knight track tops out at 12 × players */
+export const KNIGHTS_PER_PLAYER = 2;           /* each player has 2 knights of each tier */
+export const CITIES_PER_PLAYER = 4;            /* city pieces in the box */
 export const KARMA_LIMIT = 99;                  /* karma is ± and unbounded in spirit; ±99 keeps the display sane */
 export const ROBBER_VALUES = Object.freeze([1, 2, 3]);
 export const NAME_MAX = 20;
@@ -21,15 +22,57 @@ export const PLAYER_COLORS = Object.freeze([
 ]);
 export const colorById = id => PLAYER_COLORS.find(c => c.id === id) ?? null;
 
-/** Shared counters on the board, with their bounds for a given table size. */
+/** Knights are tracked per island (house rule) and per tier. */
+export const ISLANDS = Object.freeze([
+  { id:"main", label:"Main island" },
+  { id:"off",  label:"Off island" },
+]);
+export const KNIGHT_TIERS = Object.freeze([
+  { id:"mighty", label:"Mighty", strength:3 },
+  { id:"strong", label:"Strong", strength:2 },
+  { id:"basic",  label:"Basic",  strength:1 },
+]);
+/** Counter name for one island's knights of one tier, e.g. "mainMighty". */
+export const knightCounter = (island, tier) => island + tier[0].toUpperCase() + tier.slice(1);
+
+/** Knights of one tier in the box: 2 per player, shared by both islands. */
+export const knightPool = players => KNIGHTS_PER_PLAYER * players;
+/** Knights of one tier on every island together. */
+export const knightsInPlay = (counters, tier) =>
+  ISLANDS.reduce((sum, i) => sum + (counters?.[knightCounter(i.id, tier)] ?? 0), 0);
+/** Knights of one tier still in the box (never below 0). */
+export const knightsLeft = (counters, tier, players) => Math.max(0, knightPool(players) - knightsInPlay(counters, tier));
+
+/**
+ * Shared counters on the board, with their bounds for a given table size
+ * and the current counters. A knight tier is one pool for both islands:
+ * an island can hold whatever the other island leaves of 2 × players.
+ */
 export const COUNTERS = Object.freeze({
-  knightsMain:{ label:"Main island", min:() => 0, max:players => KNIGHTS_PER_PLAYER * players },
-  knightsOff: { label:"Off island",  min:() => 0, max:players => KNIGHTS_PER_PLAYER * players },
-  karma:      { label:"Karma",       min:() => -KARMA_LIMIT, max:() => KARMA_LIMIT },
+  ...Object.fromEntries(ISLANDS.flatMap(i => KNIGHT_TIERS.map(t => {
+    const name = knightCounter(i.id, t.id);
+    return [name, {
+      label:`${i.label} ${t.label.toLowerCase()} knights`, min:() => 0,
+      max:(players, counters = {}) => (counters[name] ?? 0) + knightsLeft(counters, t.id, players),
+    }];
+  }))),
+  cities:{ label:"Cities", min:() => 0, max:players => CITIES_PER_PLAYER * players },
+  karma: { label:"Karma",  min:() => -KARMA_LIMIT, max:() => KARMA_LIMIT },
 });
+
+/** Knight strength on one island: mighty × 3 + strong × 2 + basic × 1. */
+export const knightStrength = (counters, island) =>
+  KNIGHT_TIERS.reduce((sum, t) => sum + t.strength * (counters[knightCounter(island, t.id)] ?? 0), 0);
 
 export const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 export const clampVP = vp => clamp(vp, 0, MAX_VP);
+/**
+ * One step of a bounded counter. A value already past a bound (e.g. a game
+ * saved under older, looser limits) can still step back toward the range
+ * one at a time instead of snapping to the bound.
+ */
+export const stepWithin = (value, delta, lo, hi) =>
+  delta > 0 ? Math.min(value + delta, Math.max(value, hi)) : Math.max(value + delta, Math.min(value, lo));
 export const nextRobber = v => ROBBER_VALUES[(ROBBER_VALUES.indexOf(v) + 1) % ROBBER_VALUES.length] ?? ROBBER_VALUES[0];
 export const collectRobber = (karma, robber) => clamp(karma - robber, -KARMA_LIMIT, KARMA_LIMIT);
 
@@ -65,6 +108,24 @@ export function newSession({ id, board, settings, createdAt, createdBy }){
   return {
     meta:{ id, seed:board.request.seed, players, createdAt, createdBy:createdBy ?? null, season:seasonOf(createdAt) },
     board, settings, seats,
-    counters:{ knightsMain:0, knightsOff:0, karma:0, robber:ROBBER_VALUES[0] },
+    counters:{ ...Object.fromEntries(Object.keys(COUNTERS).map(k => [k, 0])), robber:ROBBER_VALUES[0] },
   };
+}
+
+/**
+ * Seat the previous game's players in a new session with the same
+ * colors (scores start over). Players beyond the new seat count lose
+ * their seat and pick again.
+ * @param {ReturnType<typeof newSession>} session
+ * @param {object} [prevSeats]   the old session's seats
+ * @param {(profileId:string) => boolean} [exists]  skip removed profiles
+ */
+export function carrySeats(session, prevSeats = {}, exists = () => true){
+  const seated = Object.entries(prevSeats ?? {})
+    .filter(([, s]) => s?.profileId && s.color && exists(s.profileId))
+    .sort(([a], [b]) => seatIndex(a) - seatIndex(b))
+    .slice(0, session.meta.players);
+  const seats = { ...session.seats };
+  seated.forEach(([, s], i) => { seats[seatKey(i)] = { ...seats[seatKey(i)], profileId:s.profileId, color:s.color }; });
+  return { ...session, seats };
 }

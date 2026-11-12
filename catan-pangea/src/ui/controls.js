@@ -4,6 +4,17 @@
  */
 import { h } from "./dom.js";
 
+/* drawn − / + : text glyphs sit a little off centre, differently per font */
+const STEP_ICONS = {
+  dec:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 12h12"/></svg>`,
+  inc:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 12h12M12 6v12"/></svg>`,
+};
+function stepButton(delta, ariaLabel, cls){
+  const b = h("button", { type:"button", class:cls, "aria-label":ariaLabel });
+  b.innerHTML = delta < 0 ? STEP_ICONS.dec : STEP_ICONS.inc;   /* static, trusted markup */
+  return b;
+}
+
 /** A row of mutually exclusive options (an ARIA radiogroup). */
 export class SegmentedControl {
   /**
@@ -63,8 +74,8 @@ export class Stepper {
   constructor({ label, value, min, max, onChange = () => {} }){
     Object.assign(this, { min, max, onChange });
     this.out = h("output", { "aria-live":"polite" });
-    this.dec = this.#button("−", `Fewer ${label.toLowerCase()}`, -1);
-    this.inc = this.#button("+", `More ${label.toLowerCase()}`, +1);
+    this.dec = this.#button(`Fewer ${label.toLowerCase()}`, -1);
+    this.inc = this.#button(`More ${label.toLowerCase()}`, +1);
     this.el = h("div", { class:"stepper", role:"group", "aria-label":label }, this.dec, this.out, this.inc);
     this.set(value);
   }
@@ -88,8 +99,8 @@ export class Stepper {
     return this.value !== before;
   }
 
-  #button(text, ariaLabel, delta){
-    const btn = h("button", { type:"button", "aria-label":ariaLabel }, text);
+  #button(ariaLabel, delta){
+    const btn = stepButton(delta, ariaLabel, "step-btn");
     holdRepeat(btn, () => this.#step(delta));
     return btn;
   }
@@ -128,12 +139,14 @@ export class CounterControl {
    * @param {number} p.max
    * @param {(delta:number) => void} p.onStep
    * @param {(value:number) => string} [p.format]
+   * @param {boolean} [p.signed]  show +n / −n with the digits centred and
+   *   the sign hanging to their left (for values that go negative)
    */
-  constructor({ label, min, max, onStep, format = String }){
-    Object.assign(this, { min, max, format, value:0 });
-    this.out = h("output", { class:"counter-value", "aria-live":"polite" });
-    const btn = (text, aria, delta) => {
-      const b = h("button", { type:"button", class:"counter-btn", "aria-label":aria }, text);
+  constructor({ label, min, max, onStep, format = String, signed = false }){
+    Object.assign(this, { min, max, format, signed, value:0 });
+    this.out = h("output", { class:signed ? "counter-value is-signed" : "counter-value", "aria-live":"polite" });
+    const btn = (aria, delta) => {
+      const b = stepButton(delta, aria, "counter-btn");
       holdRepeat(b, () => {
         const next = this.value + delta;
         if(next < this.min || next > this.max) return false;
@@ -144,8 +157,8 @@ export class CounterControl {
       });
       return b;
     };
-    this.dec = btn("−", `Decrease ${label}`, -1);
-    this.inc = btn("+", `Increase ${label}`, +1);
+    this.dec = btn(`Decrease ${label}`, -1);
+    this.inc = btn(`Increase ${label}`, +1);
     this.el = h("div", { class:"counter", role:"group", "aria-label":label }, this.dec, this.out, this.inc);
     this.#paint();
   }
@@ -154,7 +167,12 @@ export class CounterControl {
   setBounds(min, max){ Object.assign(this, { min, max }); this.#paint(); }
 
   #paint(){
-    this.out.textContent = this.format(this.value);
+    if(this.signed && this.value !== 0){
+      /* an invisible copy of the sign on the right keeps the digits centred */
+      const sign = this.value > 0 ? "+" : "−";
+      this.out.replaceChildren(h("span", { class:"counter-sign" }, sign), String(Math.abs(this.value)),
+        h("span", { class:"counter-sign is-ghost", "aria-hidden":"true" }, sign));
+    }else this.out.textContent = this.format(this.value);
     this.dec.disabled = this.value <= this.min;
     this.inc.disabled = this.value >= this.max;
   }

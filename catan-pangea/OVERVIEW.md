@@ -113,12 +113,15 @@ score, and settings are remembered on the device.
 ## Game tracker
 
 Tap **Tracker** during the game. Everyone joins with a profile (one per
-device, username only) and picks a colour nobody else has; the session is
-the map on screen, so a **New map** starts a fresh game for everyone. It
-tracks, live on every phone: victory points (0–13 — hitting 13 shows
-Victory / Defeat), each player's honour coin (flip your own), knights on the
-main island and off island (0–12 × players each), karma, and the robber
-(1 → 2 → 3, **Collect** takes it off karma). Wins are tallied per season
+device, username only) and picks a color nobody else has; the session is
+the map on screen, so a **New map** starts a fresh game for everyone
+(everyone keeps their seat and color). It tracks, live on every phone:
+victory points (0–13 — hitting 13 shows Victory / Defeat), each player's
+honor coin (flip your own), Cities and Knights (mighty / strong / basic
+knights on the main island and off island — each tier is one pool of
+2 × players for both islands — with each island's knight strength, plus
+cities, 0–4 × players), karma, and the
+robber (1 → 2 → 3, **Collect** takes it off karma). Wins are tallied per season
 (calendar year); an admin profile can fix wins and remove profiles.
 
 ## Code layout
@@ -129,7 +132,7 @@ changelog — is [`context.md`](../context.md) at the repo root.
 ```
 catan-pangea/                 deployed as-is to GitHub Pages
   index.html                  markup shell + "How it works" dialog
-  css/tokens.css              colour tokens (light + dark)
+  css/tokens.css              color tokens (light + dark)
   css/app.css                 layout (phone portrait / landscape / desktop) + components
   src/main.js                 entry point
   src/engine/                 pure, DOM-free map engine (runs in browser + Node)

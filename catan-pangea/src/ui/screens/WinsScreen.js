@@ -4,6 +4,7 @@
 import { h } from "../dom.js";
 import { Screen } from "./Screen.js";
 import { seasonOf } from "../../game/rules.js";
+import { selectField } from "./widgets.js";
 
 export class WinsScreen extends Screen {
   constructor(deps){ super("wins", "Season wins", deps); }
@@ -12,7 +13,7 @@ export class WinsScreen extends Screen {
     this.season = seasonOf(Date.now());
     this.select = h("select", { class:"season-select", "aria-label":"Season", onChange:e => { this.season = Number(e.target.value); this.render(this.game.state); } });
     this.list = h("ol", { class:"wins-list" });
-    this.body.append(h("div", { class:"card" }, h("div", { class:"card-title-row" }, h("h2", { class:"card-title" }, "Standings"), this.select), this.list));
+    this.body.append(h("div", { class:"card" }, h("div", { class:"card-title-row" }, h("h2", { class:"card-title" }, "Standings"), selectField(this.select)), this.list));
   }
 
   /* opened from the tracker or the join screen; back returns there */

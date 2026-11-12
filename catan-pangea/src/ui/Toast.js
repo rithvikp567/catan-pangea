@@ -1,5 +1,5 @@
 /**
- * Short, non-blocking messages ("Someone just took that colour").
+ * Short, non-blocking messages ("Someone just took that color").
  */
 import { h } from "./dom.js";
 

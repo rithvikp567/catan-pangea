@@ -15,7 +15,7 @@
  */
 import { GameState } from "./GameState.js";
 import {
-  MAX_VP, COUNTERS, clamp, clampVP, nextRobber, collectRobber, newSession, validateName,
+  MAX_VP, COUNTERS, clampVP, stepWithin, nextRobber, collectRobber, newSession, carrySeats, validateName,
 } from "./rules.js";
 
 export class GameError extends Error {
@@ -90,17 +90,21 @@ export class GameService {
   /**
    * Make a board the active game for everyone. With onlyIfNone, it only
    * takes effect when no game exists yet (the first player online sets the
-   * seed); otherwise it replaces the current game.
+   * seed); otherwise it replaces the current game, and everyone seated
+   * keeps their seat and color (scores and counters start over).
    * @returns {Promise<boolean>} whether this board became the session
    */
   async publishBoard(snapshot, settings, { createdBy = null, onlyIfNone = false } = {}){
     const session = newSession({ id:randomId("s_", this.random), board:snapshot, settings, createdAt:this.now(), createdBy });
-    if(!onlyIfNone){ await this.store.set(this.#p("session"), session); return true; }
-    const res = await this.store.transact(this.#p("session"), cur => cur?.meta ? undefined : session);
+    const profiles = onlyIfNone ? {} : (await this.store.get(this.#p("profiles"))) ?? {};
+    const res = await this.store.transact(this.#p("session"), cur => {
+      if(onlyIfNone) return cur?.meta ? undefined : session;
+      return carrySeats(session, cur?.seats, id => id in profiles);
+    });
     return res.committed;
   }
 
-  /** Take a seat (or change colour if already seated). */
+  /** Take a seat (or change color if already seated). */
   async join(profileId, color){
     let outcome = null;
     const res = await this.store.transact(this.#p("session", "seats"), seats => {
@@ -114,7 +118,7 @@ export class GameService {
       return { ...seats, [mine[0]]: { ...mine[1], profileId, color } };
     });
     if(!res.committed){
-      const msg = { "no-session":"No game yet — generate a map first.", "color-taken":"Someone just took that colour.", full:"Every seat is taken." };
+      const msg = { "no-session":"No game yet — generate a map first.", "color-taken":"Someone just took that color.", full:"Every seat is taken." };
       throw new GameError(outcome ?? "failed", msg[outcome] ?? "Couldn't join the game.");
     }
   }
@@ -155,7 +159,7 @@ export class GameService {
     }
   }
 
-  /** Flip your own honour coin. Other players' coins are read-only. */
+  /** Flip your own honor coin. Other players' coins are read-only. */
   async flipCoin(key, profileId){
     const res = await this.store.transact(this.#p("session", "seats", key), seat => {
       if(!seat || seat.profileId !== profileId) return undefined;
@@ -164,7 +168,11 @@ export class GameService {
     if(!res.committed) throw new GameError("not-your-coin", "You can only flip your own coin.");
   }
 
-  /** knightsMain / knightsOff / karma by ±n, within COUNTERS bounds. */
+  /**
+   * Any COUNTERS entry (knight tiers, cities, karma) by ±n, within its
+   * bounds. The bounds are read inside the transaction, so two phones adding
+   * the last knight of a tier on different islands can't both get it.
+   */
   async adjustCounter(name, delta){
     const rule = COUNTERS[name];
     if(!rule) throw new GameError("bad-counter", `Unknown counter ${name}`);
@@ -172,7 +180,7 @@ export class GameService {
     if(!players) return;
     await this.store.transact(this.#p("session", "counters"), c => {
       if(!c) return undefined;
-      const next = clamp((c[name] ?? 0) + delta, rule.min(players), rule.max(players));
+      const next = stepWithin(c[name] ?? 0, delta, rule.min(players), rule.max(players, c));
       return next === (c[name] ?? 0) ? undefined : { ...c, [name]: next };
     });
   }

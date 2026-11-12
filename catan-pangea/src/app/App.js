@@ -49,7 +49,7 @@ export class App {
     this.settings = new Settings(this.storage.get("settings", {}));
     this.annealer = new Annealer();
     this.board = null;
-    this.inflight = null;          /* { ctrl:AbortController, kind:"boot"|"user" } of the running generation */
+    this.inflight = null;          /* { ctrl:AbortController, kind:"boot"|"user", done:Promise } of the running generation */
     this.shownSessionId = null;    /* the shared game whose board is on screen */
     this.seatedIn = null;          /* session id this device was last seated in */
 
@@ -122,13 +122,18 @@ export class App {
    * @param {boolean} [p.confirmed]   the "start over?" question was already answered
    * @returns {Promise<boolean>} false if the user declined
    */
-  async newGame({ seed = randomSeedName(), kind = "user", confirmed = false } = {}){
-    if(kind === "user" && !confirmed && !this.#confirmNewGame()) return false;
+  newGame({ seed = randomSeedName(), kind = "user", confirmed = false } = {}){
+    if(kind === "user" && !confirmed && !this.#confirmNewGame()) return Promise.resolve(false);
     this.inflight?.ctrl.abort();
     const ctrl = new AbortController();
-    this.inflight = { ctrl, kind };
-    this.#setBusy(true);
+    const done = this.#generate(seed, kind, ctrl);
+    this.inflight = { ctrl, kind, done };
+    return done;
+  }
 
+  async #generate(seed, kind, ctrl){
+    this.#setBusy(true);
+    await null;                    /* let newGame() record the run before it can finish */
     try{
       const board = await this.settings.generator.generate(this.settings.toRequest(seed), {
         annealer:this.annealer, signal:ctrl.signal, onProgress:f => this.#setProgress(f),
@@ -150,7 +155,7 @@ export class App {
   /** Starting over wipes the tracker for everyone — ask first if a game is under way. */
   #confirmNewGame(){
     if(!this.game.state?.hasProgress) return true;
-    return window.confirm("Start a new game for everyone? Scores, knights, karma and seats will be cleared. (Season wins are kept.)");
+    return window.confirm("Start a new game for everyone? Points, knights, cities and karma start over. Everyone keeps their seat and color, and season wins are kept.");
   }
 
   #switchMode(mode){
@@ -159,8 +164,15 @@ export class App {
     this.newGame({ confirmed:true });
   }
 
-  /** The map on screen becomes the game if there isn't one yet. */
+  /**
+   * The map on screen becomes the game if there isn't one yet. Joining
+   * can happen while the first map is still being generated (e.g. the app
+   * was opened on the join screen), so wait for it — or make one.
+   */
   async #ensureSession(){
+    if(!this.game.state || this.game.state.session) return;
+    if(this.inflight) await this.inflight.done;
+    else if(!this.board) await this.newGame({ kind:"boot" });
     if(this.game.state && !this.game.state.session && this.board){
       await this.game.publishBoard(this.board, this.settings.toJSON(), { onlyIfNone:true });
     }
@@ -176,9 +188,9 @@ export class App {
       const wasSeated = !!this.seatedIn;
       this.shownSessionId = state.sessionId;
       this.#showSessionBoard(state.session);
-      /* a new game was started (here or elsewhere): pick profile + colour again */
+      /* a new game with fewer seats left this player out: pick again */
       if(wasSeated && !this.game.mySeat){
-        this.toast.show("New game started — pick your colour.");
+        this.toast.show("New game started with fewer seats — pick a color to join.");
         this.router.go("join");
       }
     }

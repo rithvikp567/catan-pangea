@@ -2,8 +2,8 @@
 
 Random-continent Catan map generator and live game tracker for game night:
 free-form continents with the coastline kept tight, numbers and ports
-optimised for a fair draft, and a shared scoreboard (VP, knights, karma,
-robber, honour coins, season wins) synced across everyone's phone. Two board
+optimised for a fair draft, and a shared scoreboard (VP, cities and knights, karma,
+robber, honor coins, season wins) synced across everyone's phone. Two board
 types — **Open Sea** and **Sea Lanes** — built mobile-first.
 
 **Developers and agents: start with [context.md](context.md).**

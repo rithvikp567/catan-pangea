@@ -2,6 +2,11 @@
  * Base class for full-screen views (join, tracker, wins, admin). A
  * screen owns its <section>, builds its DOM once, and updates it from
  * GameState in render(). Subclasses override build() and render().
+ *
+ * Two layouts: "page" (sticky header with back button, title and
+ * actions — the default) and "centered" (no header; the subclass places
+ * `this.heading` itself and the content sits in the middle of the screen,
+ * for welcome-style views).
  */
 import { h } from "../dom.js";
 
@@ -12,18 +17,21 @@ export class Screen {
    * @param {string} name   route name, e.g. "tracker"
    * @param {string} title  heading text
    * @param {object} deps   { game, router, … } shared by all screens
+   * @param {object} [opts]
+   * @param {"page"|"centered"} [opts.layout]
    */
-  constructor(name, title, deps){
+  constructor(name, title, deps, { layout = "page" } = {}){
     this.name = name;
     this.title = title;
     this.deps = deps;
     this.heading = h("h1", { tabindex:"-1" }, title);
     this.actions = h("div", { class:"screen-actions" });
     this.body = h("div", { class:"screen-body" });
-    this.el = h("section", { class:"screen", "data-screen":name, "aria-label":title, hidden:true },
-      h("div", { class:"screen-inner" },
-        h("header", { class:"screen-head" }, this.backButton(), this.heading, this.actions),
-        this.body));
+    const head = layout === "page"
+      ? h("header", { class:"screen-head" }, this.backButton(), this.heading, this.actions)
+      : null;
+    this.el = h("section", { class:"screen", "data-screen":name, "data-layout":layout, "aria-label":title, hidden:true },
+      h("div", { class:"screen-inner" }, head, this.body));
     this.build();
   }
 
@@ -42,7 +50,14 @@ export class Screen {
   /** @param {import("../../game/GameState.js").GameState|null} state */
   render(/* state */){}
 
-  show(){
+  /**
+   * @param {object} [p]
+   * @param {boolean} [p.swap]  true when replacing another screen: the
+   *   backdrop is opaque at once and only the content fades in, so the
+   *   map underneath never shows through mid-transition.
+   */
+  show({ swap = false } = {}){
+    this.el.dataset.enter = swap ? "swap" : "rise";
     this.el.hidden = false;
     this.render(this.game.state);
     this.heading.focus({ preventScroll:true });
