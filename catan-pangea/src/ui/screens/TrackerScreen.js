@@ -29,8 +29,11 @@ export class TrackerScreen extends Screen {
 
     const wins = h("button", { type:"button", class:"icon-btn", "aria-label":"Season wins", title:"Season wins", onClick:() => this.router.go("wins") });
     wins.innerHTML = ICONS.trophy;
+    const music = h("button", { type:"button", class:"icon-btn" });
+    music.innerHTML = ICONS.music;
+    this.deps.music?.addOpener(music);       /* the music bar stays docked on every screen */
     this.pillSlot = h("span");
-    this.actions.append(this.pillSlot, wins);
+    this.actions.append(this.pillSlot, music, wins);
 
     this.meta = h("div", { class:"tracker-meta" });
     this.empty = h("p", { class:"card empty" }, "No game yet — generate a map to start one.");

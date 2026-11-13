@@ -122,6 +122,15 @@ island knights, 0–12 × players each, plus cities, 0–4 × players), karma, a
 robber (1 → 2 → 3, **Collect** takes it off karma). Wins are tallied per season
 (calendar year); an admin profile can fix wins and remove profiles.
 
+## Music
+
+Tap **♪** (top of the map, or the tracker header) to open the music bar:
+your YouTube or YouTube Music playlist with previous / play / next,
+shuffle and the song list. It stays docked under the map and the tracker
+(on the right when the phone is sideways), so the phone you cast to the TV
+shows the board and plays the music. Paste the playlist link once — every
+phone gets it. On a phone, start the first song by tapping the video.
+
 ## Code layout
 
 The full technical reference — architecture, data model, how to extend,

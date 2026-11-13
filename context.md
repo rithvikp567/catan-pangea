@@ -19,6 +19,10 @@ hexagonal board. It does two jobs:
    during the game: victory points, knights, cities, karma, the robber, and each
    player's honor coin, with a victory screen and season win tallies.
 
+Plus a **music bar** that plays the table's YouTube / YouTube Music
+playlist docked under the map and tracker, so the phone that's cast to the
+TV can show the board and play the music at the same time.
+
 It is used mostly **on phones at game night**, so the UI is mobile-first.
 
 - Live site: https://rithvikp567.github.io/catan-pangea/
@@ -149,6 +153,26 @@ on the tracker): everything works, but nothing is shared between phones.
 - Sync status pill: **Live** / **Offline** (changes queue and sync later) /
   **This device only** (no Firebase config).
 
+### Music (YouTube playlist)
+
+- The **♪** button (map toolbar, tracker header) opens the **music bar**:
+  the YouTube player (200 × 200 on phones, 16:9 on wider screens) with
+  Previous / Play–Pause / Next, Shuffle, **Songs** (tap any song to play it;
+  titles come from YouTube's oEmbed endpoint — no API key) and Close.
+- **Docked on every screen:** a bar along the bottom in portrait, a column
+  on the right in phone landscape (the best way to cast to a 16:9 TV). The
+  map and every screen shrink to make room — `MusicBar` measures itself
+  into `--music-h` / `--music-w` and `css/music.css` applies them. In
+  portrait Safari the tracker scrolls about 90 px while the bar is open.
+- **One shared playlist link** (`/v1/music`): paste a YouTube or YouTube
+  Music playlist link once and every phone has it; anyone can change it
+  from the Songs sheet. **Playback is per phone** — only the phone that's
+  cast needs to play. If someone changes the link while this phone is
+  playing, it keeps playing and offers *New playlist — tap to switch*.
+- Screen mirroring (AirPlay, Chromecast "cast screen") carries the sound to
+  the TV with the picture. While music plays the screen is kept awake (Wake
+  Lock): a locked phone stops web audio.
+
 ---
 
 ## 4. The map math
@@ -245,6 +269,7 @@ catan-pangea/                       ← deployed as-is to GitHub Pages
   css/tokens.css                    color tokens (light + dark)
   css/app.css                       map layout (phone portrait / landscape / desktop)
   css/screens.css                   join / tracker / wins / admin / victory / toast
+  css/music.css                     music bar + how everything else makes room for it
   src/main.js                       entry point → new App(document).start()
   src/engine/                       MAP ENGINE — pure, DOM-free (browser, Node, or a worker)
     hex.js                          axial coords, integer vertex lattice, distances, pixels
@@ -270,6 +295,7 @@ catan-pangea/                       ← deployed as-is to GitHub Pages
     rules.js                        limits, colors, robber cycle, newSession(), validateName
     GameState.js                    read-only view: seats, winners, taken colors, wins tally
     GameService.js                  every operation as store transactions
+  src/music/playlist.js             pure: parsePlaylist (links → list id), player error meanings
   src/sync/                         STORE ADAPTERS (same contract, see MemoryStore.js)
     MemoryStore.js                  reference impl + contract docs (tests)
     LocalStore.js                   "this device only": localStorage + BroadcastChannel
@@ -290,6 +316,7 @@ catan-pangea/                       ← deployed as-is to GitHub Pages
     ThemeController.js, palette.js  theme; board colors
     imageExport.js, Toast.js, dom.js  PNG/share; toasts; h()/s() DOM builders
     VictoryOverlay.js               victory / defeat screen
+    MusicBar.js                     docked YouTube player (IFrame API), songs sheet, playlist link
     screens/Screen.js               base class for full-screen views
     screens/JoinScreen.js, TrackerScreen.js, WinsScreen.js, AdminScreen.js, widgets.js
 tests/                              node:test (engine, store, game service)
@@ -361,6 +388,7 @@ v1/
     counters: { knightsMain, knightsOff, cities, karma, robber }
               (one key per COUNTERS entry; a missing key reads as 0, so older games keep working)
   wins/{season}/{entryId}: { profileId, delta (±1), source:"game"|"admin", sessionId?, at }
+  music:                   { listId, setAt (ms), setBy? }   ← the table's playlist (YouTube list id)
 ```
 - **Wins are a ledger.** A game win's entry id is `${sessionId}_${profileId}`
   (idempotent): written when VP goes <13 → 13, removed when 13 → <13. Admin
@@ -397,6 +425,8 @@ v1/
 - `game.test.js` — the tracker as several devices on one shared store:
   profiles, seats/colors, VP + win record/revoke, coins, knights, karma,
   robber, session rotation, admin.
+- `music.test.js` — playlist links (YouTube, YouTube Music, share links,
+  private lists), player error handling, the shared playlist.
 
 UI is verified by driving the real app in a headless Chromium browser via
 the DevTools protocol at phone sizes (two tabs with different `?device=`
@@ -459,6 +489,21 @@ your run created afterwards — never `DELETE /v1` once real data exists.
 - Changing settings doesn't affect the current game until **New map**.
 - Seeds from before v2.0.0 produce different boards (the optimiser changed).
 - iOS: the share sheet needs a user gesture (the button tap provides it).
+- **YouTube's embed rules** ([required minimum functionality](https://developers.google.com/youtube/terms/required-minimum-functionality),
+  [developer policies](https://developers.google.com/youtube/terms/developer-policies))
+  shape the music bar: the player must stay **visible, at least 200 × 200,
+  with nothing drawn over it**, and must not play from a hidden
+  ("background") player or separate the audio. So there is no audio-only
+  mode, closing the bar pauses, and every overlay (songs sheet, settings
+  sheet, About, victory, toasts) is laid out around the bar. Keep it that
+  way when adding UI. Don't touch YouTube's controls or ads.
+- **Music limits:** on phones the first play needs a tap on the YouTube
+  player itself (browsers only start video from a tap inside its frame);
+  after that our buttons work. YouTube may show ads unless the viewer is
+  signed in to YouTube Premium in that browser. Songs whose owner blocks
+  embedding are skipped (error 101/150) with a toast. Private lists (Liked
+  music, Watch later) can't be embedded — the link check explains. Music
+  stops on reload, app switch or a locked phone.
 
 ---
 
@@ -466,6 +511,14 @@ your run created afterwards — never `DELETE /v1` once real data exists.
 
 Keep newest first. Every feature PR adds an entry and updates the sections above.
 
+- **2.2.0 — Music bar.** The table's YouTube / YouTube Music playlist in a
+  docked player on every screen (bottom bar in portrait, right column in
+  phone landscape), so a phone cast to the TV shows the board and plays the
+  music. Previous / play / next, shuffle, a songs list with titles, one
+  shared playlist link (`/v1/music`), screen kept awake while playing,
+  blocked songs skipped. The tracker's two-column layout became a container
+  query so the music column can take width away. Built to YouTube's embed
+  rules (visible ≥ 200 × 200, never covered, no background play).
 - **2.1.1 — Compact tracker.** The tracker fits one phone screen without
   scrolling: honor coins moved into the victory-point rows, Cities and
   Knights and Karma & robber are single rows of compact tiles, and the

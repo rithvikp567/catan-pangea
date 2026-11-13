@@ -102,4 +102,8 @@ export class GameController {
     });
   }
   adjustWins(profileId, season, delta){ return this.#run(() => this.service.adjustWins(profileId, season, delta)); }
+
+  /* music: one playlist for the table, any player may change it */
+  /** @returns {Promise<string|undefined>} the playlist id, or undefined if the link was rejected */
+  setPlaylist(link){ return this.#run(() => this.service.setPlaylist(link, this.me?.id ?? null)); }
 }

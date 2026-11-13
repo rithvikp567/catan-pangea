@@ -7,6 +7,7 @@
  *   profiles/{profileId}  { name, createdAt, deviceId }
  *   session               { meta, board, settings, seats/{s0…}, counters }  — the one active game
  *   wins/{season}/{entryId} { profileId, delta, source, sessionId?, at }  — the wins ledger
+ *   music                 { listId, setAt, setBy }  — the table's YouTube playlist
  *
  * Transactions abort (return undefined) when their node is missing. The
  * RTDB may call a transaction with null when nothing is cached, so the app
@@ -14,6 +15,7 @@
  * start from cached data and Firebase retries them against the server.
  */
 import { GameState } from "./GameState.js";
+import { parsePlaylist } from "../music/playlist.js";
 import {
   MAX_VP, COUNTERS, clampVP, stepWithin, nextRobber, collectRobber, newSession, carrySeats, validateName,
 } from "./rules.js";
@@ -21,6 +23,9 @@ import {
 export class GameError extends Error {
   constructor(code, message){ super(message); this.name = "GameError"; this.code = code; }
 }
+
+/** The synced branches under root that make up a GameState. */
+const BRANCHES = ["profiles", "session", "wins", "music"];
 
 const randomId = (prefix, random) => prefix + Date.now().toString(36) + Math.floor(random() * 36 ** 6).toString(36).padStart(6, "0");
 
@@ -40,12 +45,12 @@ export class GameService {
   #p(...parts){ return [this.root, ...parts].join("/"); }
 
   /**
-   * Live GameState on every change, once all three branches have loaded.
+   * Live GameState on every change, once every branch has loaded.
    * @param {(state:GameState) => void} cb
    * @returns {() => void} unsubscribe
    */
   watch(cb){
-    const raw = {}, loaded = new Set(), branches = ["profiles", "session", "wins"];
+    const raw = {}, loaded = new Set(), branches = BRANCHES;
     const unsubs = branches.map(b => this.store.subscribe(this.#p(b), value => {
       raw[b] = value; loaded.add(b);
       if(loaded.size === branches.length) cb(new GameState(raw));
@@ -54,8 +59,8 @@ export class GameService {
   }
 
   async state(){
-    const [profiles, session, wins] = await Promise.all(["profiles", "session", "wins"].map(b => this.store.get(this.#p(b))));
-    return new GameState({ profiles, session, wins });
+    const [profiles, session, wins, music] = await Promise.all(BRANCHES.map(b => this.store.get(this.#p(b))));
+    return new GameState({ profiles, session, wins, music });
   }
 
   /* ---------------- profiles ---------------- */
@@ -201,5 +206,18 @@ export class GameService {
     }
     await this.store.set(this.#p("wins", season, randomId("adj_", this.random)),
       { profileId, delta: delta < 0 ? -1 : 1, source:"admin", at:this.now() });
+  }
+
+  /* ---------------- music ---------------- */
+
+  /**
+   * Set the table's playlist (shared by every phone) from a pasted link.
+   * @returns {Promise<string>} the playlist id
+   */
+  async setPlaylist(raw, profileId = null){
+    const res = parsePlaylist(raw);
+    if(res.error) throw new GameError("bad-playlist", res.error);
+    await this.store.set(this.#p("music"), { listId:res.listId, setAt:this.now(), setBy:profileId ?? null });
+    return res.listId;
   }
 }

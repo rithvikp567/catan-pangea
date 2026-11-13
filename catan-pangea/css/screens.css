@@ -136,9 +136,11 @@
 .tracker-seed{ flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .tracker-meta .link-btn{ flex:none; min-height:28px; padding:2px 0; font-size:13px; }
 .tracker-grid{ display:grid; grid-template-columns:minmax(0,1fr); column-gap:12px; align-items:start; }
-/* wide screens: players on the left, the shared trackers stacked on the right */
-@media (min-width:760px){
-  .screen[data-screen="tracker"] .screen-inner{ max-width:880px; }
+/* wide screens: players on the left, the shared trackers stacked on the right.
+   A container query, not a media query: the music column can take width away. */
+.screen[data-screen="tracker"]{ container-type:inline-size; }
+@media (min-width:760px){ .screen[data-screen="tracker"] .screen-inner{ max-width:880px; } }
+@container (min-width:760px){
   .tracker-grid{ grid-template-columns:minmax(0,1fr) minmax(0,1fr); grid-template-rows:auto 1fr; }
   .tracker-grid > :first-child{ grid-row:span 2; }
 }
@@ -149,7 +151,7 @@
 .vp-list{ --tracker-chrome:358px; }
 .vp-row{
   display:grid; grid-template-columns:36px minmax(0,1fr) auto; align-items:center; gap:10px;
-  min-height:clamp(44px, calc((100dvh - var(--tracker-chrome) - env(safe-area-inset-top) - env(safe-area-inset-bottom)) / var(--seats, 4)), 54px);
+  min-height:clamp(44px, calc((100dvh - var(--tracker-chrome) - env(safe-area-inset-top) - max(env(safe-area-inset-bottom), var(--music-h, 0px))) / var(--seats, 4)), 54px);
 }
 .vp-row + .vp-row{ border-top:1px solid var(--line); }
 .vp-name{ display:flex; flex-direction:column; min-width:0; line-height:1.25; }

@@ -1,6 +1,6 @@
 /**
- * Read-only view over the synced data (profiles, the active session and
- * the wins ledger) with the derived facts the UI needs. Built fresh on
+ * Read-only view over the synced data (profiles, the active session, the
+ * wins ledger and the table's playlist) with the derived facts the UI needs. Built fresh on
  * every change; never mutated.
  */
 import { MAX_VP, COUNTERS, colorById, seatKey, seasonOf } from "./rules.js";
@@ -19,11 +19,13 @@ import { MAX_VP, COUNTERS, colorById, seatKey, seasonOf } from "./rules.js";
  */
 
 export class GameState {
-  /** @param {{ profiles?:object, session?:object, wins?:object }} raw */
-  constructor({ profiles, session, wins } = {}){
+  /** @param {{ profiles?:object, session?:object, wins?:object, music?:object }} raw */
+  constructor({ profiles, session, wins, music } = {}){
     this.profileMap = new Map(Object.entries(profiles ?? {}).map(([id, p]) => [id, { id, ...p }]));
     this.session = session?.meta ? session : null;
     this.wins = wins ?? {};
+    /** @type {{ listId:string, setAt:number, setBy:string|null } | null} */
+    this.music = music?.listId ? music : null;
     Object.freeze(this);
   }
 
