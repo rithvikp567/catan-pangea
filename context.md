@@ -519,6 +519,11 @@ your run created afterwards — never `DELETE /v1` once real data exists.
   A fresh player ignores *play* until its playlist has loaded, so if music
   was playing it's asked again on CUED / UNSTARTED (`resumeTries`, a few
   tries for 10 s). A phone that insists on a tap shows *Tap the video*.
+- **"Was music playing?" is `wantsMusic`, not the player state.** YouTube
+  reports PAUSED → UNSTARTED → BUFFERING whenever it changes songs (Next, a
+  song ending), so the state alone says "stopped" in the gap. `wantsMusic`
+  turns on at PLAYING and off only on a pause that lasts 1 s (or Close);
+  `#musicOn()` also treats "paused right now" as off.
 
 ---
 
@@ -526,6 +531,9 @@ your run created afterwards — never `DELETE /v1` once real data exists.
 
 Keep newest first. Every feature PR adds an entry and updates the sections above.
 
+- **2.2.3 — Fix:** a playlist switch made while a song is changing (just
+  after Next, or as one song ends) keeps playing too. YouTube briefly
+  reports *paused* between songs; only a pause that lasts counts now.
 - **2.2.2 — Fix:** switching playlists while music plays now carries on
   playing (the fresh player is asked again once its playlist loads).
 - **2.2.1 — Music polish.** The playlist link moved off the Songs sheet
