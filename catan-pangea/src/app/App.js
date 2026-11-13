@@ -25,6 +25,7 @@ import { Sheet } from "../ui/Sheet.js";
 import { ThemeController } from "../ui/ThemeController.js";
 import { Toast } from "../ui/Toast.js";
 import { VictoryOverlay } from "../ui/VictoryOverlay.js";
+import { MusicBar } from "../ui/MusicBar.js";
 import { JoinScreen } from "../ui/screens/JoinScreen.js";
 import { TrackerScreen } from "../ui/screens/TrackerScreen.js";
 import { WinsScreen } from "../ui/screens/WinsScreen.js";
@@ -74,8 +75,9 @@ export class App {
     $("modeSwitch").append(this.modeSwitch.el);
 
     this.router = new Router({ mapEl:$("app") });
+    this.music = new MusicBar({ game:this.game, toast:this.toast, storage:this.storage });
     const deps = {
-      game:this.game, router:this.router, toast:this.toast,
+      game:this.game, router:this.router, toast:this.toast, music:this.music,
       confirm:msg => window.confirm(msg),
       ensureSession:() => this.#ensureSession(),
     };
@@ -242,6 +244,7 @@ export class App {
   #wire($){
     this.dom.generate.addEventListener("click", () => this.newGame());
     $("trackerBtn").addEventListener("click", () => this.router.go("tracker"));
+    this.music.addOpener($("musicBtn"));
     $("themeBtn").addEventListener("click", () => this.theme.toggle());
     this.theme.onChange(() => this.#render());
     $("shareBtn").addEventListener("click", () => this.#saveImage());

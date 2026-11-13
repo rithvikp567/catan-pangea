@@ -1,0 +1,148 @@
+/* ==========================================================================
+   Music bar (src/ui/MusicBar.js) — the table's YouTube playlist, docked.
+   Portrait: a bar along the bottom. Phone landscape: a column on the right.
+   While it's open, MusicBar measures it into --music-h / --music-w on
+   <html> and everything else makes room, so nothing is ever drawn over
+   the player (YouTube's rules: it stays visible, at least 200 × 200, with
+   no overlays on it).
+   ========================================================================== */
+:root{ --music-h:0px; --music-w:0px; }
+
+/* ---------- everything else makes room ---------- */
+.app{
+  height:calc(100vh - var(--music-h)); height:calc(100dvh - var(--music-h));
+  margin-right:var(--music-w);
+}
+/* the bar covers the home-indicator area itself */
+.dock{ padding-bottom:calc(10px + max(0px, env(safe-area-inset-bottom) - var(--music-h))); }
+.screen{
+  bottom:var(--music-h); right:var(--music-w);
+  padding-bottom:max(0px, env(safe-area-inset-bottom) - var(--music-h));
+}
+.victory{ bottom:var(--music-h); right:var(--music-w); }
+.panel{ bottom:var(--music-h); right:var(--music-w); max-height:calc(86dvh - var(--music-h)); }
+/* (this file loads after app.css: keep its landscape drawer and desktop column as they were) */
+@media (orientation:landscape) and (max-height:559px){ .panel{ max-height:none; } }
+@media (min-width:900px) and (min-height:560px){ .panel{ max-height:none; } .dock{ padding-bottom:22px; } }
+.toast{
+  left:calc((100% - var(--music-w)) / 2);
+  bottom:calc(92px + var(--music-h) + max(0px, env(safe-area-inset-bottom) - var(--music-h)));
+}
+@media (max-height:559px){ .toast{ bottom:calc(14px + env(safe-area-inset-bottom)); } }
+/* the About dialog sits above / beside the bar, without dimming it */
+body[data-music="open"] dialog.about{
+  height:calc(100% - var(--music-h)); width:calc(100% - var(--music-w)); margin:0;
+}
+body[data-music="open"] dialog.about::backdrop{ background:transparent; }
+@media (min-width:900px) and (min-height:560px){
+  body[data-music="open"] dialog.about{
+    width:min(720px, calc(100% - 48px - var(--music-w))); height:auto;
+    max-height:calc(100% - 48px - var(--music-h)); margin:24px auto auto;
+  }
+}
+
+/* openers (map toolbar, tracker header) show when the bar is open */
+.icon-btn[aria-pressed="true"]{ background:var(--surface-2); color:var(--ink); }
+
+/* ---------- the bar ---------- */
+.music{
+  position:fixed; z-index:75; left:0; right:0; bottom:0;
+  display:grid; grid-template-columns:200px minmax(0,1fr); gap:12px;
+  padding:8px 12px calc(8px + env(safe-area-inset-bottom));
+  padding-left:max(12px, env(safe-area-inset-left)); padding-right:max(12px, env(safe-area-inset-right));
+  background:var(--surface); border-top:1px solid var(--line);
+  box-shadow:0 -6px 18px rgb(0 0 0 / .07);
+}
+/* YouTube's minimum: a 200 × 200 viewport (the iframe replaces the host div) */
+.music-video{ width:200px; height:200px; border-radius:12px; overflow:hidden; background:#000; }
+.music-video iframe, .music-video > div{ display:block; width:100%; height:100%; border:0; }
+
+.music-side{ display:flex; flex-direction:column; gap:6px; min-width:0; }
+.music-now{ flex:1; min-height:0; }
+.music-title{
+  margin:0; font-size:14px; font-weight:650; line-height:1.3;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+}
+.music-artist{ margin:2px 0 0; font-size:12.5px; color:var(--ink-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.music-notice{
+  margin-top:6px; padding:4px 10px; border:0; border-radius:999px; cursor:pointer;
+  background:color-mix(in srgb, var(--primary) 14%, transparent); color:var(--ink);
+  font-size:12px; font-weight:650;
+}
+.music-controls{ display:flex; align-items:center; justify-content:space-between; }
+.music-extras{ display:flex; align-items:center; justify-content:space-between; }
+.music-btn{
+  width:40px; height:40px; flex:none; display:grid; place-items:center; padding:0;
+  border:0; border-radius:50%; background:transparent; color:var(--ink); cursor:pointer;
+}
+.music-btn svg{ display:block; width:22px; height:22px; }
+.music-btn:active{ background:var(--surface-2); }
+.music-btn:disabled{ opacity:.35; cursor:default; }
+.music-btn[aria-pressed="true"]{ background:var(--surface-2); color:var(--primary); }
+.music-btn.is-play{ width:52px; height:52px; background:var(--primary); color:var(--primary-ink); }
+.music-btn.is-play svg{ width:24px; height:24px; }
+.music-extras .music-btn{ width:36px; height:36px; color:var(--ink-2); }
+.music-extras .music-btn svg{ width:20px; height:20px; }
+
+/* first run: paste a playlist link */
+.music[data-state="setup"]{ grid-template-columns:minmax(0,1fr); }
+.music-setup{ display:flex; flex-direction:column; gap:8px; }
+.music-setup-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.music-setup-head .music-btn{ width:36px; height:36px; color:var(--ink-2); }
+.music-hint{ margin:0; font-size:12.5px; color:var(--ink-3); }
+.music-link input{ font-size:16px; }   /* ≥ 16px: no zoom on focus in iOS */
+
+/* tablets and desktop: a full 16:9 player */
+@media (min-width:600px){
+  .music{ grid-template-columns:356px minmax(0, 300px); justify-content:center; column-gap:20px; }
+  .music-video{ width:356px; }
+  .music[data-state="setup"]{ grid-template-columns:minmax(0, 560px); }
+}
+
+/* phone landscape: a column on the right, the map and screens to its left */
+@media (orientation:landscape) and (max-height:559px){
+  .music{
+    left:auto; top:0; width:calc(224px + env(safe-area-inset-right));
+    grid-template-columns:200px; align-content:start; gap:8px;
+    padding:calc(8px + env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) 12px;
+    border-top:0; border-left:1px solid var(--line); box-shadow:-6px 0 18px rgb(0 0 0 / .07);
+    overflow-y:auto; overscroll-behavior:contain;
+  }
+  .music-video{ width:200px; }
+  .music-title{ -webkit-line-clamp:1; }
+  .music-now{ flex:none; }
+  .music[data-state="setup"]{ grid-template-columns:200px; }
+}
+
+/* ---------- songs sheet: above the bar (beside it in landscape), never over the player ---------- */
+.music-songs{
+  position:fixed; z-index:74; left:0; right:var(--music-w); bottom:var(--music-h);
+  top:calc(env(safe-area-inset-top) + 40px);
+  display:flex; flex-direction:column;
+  background:var(--surface); border:1px solid var(--line); border-bottom:0;
+  border-radius:20px 20px 0 0; box-shadow:var(--shadow);
+}
+.songs-head{ display:flex; align-items:center; justify-content:space-between; padding:8px 8px 4px 18px; }
+.songs-head h2{ margin:0; font-size:17px; }
+.songs-list{ flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:0 8px; }
+.song{
+  width:100%; display:grid; grid-template-columns:64px minmax(0,1fr); align-items:center; gap:12px;
+  min-height:52px; padding:6px 10px; border:0; border-radius:10px;
+  background:none; color:var(--ink); text-align:left; cursor:pointer;
+}
+.song:active{ background:var(--surface-2); }
+.song[aria-current="true"]{ background:var(--surface-2); }
+.song[aria-current="true"] .song-title{ color:var(--primary); }
+.song img{ width:64px; height:36px; border-radius:6px; object-fit:cover; background:var(--surface-2); }
+.song-text{ display:flex; flex-direction:column; min-width:0; }
+.song-title{ font-size:14px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.song small{ font-size:12px; color:var(--ink-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.songs-foot{ display:flex; flex-direction:column; gap:8px; padding:12px 18px 14px; border-top:1px solid var(--line); }
+.songs-open{ display:inline-flex; align-items:center; gap:6px; align-self:flex-start; min-height:32px; }
+.songs-open svg{ width:15px; height:15px; }
+@media (orientation:landscape) and (max-height:559px){
+  .music-songs{ top:0; left:auto; width:min(380px, 60vw); border-radius:20px 0 0 20px; border:1px solid var(--line); border-right:0; }
+}
+@media (min-width:900px){
+  .music-songs{ left:auto; right:calc(var(--music-w) + 16px); width:420px; top:auto; height:min(560px, calc(100% - var(--music-h) - 32px)); }
+}
