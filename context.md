@@ -158,7 +158,16 @@ on the tracker): everything works, but nothing is shared between phones.
 - The **♪** button (map toolbar, tracker header) opens the **music bar**:
   the YouTube player (200 × 200 on phones, 16:9 on wider screens) with
   Previous / Play–Pause / Next, Shuffle, **Songs** (tap any song to play it;
-  titles come from YouTube's oEmbed endpoint — no API key) and Close.
+  titles come from YouTube's oEmbed endpoint — no API key), **Playlist**
+  (🔗) and Close. Songs and Playlist open as sheets above the bar, one at a
+  time, and stay hidden otherwise.
+- **Playlist** pop-up: change the link for everyone, and **Play in the
+  YouTube Music app** — for YouTube Premium: the app keeps playing in the
+  background with no ads, so the bar pauses and closes and the map gets the
+  whole screen (mirroring still carries the sound). It also links to
+  YouTube sign-in: Premium removes ads *in this player* only when the embed
+  can see you're signed in — works on Android Chrome; iPhone Safari's
+  cross-site tracking protection usually hides the sign-in.
 - **Docked on every screen:** a bar along the bottom in portrait, a column
   on the right in phone landscape (the best way to cast to a 16:9 TV). The
   map and every screen shrink to make room — `MusicBar` measures itself
@@ -504,6 +513,10 @@ your run created afterwards — never `DELETE /v1` once real data exists.
   embedding are skipped (error 101/150) with a toast. Private lists (Liked
   music, Watch later) can't be embedded — the link check explains. Music
   stops on reload, app switch or a locked phone.
+- **Switching playlists makes a new player.** YouTube's `loadPlaylist` /
+  `cuePlaylist` keep the old songs once a playlist is loaded (only the
+  link changes), so `MusicBar` destroys the player and creates a fresh one.
+  On a phone the fresh player needs one tap on the video again.
 
 ---
 
@@ -511,6 +524,13 @@ your run created afterwards — never `DELETE /v1` once real data exists.
 
 Keep newest first. Every feature PR adds an entry and updates the sections above.
 
+- **2.2.1 — Music polish.** The playlist link moved off the Songs sheet
+  into its own pop-up behind a 🔗 button. New *Play in the YouTube Music
+  app* option for Premium (background play, no ads) and a YouTube sign-in
+  link for ad-free embeds. Fixed: changing the playlist kept playing the
+  old songs (fresh player per playlist). Phone landscape: toolbar icons
+  span the rail, and the map no longer keeps a notch gap beside the music
+  column.
 - **2.2.0 — Music bar.** The table's YouTube / YouTube Music playlist in a
   docked player on every screen (bottom bar in portrait, right column in
   phone landscape), so a phone cast to the TV shows the board and plays the
