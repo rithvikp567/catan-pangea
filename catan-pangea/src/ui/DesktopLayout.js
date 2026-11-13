@@ -28,6 +28,9 @@ import { DESKTOP_QUERY } from "./Sheet.js";
 const DEFAULTS = Object.freeze({ left:420, panel:340, music:224 });
 const MIN = Object.freeze({ left:380, panel:280, map:420, tracker:200, music:224 });   /* left ≥ 380: the big player stays ≥ 200 tall */
 const MAX_PANEL = 560;
+/* the tracker turns two-column at 760 px (@container in screens.css): the column stops just short,
+   so the tracker always keeps its one-column phone layout here */
+const MAX_LEFT = 759;
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
@@ -97,7 +100,7 @@ export class DesktopLayout {
 
   /* ---------------- sizes ---------------- */
 
-  #maxLeft(panel){ return Math.max(MIN.left, innerWidth - panel - MIN.map); }
+  #maxLeft(panel){ return Math.max(MIN.left, Math.min(MAX_LEFT, innerWidth - panel - MIN.map)); }
   #maxPanel(left){ return Math.max(MIN.panel, Math.min(MAX_PANEL, innerWidth - left - MIN.map)); }
 
   /** The saved sizes, fitted to this window (the saved values are kept for a bigger one). */

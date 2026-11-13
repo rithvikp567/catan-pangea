@@ -17,6 +17,14 @@
  */
 import { h } from "./dom.js";
 
+/**
+ * How strong winter gets, as fractions of the original 2.3.0 look — turn
+ * these down (or up) to taste. snow: how many flakes; frost: how deep it
+ * creeps in from the edges; frostAlpha: how opaque it is; tint: the cold
+ * colour wash over everything.
+ */
+export const STRENGTH = Object.freeze({ snow:.5, frost:.65, frostAlpha:.8, tint:.5 });
+
 const FADE_MS = 2800;
 const FRAME_MS = 1000 / 40;            /* draw at ~40 fps: plenty for pixel art, kinder to phones */
 
@@ -191,7 +199,7 @@ export class WinterEffect {
   #flakeCount(f){
     const area = this.W * this.H * this.P * this.P;           /* CSS px² */
     const most = Math.max(70, Math.min(420, area / 2000));
-    return Math.round(most * Math.pow(f, 1.25));
+    return Math.round(most * STRENGTH.snow * Math.pow(f, 1.4));    /* sparse early on, a flurry only near the end */
   }
 
   #spawn(f, anywhere){
@@ -280,7 +288,7 @@ export class WinterEffect {
     if(!this.frostCtx || !W) return;
     this.drawnFrost = this.frost;
     const img = this.frostCtx.createImageData(W, H), px = img.data;
-    const depth = this.frost * Math.min(W, H) * .12;
+    const depth = this.frost * Math.min(W, H) * .12 * STRENGTH.frost;
     if(depth >= .5){
       const [c1, c2, c3] = this.palette.frost, band = Math.ceil(depth * 3.2) + 2;
       const cornerR = Math.min(W, H) * .3;
@@ -298,7 +306,7 @@ export class WinterEffect {
           const c = ratio < .3 ? c1 : ratio < .65 ? c2 : c3;
           const i = (y * W + x) * 4;
           px[i] = c[0]; px[i + 1] = c[1]; px[i + 2] = c[2];
-          px[i + 3] = Math.round(255 * (.8 - .62 * ratio) * Math.min(1, this.frost * 3));   /* see-through: buttons under it stay readable */
+          px[i + 3] = Math.round(255 * (.8 - .62 * ratio) * STRENGTH.frostAlpha * Math.min(1, this.frost * 3));   /* see-through: buttons under it stay readable */
         }
       }
     }
@@ -308,6 +316,6 @@ export class WinterEffect {
   /** A faint cold tint over everything, stronger with the frost. */
   #tint(){
     const [r, g, b] = this.palette.tint;
-    this.el.style.backgroundColor = `rgb(${r} ${g} ${b} / ${(this.frost * .09).toFixed(3)})`;
+    this.el.style.backgroundColor = `rgb(${r} ${g} ${b} / ${(this.frost * .09 * STRENGTH.tint).toFixed(3)})`;
   }
 }
