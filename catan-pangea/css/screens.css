@@ -148,10 +148,10 @@
 /* --tracker-chrome: everything on the screen except the seat rows (header,
    meta line, card titles and padding, the two shared cards), measured at
    phone width. Change it if you add or resize anything around the rows. */
-.vp-list{ --tracker-chrome:358px; }
+.vp-list{ --tracker-chrome:404px; }
 .vp-row{
   display:grid; grid-template-columns:36px minmax(0,1fr) auto; align-items:center; gap:10px;
-  min-height:clamp(44px, calc((100dvh - var(--tracker-chrome) - env(safe-area-inset-top) - max(env(safe-area-inset-bottom), var(--music-h, 0px))) / var(--seats, 4)), 54px);
+  min-height:clamp(42px, calc((100dvh - var(--tracker-chrome) - env(safe-area-inset-top) - max(env(safe-area-inset-bottom), var(--music-h, 0px))) / var(--seats, 4)), 54px);
 }
 .vp-row + .vp-row{ border-top:1px solid var(--line); }
 .vp-name{ display:flex; flex-direction:column; min-width:0; line-height:1.25; }
@@ -228,6 +228,34 @@
 /* trimmed to the digit's own height so it sits exactly in the middle */
 .robber-value{ display:block; font-size:22px; line-height:1; font-weight:700; font-variant-numeric:tabular-nums; text-box:trim-both cap alphabetic; }
 .collect-btn{ width:100%; min-height:40px; height:40px; padding:0 8px; border-radius:10px; white-space:nowrap; }
+
+/* WALKER: − W A L K E R + — lit letters glow icy and shake harder with
+   every letter (TrackerScreen sets --amp, --rot and --dur on the word) */
+.walker{ justify-content:space-between; gap:6px; margin-top:8px; }
+.walker .counter-btn{ width:44px; height:40px; border-radius:10px; }
+.walker .counter-value{ flex:1 1 auto; min-width:0; height:40px; }
+.walker-word{
+  display:flex; justify-content:center; gap:clamp(5px, 2.6vw, 14px);
+  font-size:25px; font-weight:800; line-height:1; letter-spacing:0;
+}
+.walker-letter{ display:inline-block; color:var(--ink-3); opacity:.32; transition:color .3s, opacity .3s, text-shadow .3s; }
+.walker-letter[data-lit]{
+  color:var(--ice); opacity:1;
+  text-shadow:0 0 6px var(--ice-glow), 0 0 14px var(--ice-glow);
+  animation:walker-jitter var(--dur, .4s) linear infinite;
+  animation-delay:calc(var(--i) * -.13s);       /* each letter out of step with the others */
+}
+.walker-word[data-level="6"] .walker-letter{ text-shadow:0 0 8px var(--ice-glow), 0 0 20px var(--ice-glow), 0 0 34px var(--ice-glow); }
+@keyframes walker-jitter{
+  0%, 100%{ transform:translate(0, 0) rotate(0); }
+  14%{ transform:translate(calc(var(--amp) * -1), calc(var(--amp) * .5)) rotate(calc(var(--rot) * -1)); }
+  29%{ transform:translate(calc(var(--amp) * .7), calc(var(--amp) * -.8)) rotate(var(--rot)); }
+  43%{ transform:translate(calc(var(--amp) * -.4), calc(var(--amp) * -.3)) rotate(calc(var(--rot) * .5)); }
+  57%{ transform:translate(var(--amp), calc(var(--amp) * .6)) rotate(calc(var(--rot) * -.6)); }
+  71%{ transform:translate(calc(var(--amp) * -.8), calc(var(--amp) * .2)) rotate(calc(var(--rot) * .8)); }
+  86%{ transform:translate(calc(var(--amp) * .3), calc(var(--amp) * -.7)) rotate(calc(var(--rot) * -.3)); }
+}
+@media (prefers-reduced-motion:reduce){ .walker-letter[data-lit]{ animation:none; } }
 
 /* ---------- wins / admin ---------- */
 /* our own chevron (selectField in widgets.js): the native arrow sits off centre */

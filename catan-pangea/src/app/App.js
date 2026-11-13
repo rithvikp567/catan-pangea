@@ -17,6 +17,7 @@ import { Identity } from "./Identity.js";
 import { GameController } from "./GameController.js";
 import { Router } from "./Router.js";
 import { createStore } from "../sync/createStore.js";
+import { COUNTERS } from "../game/rules.js";
 import { SegmentedControl } from "../ui/controls.js";
 import { BoardView } from "../ui/BoardView.js";
 import { ScoreCard } from "../ui/ScoreCard.js";
@@ -26,6 +27,8 @@ import { ThemeController } from "../ui/ThemeController.js";
 import { Toast } from "../ui/Toast.js";
 import { VictoryOverlay } from "../ui/VictoryOverlay.js";
 import { MusicBar } from "../ui/MusicBar.js";
+import { DesktopLayout } from "../ui/DesktopLayout.js";
+import { WinterEffect } from "../ui/WinterEffect.js";
 import { JoinScreen } from "../ui/screens/JoinScreen.js";
 import { TrackerScreen } from "../ui/screens/TrackerScreen.js";
 import { WinsScreen } from "../ui/screens/WinsScreen.js";
@@ -74,7 +77,7 @@ export class App {
     });
     $("modeSwitch").append(this.modeSwitch.el);
 
-    this.router = new Router({ mapEl:$("app") });
+    this.router = new Router({ mapEl:$("app"), docked:route => !!this.layout?.docks(route), onRoute:() => this.layout?.update() });
     this.music = new MusicBar({ game:this.game, toast:this.toast, storage:this.storage });
     const deps = {
       game:this.game, router:this.router, toast:this.toast, music:this.music,
@@ -84,6 +87,9 @@ export class App {
     this.screens = [new JoinScreen(deps), new TrackerScreen(deps), new WinsScreen(deps), new AdminScreen(deps)];
     for(const s of this.screens) this.router.register(s);
     this.victory = new VictoryOverlay(deps);
+    this.winter = new WinterEffect({ max:COUNTERS.walker.max(0) });
+    this.layout = new DesktopLayout({ router:this.router, music:this.music, storage:this.storage,
+      trackerBtn:$("trackerBtn"), topbar:doc.querySelector(".topbar") });
     this.game.onChange(state => this.#onGameState(state));
 
     this.#wire($);
@@ -103,6 +109,8 @@ export class App {
       return;
     }
     if(!first.session) await this.newGame({ kind:"boot" });
+    /* the music is cued where this player left it (on any device); play waits for a tap */
+    if(this.game.me) this.music.resumeFor(this.game.me.id);
     /* a player who isn't seated in the current game starts at the join screen */
     if(!this.router.route && !this.game.mySeat) this.router.go("join", { replace:true });
   }
@@ -199,6 +207,7 @@ export class App {
     this.seatedIn = this.game.mySeat ? state.sessionId : null;
     for(const s of this.screens) if(s.visible) s.render(state);
     this.victory.update(state);
+    this.winter.set(state.session ? state.counters.walker : 0);
   }
 
   #showSessionBoard(session){
@@ -243,10 +252,11 @@ export class App {
 
   #wire($){
     this.dom.generate.addEventListener("click", () => this.newGame());
-    $("trackerBtn").addEventListener("click", () => this.router.go("tracker"));
+    /* on desktop the tracker sits beside the map, so the button opens and closes it */
+    $("trackerBtn").addEventListener("click", () => this.router.go(this.router.route === "tracker" ? "" : "tracker"));
     this.music.addOpener($("musicBtn"));
     $("themeBtn").addEventListener("click", () => this.theme.toggle());
-    this.theme.onChange(() => this.#render());
+    this.theme.onChange(() => { this.#render(); this.winter.refreshTheme(); });
     $("shareBtn").addEventListener("click", () => this.#saveImage());
 
     $("aboutBtn").addEventListener("click", () => this.dom.about.showModal());
@@ -255,7 +265,7 @@ export class App {
 
     /* Enter = new map, unless the user is typing, pressing a control, or on another screen */
     document.addEventListener("keydown", e => {
-      if(e.key !== "Enter" || e.repeat || this.router.route) return;
+      if(e.key !== "Enter" || e.repeat || (this.router.route && !this.layout.docks(this.router.route))) return;
       const t = e.target;
       if(t instanceof HTMLElement && t.closest("input, textarea, button, summary, dialog, select")) return;
       this.newGame();

@@ -2,7 +2,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { MemoryStore } from "../catan-pangea/src/sync/MemoryStore.js";
 import { GameService, GameError } from "../catan-pangea/src/game/GameService.js";
-import { MAX_VP, KNIGHTS_PER_PLAYER, CITIES_PER_PLAYER, KARMA_LIMIT, stepWithin, nextRobber, validateName, seasonOf } from "../catan-pangea/src/game/rules.js";
+import { MAX_VP, KNIGHTS_PER_PLAYER, CITIES_PER_PLAYER, KARMA_LIMIT, WALKER_WORD, stepWithin, nextRobber, validateName, seasonOf } from "../catan-pangea/src/game/rules.js";
 
 /* a tiny fake board snapshot is enough — the service never inspects tiles */
 const board = (players = 3, seed = "test-seed") => ({
@@ -116,6 +116,19 @@ test("older games without the cities counter read it as 0 and can still change i
   assert.equal(s.counters.cities, 0);
   await alice.adjustCounter("cities", +1);
   assert.equal((await state()).counters.cities, 1);
+});
+
+test("walker: one letter per press up to WALKER; + on the last letter starts over at 0; − stops at 0", async () => {
+  assert.equal(WALKER_WORD.length, 6);
+  assert.equal((await state()).counters.walker, 0);
+  await bob.adjustCounter("walker", -1);
+  assert.equal((await state()).counters.walker, 0, "nothing below the first letter");
+  for(let i = 1; i <= 6; i++){ await alice.adjustCounter("walker", +1); assert.equal((await state()).counters.walker, i); }
+  assert.equal((await state()).hasProgress, true);
+  await carol.adjustCounter("walker", +1);
+  assert.equal((await state()).counters.walker, 0, "full word + 1 = start over");
+  await alice.adjustCounter("walker", +1); await bob.adjustCounter("walker", +1); await bob.adjustCounter("walker", -1);
+  assert.equal((await state()).counters.walker, 1);
 });
 
 test("karma is ± and robber collect subtracts its value", async () => {

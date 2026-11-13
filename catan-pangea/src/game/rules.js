@@ -9,6 +9,7 @@ export const KNIGHTS_PER_PLAYER = 12;          /* each island's knight track top
 export const CITIES_PER_PLAYER = 4;            /* city pieces in the box */
 export const KARMA_LIMIT = 99;                  /* karma is ± and unbounded in spirit; ±99 keeps the display sane */
 export const ROBBER_VALUES = Object.freeze([1, 2, 3]);
+export const WALKER_WORD = "WALKER";           /* one letter per 7 rolled with the barbarians; + on the last letter starts over */
 export const NAME_MAX = 20;
 export const ADMIN_PASSWORD = "password";       /* not security — the admin is a shared management account */
 
@@ -28,6 +29,7 @@ export const COUNTERS = Object.freeze({
   knightsOff: { label:"Off island knights",  min:() => 0, max:players => KNIGHTS_PER_PLAYER * players },
   cities:     { label:"Cities",              min:() => 0, max:players => CITIES_PER_PLAYER * players },
   karma:      { label:"Karma",               min:() => -KARMA_LIMIT, max:() => KARMA_LIMIT },
+  walker:     { label:"Walker",              min:() => 0, max:() => WALKER_WORD.length, wraps:true },
 });
 
 export const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -39,6 +41,14 @@ export const clampVP = vp => clamp(vp, 0, MAX_VP);
  */
 export const stepWithin = (value, delta, lo, hi) =>
   delta > 0 ? Math.min(value + delta, Math.max(value, hi)) : Math.max(value + delta, Math.min(value, lo));
+/**
+ * One step of a COUNTERS entry. A counter that `wraps` (the walker) goes
+ * back to its minimum when + is pressed on its maximum.
+ */
+export const stepCounter = (rule, value, delta, players) =>
+  rule.wraps && delta > 0 && value >= rule.max(players)
+    ? rule.min(players)
+    : stepWithin(value, delta, rule.min(players), rule.max(players));
 export const nextRobber = v => ROBBER_VALUES[(ROBBER_VALUES.indexOf(v) + 1) % ROBBER_VALUES.length] ?? ROBBER_VALUES[0];
 export const collectRobber = (karma, robber) => clamp(karma - robber, -KARMA_LIMIT, KARMA_LIMIT);
 

@@ -45,6 +45,7 @@ It is used mostly **on phones at game night**, so the UI is mobile-first.
 | **Karma** | A shared ± number (homebrew; the app only tracks it). |
 | **Robber points** | A shared value cycling 1 → 2 → 3; **Collect** subtracts it from karma. |
 | **Honor coin** | Each player has a coin: heads = honorable (start), tails = dishonorable. Only its owner can flip it; everyone sees it. |
+| **Walker** | The word **WALKER**, shared: one letter per 7 rolled with the barbarians (counted by hand with + / −). **+** on the full word starts it over at 0. As it fills, every phone snows (8-bit pixel snow, frost creeping in from the edges); back to 0, the winter fades away. |
 
 ---
 
@@ -125,11 +126,11 @@ on the tracker): everything works, but nothing is shared between phones.
   their seat and color** (if the new map has fewer seats, the players who
   don't fit pick again), **season wins are kept**.
 - **Tracker screen** (`#/tracker`, *Tracker* button in the dock):
-  - **Fits one phone screen without scrolling** (4 players down to an
-    iPhone SE in Safari; 6 players on any current iPhone or Android — on
-    an SE-sized screen 6 players scroll a little). The seat rows share the
-    height the rest leaves: `--tracker-chrome` in `screens.css` is the
-    measured height of everything else.
+  - **Fits one phone screen without scrolling** (3–6 players on a current
+    iPhone in Safari, measured at 393 × 659; on an iPhone SE-sized screen
+    it scrolls a little). The seat rows share the height the rest leaves
+    (42–54 px each): `--tracker-chrome` in `screens.css` is the measured
+    height of everything else (404 px since the walker row).
   - Victory points & honor — one row per seat (seat count = the map's
     player count): that player's honor coin in their color (only the owner
     can flip it; "Honorable" / "Dishonorable" under the name), then VP
@@ -137,9 +138,27 @@ on the tracker): everything works, but nothing is shared between phones.
   - Cities and Knights — three compact tiles in one row: Main island
     knights, Off island knights (each 0…12 × players) and Cities
     (0…4 × players).
-  - Karma & robber — one row: Karma (±99, the digits stay centred with the
-    sign hanging left), Robber (just the number, exactly centred; tap
-    cycles 1→2→3) and **Collect: −N** (subtracts it from karma).
+  - Karma, robber & walker — one row: Karma (±99, the digits stay centred
+    with the sign hanging left), Robber (just the number, exactly centred;
+    tap cycles 1→2→3) and **Collect: −N** (subtracts it from karma). Under
+    it, **− W A L K E R +**: each + lights the next letter (icy glow), and
+    the lit letters shake harder and faster with every letter
+    (`--amp` / `--rot` / `--dur` set by `TrackerScreen`). + on the full
+    word starts over at 0; − stops at 0; holding + doesn't spin it round.
+  - **Winter** (`WinterEffect`, app-wide, every phone): as WALKER fills,
+    8-bit pixel snow falls — specks, crosses, flakes, crystals and sparkles
+    on a low-resolution canvas scaled up with hard pixel edges — and the
+    flakes **blink** (gone for a few frames), **twinkle** (flash into a
+    star) and **pulse** (breathe between two sizes). More, bigger and faster
+    flakes with each letter, plus pixel frost creeping in from the screen
+    edges (deeper in the corners, icicles along the top) and a faint cold
+    tint. Going back down thins the snow and melts the frost; back to 0 it
+    all fades out over ~3 s. Drawn under the music bar (never over the
+    YouTube player), never takes a tap. Reduced motion: frost only.
+- **Logging in on another device:** pick your profile on the welcome
+  screen. If you're seated in the current game you go straight to the
+  tracker ("Welcome back, … — you're Red."), and the music picks up where
+  you were (see Music).
 - **Victory screen**: when a seated player hits 13 VP, they see *Victory*,
   other seated players see *Defeat* (spectators see "X wins"). **Continue**
   returns to the tracker with numbers intact. If that player drops below 13
@@ -169,7 +188,8 @@ on the tracker): everything works, but nothing is shared between phones.
   can see you're signed in — works on Android Chrome; iPhone Safari's
   cross-site tracking protection usually hides the sign-in.
 - **Docked on every screen:** a bar along the bottom in portrait, a column
-  on the right in phone landscape (the best way to cast to a 16:9 TV). The
+  on the right in phone landscape (the best way to cast to a 16:9 TV), and
+  the left column on desktop (see Desktop). The
   map and every screen shrink to make room — `MusicBar` measures itself
   into `--music-h` / `--music-w` and `css/music.css` applies them. In
   portrait Safari the tracker scrolls about 90 px while the bar is open.
@@ -181,6 +201,33 @@ on the tracker): everything works, but nothing is shared between phones.
 - Screen mirroring (AirPlay, Chromecast "cast screen") carries the sound to
   the TV with the picture. While music plays the screen is kept awake (Wake
   Lock): a locked phone stops web audio.
+- **Follows you between devices.** While music plays, where you are (song,
+  time, playing, bar open, shuffle) is saved to your profile every 5 s and
+  on pause, close and leaving the page (`/v1/listening/{profileId}`).
+  Logging in on another device opens the bar as it was and carries on from
+  about where it would be by now (it adds the time since the save when it
+  was playing). Opening the app again (a reload) cues the same song and
+  time but waits for a tap. Music already playing on this device is never
+  interrupted, and nothing is saved until music has played on a device, so
+  a phone that's just been opened never overwrites where you were.
+
+### Desktop (≥ 900 × 560)
+
+- A **left column** holds the tracker and the music: music alone fills it
+  (a big 16:9 player, its controls, then the whole song list); with the
+  tracker open the column splits — **tracker on top, music below**
+  (compact: the 200 × 200 player beside its controls, switching to the big
+  player once the music has room). The map and the settings column sit to
+  the right, and the map stays usable while the tracker is open (the
+  **Tracker** button opens and closes it).
+- **Drag to resize**, with three handles: the column's width, the split
+  between tracker and music, and the settings column's width (also arrow
+  keys when focused, Shift for bigger steps; double-click resets). Sizes are
+  remembered per device and fitted to smaller windows. Limits keep the map
+  ≥ 420 px wide and the big player ≥ 200 px tall.
+- `DesktopLayout` decides and measures (body `data-desk` / `data-left`,
+  `--left-w` / `--split` / `--music-top` / `--panel-w` / `--top-h`);
+  `css/desktop.css` lays it out. Phones never get any of it.
 
 ---
 
@@ -279,6 +326,8 @@ catan-pangea/                       ← deployed as-is to GitHub Pages
   css/app.css                       map layout (phone portrait / landscape / desktop)
   css/screens.css                   join / tracker / wins / admin / victory / toast
   css/music.css                     music bar + how everything else makes room for it
+  css/winter.css                    the WALKER snow / frost overlay
+  css/desktop.css                   desktop left column (tracker + music), drag handles
   src/main.js                       entry point → new App(document).start()
   src/engine/                       MAP ENGINE — pure, DOM-free (browser, Node, or a worker)
     hex.js                          axial coords, integer vertex lattice, distances, pixels
@@ -325,7 +374,9 @@ catan-pangea/                       ← deployed as-is to GitHub Pages
     ThemeController.js, palette.js  theme; board colors
     imageExport.js, Toast.js, dom.js  PNG/share; toasts; h()/s() DOM builders
     VictoryOverlay.js               victory / defeat screen
-    MusicBar.js                     docked YouTube player (IFrame API), songs sheet, playlist link
+    MusicBar.js                     docked YouTube player (IFrame API), songs sheet, playlist link, resume across devices
+    WinterEffect.js                 8-bit snow + frost that build up as WALKER fills
+    DesktopLayout.js                desktop left column + the three drag handles
     screens/Screen.js               base class for full-screen views
     screens/JoinScreen.js, TrackerScreen.js, WinsScreen.js, AdminScreen.js, widgets.js
 tests/                              node:test (engine, store, game service)
@@ -394,10 +445,14 @@ v1/
     board:    BoardSnapshot  { v:1, generatorId, request, tiles:["q,r|terrain|num"], ports:["edge|hex|type|res"] }
     settings: Settings#toJSON()
     seats:    { s0:{ vp, honorable, profileId?, color? }, s1:…, … }   (keys "s0…" — numeric keys become arrays)
-    counters: { knightsMain, knightsOff, cities, karma, robber }
+    counters: { knightsMain, knightsOff, cities, karma, walker (0…6), robber }
               (one key per COUNTERS entry; a missing key reads as 0, so older games keep working)
   wins/{season}/{entryId}: { profileId, delta (±1), source:"game"|"admin", sessionId?, at }
   music:                   { listId, setAt (ms), setBy? }   ← the table's playlist (YouTube list id)
+  listening/{profileId}:   { listId, videoId, index, count, t, duration, playing, open, shuffle, at, deviceId }
+                           ← where each player is in the music; read on login, not watched
+                             (it changes every few seconds while music plays); index = position
+                             in the playlist's own (unshuffled) order
 ```
 - **Wins are a ledger.** A game win's entry id is `${sessionId}_${profileId}`
   (idempotent): written when VP goes <13 → 13, removed when 13 → <13. Admin
@@ -406,7 +461,7 @@ v1/
 - Nulls are never stored (RTDB semantics); `prune()` in `MemoryStore`
   normalises writes identically for every adapter.
 - **Concurrency:** every change to shared numbers is a transaction with the
-  limits applied inside it (VP 0–13, knights 0–12×N per island, cities 0–4×N, karma ±99, color
+  limits applied inside it (VP 0–13, knights 0–12×N per island, cities 0–4×N, karma ±99, walker 0–6 wrapping, color
   uniqueness, seat availability), so simultaneous taps from several phones
   never lose updates or break a limit. Counter controls send **deltas**.
 - **RTDB caveat:** a transaction may first run with `null` if nothing is
@@ -435,7 +490,8 @@ v1/
   profiles, seats/colors, VP + win record/revoke, coins, knights, karma,
   robber, session rotation, admin.
 - `music.test.js` — playlist links (YouTube, YouTube Music, share links,
-  private lists), player error handling, the shared playlist.
+  private lists), player error handling, the shared playlist, where each
+  player is in the music (saved per profile, dropped with the profile).
 
 UI is verified by driving the real app in a headless Chromium browser via
 the DevTools protocol at phone sizes (two tabs with different `?device=`
@@ -463,8 +519,10 @@ your run created afterwards — never `DELETE /v1` once real data exists.
   `GameState.counters`, `hasProgress` and `GameService.adjustCounter` all
   derive from `COUNTERS`; render it in `TrackerScreen` with the
   `tile(name, label)` helper (bounds follow the table size). Steps go
-  through `stepWithin`, so a value saved past a later, tighter bound can
-  still step back one at a time. Adding a row of tiles makes the screen
+  through `stepCounter` / `stepWithin`, so a value saved past a later,
+  tighter bound can still step back one at a time; `wraps:true` (the
+  walker) makes + on the maximum go back to the minimum (pass `wraps` to
+  `CounterControl` too). Adding a row of tiles makes the screen
   taller: re-measure and update `--tracker-chrome`. Add a test.
 - **New per-player stat:** add the field to seats in `newSession()`, read it
   in `GameState.seats`, add a `GameService` method using a seat
@@ -519,6 +577,17 @@ your run created afterwards — never `DELETE /v1` once real data exists.
   A fresh player ignores *play* until its playlist has loaded, so if music
   was playing it's asked again on CUED / UNSTARTED (`resumeTries`, a few
   tries for 10 s). A phone that insists on a tap shows *Tap the video*.
+- **YouTube player quirks we rely on:** `playerVars.index` for a playlist
+  counts from **1** (`start` is seconds); a player told where to start
+  buffers (state 3) before anyone presses play, so BUFFERING only counts
+  as playing while music is wanted; and there is **no event** when a new
+  player's playlist arrives — `#checkLoaded` polls for it (the desktop
+  song list depends on that).
+- **`Screen.build()` runs inside the base constructor**, before a
+  subclass's `#private` methods exist — call only public methods from
+  `build()`.
+- **Grid items honour `z-index`** without `position`: the desktop
+  settings column (z-index 30) sits above anything fixed below 31.
 - **"Was music playing?" is `wantsMusic`, not the player state.** YouTube
   reports PAUSED → UNSTARTED → BUFFERING whenever it changes songs (Next, a
   song ending), so the state alone says "stopped" in the gap. `wantsMusic`
@@ -531,6 +600,17 @@ your run created afterwards — never `DELETE /v1` once real data exists.
 
 Keep newest first. Every feature PR adds an entry and updates the sections above.
 
+- **2.3.0 — Walker, winter, devices, desktop.** WALKER on the tracker
+  (one letter per 7 with the barbarians, + on the full word starts over):
+  the letters glow and shake harder as it fills, and every phone gets
+  8-bit pixel snow that blinks, twinkles and pulses, plus pixel frost from
+  the edges — all fading out when it starts over. Logging in on another
+  device takes a seated player straight to the tracker and picks the music
+  up where they were (song, time, playing); a reload cues it. Desktop: a
+  left column with the tracker on top and the music below (big player and
+  the song list when it has room), the map usable beside it, and drag
+  handles for the column, the split and the settings column. The tracker
+  still fits one phone screen for 3–6 players (rows 42–54 px).
 - **2.2.3 — Fix:** a playlist switch made while a song is changing (just
   after Next, or as one song ends) keeps playing too. YouTube briefly
   reports *paused* between songs; only a pause that lasts counts now.

@@ -106,4 +106,14 @@ export class GameController {
   /* music: one playlist for the table, any player may change it */
   /** @returns {Promise<string|undefined>} the playlist id, or undefined if the link was rejected */
   setPlaylist(link){ return this.#run(() => this.service.setPlaylist(link, this.me?.id ?? null)); }
+
+  /** Where a player last was in the music (null if never, or unreachable). */
+  listening(profileId = this.me?.id){
+    return this.service && profileId ? this.service.listening(profileId).catch(() => null) : Promise.resolve(null);
+  }
+  /** Save where I am in the music — in the background, never a toast. */
+  saveListening(spot){
+    const me = this.me;
+    if(me && this.service) this.service.saveListening(me.id, spot).catch(() => {});
+  }
 }

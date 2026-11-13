@@ -1,0 +1,85 @@
+/* ==========================================================================
+   Desktop (src/ui/DesktopLayout.js sets body[data-desk], body[data-left]
+   and --left-w / --split / --music-top / --panel-w / --top-h).
+   The left column holds the tracker (top) and the music (bottom); the
+   map and the settings column sit to its right. Nothing here applies to
+   phones — every rule starts with body[data-desk].
+   ========================================================================== */
+
+/* everything else moves right of the left column */
+body[data-desk] .app{ margin-left:var(--left-w, 0px); }
+body[data-desk] .screen{ left:var(--left-w, 0px); }
+body[data-desk] .victory{ left:var(--left-w, 0px); }
+body[data-desk] .toast{ left:calc(var(--left-w) + (100% - var(--left-w) - var(--panel-w)) / 2); bottom:24px; }
+body[data-desk] dialog.about{
+  width:min(720px, calc(100% - var(--left-w) - 48px));
+  margin-left:calc(var(--left-w) + max(24px, (100% - var(--left-w) - 720px) / 2)); margin-right:auto;
+}
+body[data-desk] #trackerBtn[aria-pressed="true"]{ background:var(--surface-2); }
+
+/* ---------- the tracker docks at the top of the column (all of it without music) ---------- */
+body[data-desk] .screen[data-screen="tracker"]{
+  left:0; right:auto; top:0; bottom:auto; width:var(--left-w); height:var(--split);
+  padding:0; border-right:1px solid var(--line);
+  container-type:size;           /* the seat rows share the column's height, not the window's */
+}
+body[data-desk] .screen[data-screen="tracker"] .vp-row{
+  min-height:clamp(42px, calc((100cqh - var(--tracker-chrome)) / var(--seats, 4)), 54px);
+}
+
+/* ---------- the music: the bottom of the column (all of it without the tracker) ---------- */
+body[data-desk] .music{
+  left:0; right:auto; top:var(--music-top, 0px); bottom:0; width:var(--left-w);
+  padding:12px; gap:12px; overflow:hidden;
+  border-top:0; border-right:1px solid var(--line); box-shadow:none;
+}
+body[data-desk][data-left="both"] .music{ border-top:1px solid var(--line); }
+body[data-desk] .music[data-state="setup"]{ display:flex; flex-direction:column; justify-content:flex-start; }
+
+/* compact (under the tracker): the 200 × 200 player beside its controls */
+body[data-desk] .music[data-dock="compact"]{
+  display:grid; grid-template-columns:200px minmax(0,1fr); align-content:start; justify-content:stretch;
+}
+body[data-desk] .music[data-dock="compact"] .music-video{ width:200px; height:200px; }
+
+/* column (music alone, or given room): a big 16:9 player, controls, then the song list */
+body[data-desk] .music[data-dock="column"]{ display:flex; flex-direction:column; padding:16px; }
+body[data-desk] .music[data-dock="column"] .music-video{ width:100%; height:auto; aspect-ratio:16 / 9; flex:none; }
+body[data-desk] .music[data-dock="column"] .music-side,
+body[data-desk] .music[data-dock="column"] .music-now{ flex:none; }
+body[data-desk] .music[data-dock="column"] > .music-songs{
+  position:static; flex:1 1 auto; min-height:0; height:auto; width:auto; margin:4px -8px -8px;
+  border:0; border-top:1px solid var(--line); border-radius:0; box-shadow:none; background:transparent;
+}
+body[data-desk] .music[data-dock="column"] .songs-head{ padding:10px 8px 4px; }
+body[data-desk] .music[data-dock="column"] .songs-head .icon-btn{ display:none; }
+
+/* the playlist pop-up (and the songs, when compact) open beside the column, never over the player */
+body[data-desk] .music-sheet,
+body[data-desk] .music[data-dock="compact"] > .music-songs{
+  position:fixed; z-index:74; left:calc(var(--left-w) + 16px); right:auto; top:auto; bottom:16px;
+  width:420px; border:1px solid var(--line); border-radius:16px;
+}
+body[data-desk] .music-songs{ height:min(560px, calc(100% - 32px)); }
+body[data-desk] .music-pop{ max-height:calc(100% - 32px); }
+
+/* ---------- drag handles ---------- */
+.splitter{ display:none; position:fixed; z-index:77; touch-action:none; outline:none; }
+body[data-desk] .splitter[data-split="panel"]{
+  display:block; z-index:31;   /* the settings column is a grid item with z-index 30 */
+  top:var(--top-h); bottom:0; right:calc(var(--panel-w) - 4px); width:8px; cursor:col-resize;
+}
+body[data-desk]:not([data-left="none"]) .splitter[data-split="left"]{
+  display:block; top:0; bottom:0; left:calc(var(--left-w) - 4px); width:8px; cursor:col-resize;
+}
+body[data-desk][data-left="both"] .splitter[data-split="split"]{
+  display:block; left:0; width:var(--left-w); top:calc(var(--split) - 4px); height:8px; cursor:row-resize;
+}
+.splitter::after{ content:""; position:absolute; background:var(--focus); opacity:0; transition:opacity .15s; }
+.splitter[data-split="split"]::after{ left:0; right:0; top:3px; height:2px; }
+.splitter:not([data-split="split"])::after{ top:0; bottom:0; left:3px; width:2px; }
+.splitter:hover::after, .splitter.is-dragging::after, .splitter:focus-visible::after{ opacity:.85; }
+body.is-resizing{ user-select:none; -webkit-user-select:none; }
+body[data-resizing="x"]{ cursor:col-resize; }
+body[data-resizing="y"]{ cursor:row-resize; }
+body.is-resizing iframe{ pointer-events:none; }   /* the YouTube frame would swallow the drag */
