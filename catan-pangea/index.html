@@ -4,8 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#F5F4F0">
+  <!-- installable app (Add to Home Screen / Install app): full screen, no browser bars -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Pangaea">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <meta name="description" content="Random-continent Catan map generator with fairness-optimised numbers and ports.">
   <title>Pangaea — Catan map generator</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2l8.66 5v10L12 22l-8.66-5V7z' fill='%233E6B48'/%3E%3C/svg%3E">
@@ -26,6 +31,9 @@
       </div>
       <div class="mode" id="modeSwitch"></div>
       <div class="tools">
+        <button class="icon-btn" id="installBtn" type="button" aria-label="Install the app" title="Install the app — full screen, no browser bars" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M12 7.5v7M9 11.5l3 3 3-3"/></svg>
+        </button>
         <button class="icon-btn" id="musicBtn" type="button" aria-label="Music" title="Music" aria-pressed="false">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17.5V6l10-2v11.5"/><circle cx="6.5" cy="17.5" r="2.5"/><circle cx="16.5" cy="15.5" r="2.5"/></svg>
         </button>
@@ -127,6 +135,10 @@ v1 = 3A − S + 3 − 3L      (the generator fills lakes, so L = 0)</pre>
       <p>Tap <b>♪</b> to open the music bar: your YouTube or YouTube Music playlist (public or unlisted) with previous / play / next, shuffle and the song list. It stays docked under the map and the tracker — on the right when the phone is sideways — so the phone you cast to the TV shows the board and plays the music. Paste the link once and every phone has it; change it with the <b>🔗</b> button. On a phone, start the first song by tapping the video; after that the buttons work. Closing the bar pauses the music.</p>
       <p>On a computer, the music and the tracker share a column on the left of the map — drag the edges to resize the column, the split between them, and the settings on the right.</p>
       <p>Have YouTube Premium? Under <b>🔗</b>, <b>Play in the YouTube Music app</b> hands the playlist to the app, which keeps playing in the background with no ads — the bar closes and the map gets the whole screen, and screen mirroring still sends the music to the TV.</p>
+
+      <h3>Install it as an app</h3>
+      <p>Pangaea installs straight from the browser — no app store — and then opens full screen, without the browser bars. <b>iPhone:</b> in Safari, tap <b>Share</b>, then <b>Add to Home Screen</b> (keep <b>Open as Web App</b> on). <b>Android:</b> tap the phone icon at the top, or <b>Install app</b> in the browser menu. The app keeps a copy of itself, so it opens and makes maps with no signal, and it updates itself whenever you're online.</p>
+      <p>On iPhone the installed app has its own storage, separate from Safari: the first time you open it, pick your profile on the welcome screen and you're straight back in your seat, music and all.</p>
 
       <h3>Settings</h3>
       <div class="table-wrap"><table>

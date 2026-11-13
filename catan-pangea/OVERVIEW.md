@@ -122,6 +122,10 @@ island knights, 0–12 × players each, plus cities, 0–4 × players), karma, a
 robber (1 → 2 → 3, **Collect** takes it off karma). Wins are tallied per season
 (calendar year); an admin profile can fix wins and remove profiles.
 
+**WALKER** gets a letter each time a 7 is rolled with the barbarians. As the
+word fills, its letters shake harder and every phone gets 8-bit snow and
+frost; **+** on the full word starts it over and the winter melts away.
+
 ## Music
 
 Tap **♪** (top of the map, or the tracker header) to open the music bar:
@@ -133,6 +137,16 @@ phone gets it; change it with the 🔗 button. On a phone, start the first
 song by tapping the video. With YouTube Premium, 🔗 → **Play in the
 YouTube Music app** plays it from the app instead — in the background, no
 ads — and the bar closes so the map gets the whole screen.
+
+## Install it as an app
+
+Pangaea installs straight from the browser — no app store — and then opens
+full screen, without the browser bars. On iPhone: in Safari, tap **Share**,
+then **Add to Home Screen**. On Android: tap the phone icon at the top of the
+map (or **Install** on the welcome screen). The app keeps a copy of itself,
+so it opens and makes maps with no signal, and updates itself whenever it's
+online. On iPhone the installed app has its own storage: pick your profile
+once on the welcome screen.
 
 ## Code layout
 

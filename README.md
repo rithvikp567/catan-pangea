@@ -6,7 +6,9 @@ optimised for a fair draft, and a shared scoreboard (VP, cities and knights, kar
 robber, the WALKER word with its 8-bit winter, honor coins, season wins) synced
 across everyone's phone, plus a docked YouTube music player for the table's
 playlist that follows you between devices. Two board types — **Open Sea** and
-**Sea Lanes** — built mobile-first, with a resizable desktop layout.
+**Sea Lanes** — built mobile-first, with a resizable desktop layout. It installs
+as an app straight from the browser (Add to Home Screen / Install app): full
+screen, no browser bars, and it opens with no signal.
 
 **Developers and agents: start with [context.md](context.md).**
 
