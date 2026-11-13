@@ -82,6 +82,7 @@ export class MusicBar {
     this.listId = null;          /* the playlist loaded in the player */
     this.pendingListId = null;   /* someone changed it while this phone was playing */
     this.playing = false;
+    this.wantsMusic = false;     /* on from play until a pause that lasts, or Close — survives the gap between songs */
     this.started = false;        /* has anything played yet? phones need that first tap on the video */
     this.resumeTries = 0;        /* after a playlist switch: ask the fresh player to play this many more times */
     this.shuffle = storage.get("musicShuffle", false) === true;
@@ -123,6 +124,7 @@ export class MusicBar {
   close(){
     this.player?.pauseVideo?.();
     this.playing = false;
+    this.wantsMusic = false;
     this.#showSongs(false);
     this.#showPop(false);
     this.el.hidden = true;
@@ -218,7 +220,7 @@ export class MusicBar {
       input.value = "";
       input.blur();
       this.#showPop(false);
-      this.#switchTo(id, { play:this.playing });
+      this.#switchTo(id, { play:this.#musicOn() });
       this.toast.show("Playlist saved for everyone.");
     } }, input, h("button", { type:"submit", class:"btn" }, submitLabel));
     return { form, input };
@@ -269,6 +271,7 @@ export class MusicBar {
          loaded (only the link changes), so start a fresh player for the new one */
       await this.playerReady;
       if(this.listId !== listId) return;     /* switched again meanwhile */
+      clearTimeout(this.pauseTimer);
       this.player?.destroy?.();
       Object.assign(this, { player:null, playerReady:null, playing:false, started:false, shuffleApplied:false });
       this.host = h("div");
@@ -282,7 +285,8 @@ export class MusicBar {
        that wants a tap on the video won't be nagged forever) */
     this.resumeTries = play ? 3 : 0;
     clearTimeout(this.resumeTimer);
-    if(play) this.resumeTimer = setTimeout(() => { this.resumeTries = 0; }, 10000);
+    /* a phone that wants a tap on the video: give up, so the bar doesn't think music is on */
+    if(play) this.resumeTimer = setTimeout(() => { this.resumeTries = 0; if(!this.playing) this.wantsMusic = false; }, 10000);
     const player = await this.#ensurePlayer();
     if(this.resumeTries > 0 && player && this.listId === listId){ this.resumeTries--; player.playVideo(); }
   }
@@ -309,6 +313,13 @@ export class MusicBar {
   #onPlayerState(state){
     const S = globalThis.YT.PlayerState;
     this.playing = state === S.PLAYING || state === S.BUFFERING;
+    clearTimeout(this.pauseTimer);
+    if(state === S.PLAYING) this.wantsMusic = true;
+    /* YouTube also reports PAUSED for a moment when it changes songs (Next, a song
+       ending): only a pause that lasts means someone paused the music */
+    else if(state === S.PAUSED) this.pauseTimer = setTimeout(() => {
+      if(this.player?.getPlayerState?.() === S.PAUSED) this.wantsMusic = false;
+    }, 1000);
     if(state === S.PLAYING){ this.errorsInARow = 0; this.started = true; this.resumeTries = 0; }
     if((state === S.CUED || state === S.PLAYING) && !this.shuffleApplied){
       this.shuffleApplied = true;
@@ -318,6 +329,11 @@ export class MusicBar {
     this.#keepAwake();
     this.#paint();
     if(!this.songs.hidden) this.#renderSongs();
+  }
+
+  /** Is music on here — playing, or between songs? (Paused right now counts as off.) */
+  #musicOn(){
+    return this.wantsMusic && this.player?.getPlayerState?.() !== globalThis.YT?.PlayerState?.PAUSED;
   }
 
   /** Songs a label won't let play outside YouTube are skipped, not fatal. */
@@ -354,7 +370,7 @@ export class MusicBar {
     if(id === this.listId || id === this.pendingListId){ this.#paint(); return; }
     if(!id){ this.player?.stopVideo?.(); this.listId = null; this.#paint(); return; }
     /* someone else changed the playlist: don't cut off the song playing here */
-    if(this.playing){ this.pendingListId = id; this.#paint(); return; }
+    if(this.#musicOn()){ this.pendingListId = id; this.#paint(); return; }
     this.#switchTo(id);
   }
 
