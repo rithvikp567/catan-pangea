@@ -9,6 +9,7 @@ import { Screen } from "./Screen.js";
 import { PLAYER_COLORS, NAME_MAX, colorById } from "../../game/rules.js";
 import { getGenerator } from "../../engine/index.js";
 import { syncStatusPill, icon, ICONS } from "./widgets.js";
+import { IOS_STEPS } from "../../app/InstallHelper.js";
 
 export class JoinScreen extends Screen {
   constructor(deps){ super("join", "Who's playing?", deps, { layout:"centered" }); }
@@ -42,9 +43,20 @@ export class JoinScreen extends Screen {
         h("button", { type:"button", class:"btn", onClick:() => this.#setStep("profile") }, "Back"),
         this.joinBtn));
 
+    /* "Get the app": until it's installed, or the card is closed */
+    this.installText = h("small", {});
+    this.installAction = h("button", { type:"button", class:"btn", onClick:() => this.deps.installApp?.() }, "Install");
+    const close = h("button", { type:"button", class:"icon-btn", "aria-label":"Hide this", title:"Hide this", onClick:() => this.deps.install?.dismiss() });
+    close.innerHTML = ICONS.close;
+    this.installCard = h("div", { class:"install-card", hidden:true },
+      h("img", { class:"install-icon", src:"icons/icon-192.png", alt:"", width:44, height:44 }),
+      h("span", { class:"install-text" }, h("b", {}, "Get the app"), this.installText),
+      this.installAction, close);
+    this.deps.install?.onChange(() => { if(this.visible) this.render(this.game.state); });
+
     const link = (label, route) => h("button", { type:"button", class:"link-btn", onClick:() => this.router.go(route) }, label);
     this.pillSlot = h("div", { class:"join-status" });
-    this.body.append(this.profileStep, this.colorStep,
+    this.body.append(this.profileStep, this.colorStep, this.installCard,
       h("footer", { class:"join-foot" },
         h("nav", { class:"screen-links" }, link("Season wins", "wins"), link("Admin", "admin"), link("View map", "")),
         this.pillSlot));
@@ -65,6 +77,10 @@ export class JoinScreen extends Screen {
     this.heading.textContent = this.step === "color" ? (mine ? "Your color" : "Pick your color") : "Who's playing?";
     this.pillSlot.replaceChildren(syncStatusPill(game.status));
     this.#renderBanner(state);
+    const install = this.deps.install, mode = install?.mode;
+    this.installCard.hidden = !mode || install.dismissed;
+    this.installText.textContent = mode === "ios" ? IOS_STEPS : "Full screen, no browser bars — opens like an app.";
+    this.installAction.hidden = mode !== "prompt";
 
     /* profiles */
     this.profileList.replaceChildren(...state.profiles.map(p => {

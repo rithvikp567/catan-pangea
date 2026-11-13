@@ -115,6 +115,17 @@
 .step-actions .btn{ min-height:54px; border-radius:14px; }
 .step-actions .primary{ flex:1; }
 
+/* "Get the app" on the welcome screen (InstallHelper) */
+.install-card{
+  display:flex; align-items:center; gap:12px; margin-top:16px; padding:10px 6px 10px 12px;
+  border:1px solid var(--line); border-radius:16px; background:var(--surface);
+}
+.install-icon{ width:44px; height:44px; flex:none; border-radius:11px; }
+.install-text{ flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; font-size:15px; }
+.install-text small{ font-size:12.5px; color:var(--ink-3); line-height:1.35; }
+.install-card .btn{ min-height:40px; padding:0 14px; }
+.install-card .icon-btn{ flex:none; width:36px; height:36px; }
+
 .join-foot{ display:flex; flex-direction:column; align-items:center; gap:6px; margin-top:28px; }
 .join-foot .screen-links{ margin:0; gap:0 22px; }
 .join-foot .link-btn{ text-decoration:none; color:var(--ink-2); }

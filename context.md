@@ -23,7 +23,9 @@ Plus a **music bar** that plays the table's YouTube / YouTube Music
 playlist docked under the map and tracker, so the phone that's cast to the
 TV can show the board and play the music at the same time.
 
-It is used mostly **on phones at game night**, so the UI is mobile-first.
+It is used mostly **on phones at game night**, so the UI is mobile-first,
+and it **installs as an app** from the browser (no app store): full screen,
+no browser bars, and it opens with no signal.
 
 - Live site: https://rithvikp567.github.io/catan-pangea/
 - Repo: https://github.com/rithvikp567/catan-pangea
@@ -58,6 +60,10 @@ HOST=0.0.0.0 npm start   # also reachable from a phone on the same Wi-Fi
 ```
 
 - ES modules don't load from `file://` — always serve the folder.
+- **The service worker runs on localhost too** (`sw.js`, network first, so
+  you always get your latest files while the server is up). Add `?nosw` to
+  skip registering it; to drop one that's installed, use the browser's
+  DevTools → Application → Service workers → Unregister.
 - **⚠ Localhost talks to the live database.** The committed Firebase config
   is the real game's, so a plain `npm start` session reads and writes the
   same data as everyone's phones. **When testing, add `?store=local`** — it
@@ -212,6 +218,32 @@ on the tracker): everything works, but nothing is shared between phones.
   interrupted, and nothing is saved until music has played on a device, so
   a phone that's just been opened never overwrites where you were.
 
+### Installable app
+
+- **Install from the browser, no app store.** Android / desktop Chrome and
+  Edge: the phone icon at the top of the map (and **Install** on the
+  welcome screen's *Get the app* card) opens the browser's own install
+  dialog. iPhone / iPad: there is no install dialog — the icon and the
+  card explain *Share → Add to Home Screen* (with *Open as Web App* on).
+  Both disappear once it's running as the installed app; the card can be
+  closed for good.
+- **Full screen.** `manifest.webmanifest` asks for `fullscreen`: on
+  Android no browser bars and no system bars; iPhone treats it as
+  standalone (no Safari bars; the clock and battery stay, tinted with the
+  app's background — `apple-mobile-web-app-status-bar-style: default`, so
+  the text stays readable in the light theme). The layout already pads for
+  the notch and home bar (`viewport-fit=cover`).
+- **Opens with no signal.** `sw.js` keeps a copy of every file the app
+  loads (and Firebase's SDK). Online it always fetches fresh files first —
+  a deploy reaches everyone the next time they open the app; offline, or
+  after 4 s on a bad connection, it uses the copy. The map generator works
+  fully offline; tracker changes wait and sync when the connection is
+  back (as before).
+- **Icon:** a 7-hex island in the terrain colours with an 8 token, on a
+  dark sea (`icons/`: 192, 512, maskable 512 with the island inside the
+  safe zone, and the 180 apple-touch-icon). PNGs are committed — no build
+  step.
+
 ### Desktop (≥ 900 × 560)
 
 - A **left column** holds the tracker and the music: music alone fills it
@@ -325,6 +357,9 @@ relative to the mean); numbers `1 − 0.34·red − 0.05·same − min(0.5,
 ```
 catan-pangea/                       ← deployed as-is to GitHub Pages
   index.html                        markup shell + "How it works" dialog
+  manifest.webmanifest              installable app: name, icons, full screen
+  sw.js                             service worker: fresh files online, the last good copy offline
+  icons/                            app icons (192, 512, maskable 512, apple-touch-icon 180)
   css/tokens.css                    color tokens (light + dark)
   css/app.css                       map layout (phone portrait / landscape / desktop)
   css/screens.css                   join / tracker / wins / admin / victory / toast
@@ -368,6 +403,7 @@ catan-pangea/                       ← deployed as-is to GitHub Pages
     GameController.js               tracker facade for screens (state, me, intents, toasts)
     Settings.js                     immutable settings value object + UI presets
     Identity.js                     device id + current profile (localStorage)
+    InstallHelper.js                install button / iPhone how-to; registers sw.js
     Router.js                       hash routes: "" (map), join, tracker, wins, admin
     storage.js                      SafeStorage (never-throwing localStorage)
   src/ui/                           VIEWS
@@ -580,6 +616,18 @@ your run created afterwards — never `DELETE /v1` once real data exists.
   A fresh player ignores *play* until its playlist has loaded, so if music
   was playing it's asked again on CUED / UNSTARTED (`resumeTries`, a few
   tries for 10 s). A phone that insists on a tap shows *Tap the video*.
+- **The installed app on iPhone has its own storage**, separate from
+  Safari's: a new device id and no profile selected. Players pick their
+  profile once on the welcome screen (seated players go straight back to
+  the tracker, and the music picks up where they were). "One profile per
+  device" means the installed app could create a *second* profile — fine,
+  but an admin can tidy up.
+- **Service worker:** network first for the app's own files, so there's
+  no "stuck on an old version" — but only bump `CACHE` in `sw.js` when
+  the caching strategy changes. A desktop Chrome install opens full screen
+  too (manifest `fullscreen`); Esc / F11 leaves it. The browser's install
+  dialog only opens from a real tap (`InstallHelper.install` catches it
+  otherwise).
 - **YouTube player quirks we rely on:** `playerVars.index` for a playlist
   counts from **1** (`start` is seconds); a player told where to start
   buffers (state 3) before anyone presses play, so BUFFERING only counts
@@ -603,6 +651,13 @@ your run created afterwards — never `DELETE /v1` once real data exists.
 
 Keep newest first. Every feature PR adds an entry and updates the sections above.
 
+- **2.4.0 — Install as an app.** Web app manifest (full screen), app icons,
+  and a service worker: Pangaea installs from the browser — Android's
+  install dialog behind a phone icon and a *Get the app* card on the
+  welcome screen; on iPhone the same places explain Share → Add to Home
+  Screen — and the installed app opens without the browser bars and with
+  no signal (fresh files whenever it's online, the last good copy when it
+  isn't). About explains it.
 - **2.3.1 — Gentler winter; capped desktop column.** About half the snow
   at every level (and sparser early on), shallower and more see-through
   frost, half the cold tint — all from one `STRENGTH` setting in

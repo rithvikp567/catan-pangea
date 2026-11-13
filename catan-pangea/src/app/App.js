@@ -16,6 +16,7 @@ import { SafeStorage } from "./storage.js";
 import { Identity } from "./Identity.js";
 import { GameController } from "./GameController.js";
 import { Router } from "./Router.js";
+import { InstallHelper, IOS_STEPS } from "./InstallHelper.js";
 import { createStore } from "../sync/createStore.js";
 import { COUNTERS } from "../game/rules.js";
 import { SegmentedControl } from "../ui/controls.js";
@@ -58,6 +59,7 @@ export class App {
     this.seatedIn = null;          /* session id this device was last seated in */
 
     this.toast = new Toast();
+    this.install = new InstallHelper(this.storage);
     this.identity = new Identity();
     this.game = new GameController({ identity:this.identity, toast:this.toast });
 
@@ -80,9 +82,10 @@ export class App {
     this.router = new Router({ mapEl:$("app"), docked:route => !!this.layout?.docks(route), onRoute:() => this.layout?.update() });
     this.music = new MusicBar({ game:this.game, toast:this.toast, storage:this.storage });
     const deps = {
-      game:this.game, router:this.router, toast:this.toast, music:this.music,
+      game:this.game, router:this.router, toast:this.toast, music:this.music, install:this.install,
       confirm:msg => window.confirm(msg),
       ensureSession:() => this.#ensureSession(),
+      installApp:() => this.installApp(),
     };
     this.screens = [new JoinScreen(deps), new TrackerScreen(deps), new WinsScreen(deps), new AdminScreen(deps)];
     for(const s of this.screens) this.router.register(s);
@@ -96,6 +99,7 @@ export class App {
   }
 
   async start(){
+    this.install.registerServiceWorker();
     this.router.start();
     this.dom.note.textContent = "Loading the game…";
     const store = await createStore();
@@ -255,6 +259,12 @@ export class App {
     /* on desktop the tracker sits beside the map, so the button opens and closes it */
     $("trackerBtn").addEventListener("click", () => this.router.go(this.router.route === "tracker" ? "" : "tracker"));
     this.music.addOpener($("musicBtn"));
+    /* install: shown until the app is installed (Android / desktop: the browser's dialog; iPhone: how-to) */
+    const installBtn = $("installBtn");
+    const syncInstall = () => { installBtn.hidden = !this.install.mode; };
+    this.install.onChange(syncInstall);
+    syncInstall();
+    installBtn.addEventListener("click", () => this.installApp());
     $("themeBtn").addEventListener("click", () => this.theme.toggle());
     this.theme.onChange(() => { this.#render(); this.winter.refreshTheme(); });
     $("shareBtn").addEventListener("click", () => this.#saveImage());
@@ -270,6 +280,13 @@ export class App {
       if(t instanceof HTMLElement && t.closest("input, textarea, button, summary, dialog, select")) return;
       this.newGame();
     });
+  }
+
+  /** Install as an app: the browser's own dialog where there is one, otherwise how to do it on iPhone. */
+  async installApp(){
+    if(this.install.mode === "prompt"){
+      if(await this.install.install()) this.toast.show("Installed — open Pangaea from your home screen.");
+    }else if(this.install.mode === "ios") this.toast.show(IOS_STEPS, { ms:6000 });
   }
 
   async #saveImage(){
