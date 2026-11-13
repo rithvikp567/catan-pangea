@@ -83,6 +83,7 @@ export class MusicBar {
     this.pendingListId = null;   /* someone changed it while this phone was playing */
     this.playing = false;
     this.started = false;        /* has anything played yet? phones need that first tap on the video */
+    this.resumeTries = 0;        /* after a playlist switch: ask the fresh player to play this many more times */
     this.shuffle = storage.get("musicShuffle", false) === true;
     this.errorsInARow = 0;
     this.lastNotice = 0;
@@ -276,8 +277,14 @@ export class MusicBar {
     }
     this.#paint();
     if(!this.isOpen) return;
+    /* keep the music going: a fresh player ignores play until its playlist has
+       loaded, so #onPlayerState asks again once it's cued (a few tries — a phone
+       that wants a tap on the video won't be nagged forever) */
+    this.resumeTries = play ? 3 : 0;
+    clearTimeout(this.resumeTimer);
+    if(play) this.resumeTimer = setTimeout(() => { this.resumeTries = 0; }, 10000);
     const player = await this.#ensurePlayer();
-    if(play && player && this.listId === listId) player.playVideo();   /* phones may still need a tap on the video */
+    if(this.resumeTries > 0 && player && this.listId === listId){ this.resumeTries--; player.playVideo(); }
   }
 
   #togglePlay(){
@@ -302,11 +309,12 @@ export class MusicBar {
   #onPlayerState(state){
     const S = globalThis.YT.PlayerState;
     this.playing = state === S.PLAYING || state === S.BUFFERING;
-    if(state === S.PLAYING){ this.errorsInARow = 0; this.started = true; }
+    if(state === S.PLAYING){ this.errorsInARow = 0; this.started = true; this.resumeTries = 0; }
     if((state === S.CUED || state === S.PLAYING) && !this.shuffleApplied){
       this.shuffleApplied = true;
       if(this.shuffle) this.player.setShuffle(true);
     }
+    if(this.resumeTries > 0 && (state === S.CUED || state === S.UNSTARTED)){ this.resumeTries--; this.player.playVideo(); }
     this.#keepAwake();
     this.#paint();
     if(!this.songs.hidden) this.#renderSongs();
