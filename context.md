@@ -153,7 +153,8 @@ on the tracker): everything works, but nothing is shared between phones.
     flakes with each letter, plus pixel frost creeping in from the screen
     edges (deeper in the corners, icicles along the top) and a faint cold
     tint. Going back down thins the snow and melts the frost; back to 0 it
-    all fades out over ~3 s. Drawn under the music bar (never over the
+    all fades out over ~3 s. How strong it gets is one knob: `STRENGTH` at
+    the top of `WinterEffect.js` (snow, frost depth, frost opacity, tint). Drawn under the music bar (never over the
     YouTube player), never takes a tap. Reduced motion: frost only.
 - **Logging in on another device:** pick your profile on the welcome
   screen. If you're seated in the current game you go straight to the
@@ -224,7 +225,9 @@ on the tracker): everything works, but nothing is shared between phones.
   between tracker and music, and the settings column's width (also arrow
   keys when focused, Shift for bigger steps; double-click resets). Sizes are
   remembered per device and fitted to smaller windows. Limits keep the map
-  ≥ 420 px wide and the big player ≥ 200 px tall.
+  ≥ 420 px wide, the big player ≥ 200 px tall, and the column ≤ 759 px —
+  just short of the tracker's two-column layout (its `@container` at
+  760 px), so the docked tracker always stays one column (`MAX_LEFT`).
 - `DesktopLayout` decides and measures (body `data-desk` / `data-left`,
   `--left-w` / `--split` / `--music-top` / `--panel-w` / `--top-h`);
   `css/desktop.css` lays it out. Phones never get any of it.
@@ -600,6 +603,12 @@ your run created afterwards — never `DELETE /v1` once real data exists.
 
 Keep newest first. Every feature PR adds an entry and updates the sections above.
 
+- **2.3.1 — Gentler winter; capped desktop column.** About half the snow
+  at every level (and sparser early on), shallower and more see-through
+  frost, half the cold tint — all from one `STRENGTH` setting in
+  `WinterEffect.js`. The desktop left column now stops at 759 px, so the
+  tracker can't be stretched into its two-column layout (dragging, the
+  arrow keys and older saved widths all stop there).
 - **2.3.0 — Walker, winter, devices, desktop.** WALKER on the tracker
   (one letter per 7 with the barbarians, + on the full word starts over):
   the letters glow and shake harder as it fills, and every phone gets

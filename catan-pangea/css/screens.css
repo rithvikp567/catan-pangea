@@ -140,6 +140,7 @@
    A container query, not a media query: the music column can take width away. */
 .screen[data-screen="tracker"]{ container-type:inline-size; }
 @media (min-width:760px){ .screen[data-screen="tracker"] .screen-inner{ max-width:880px; } }
+/* (DesktopLayout's MAX_LEFT keeps its left column just under this, so the docked tracker stays one column) */
 @container (min-width:760px){
   .tracker-grid{ grid-template-columns:minmax(0,1fr) minmax(0,1fr); grid-template-rows:auto 1fr; }
   .tracker-grid > :first-child{ grid-row:span 2; }
