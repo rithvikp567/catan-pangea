@@ -516,7 +516,9 @@ your run created afterwards — never `DELETE /v1` once real data exists.
 - **Switching playlists makes a new player.** YouTube's `loadPlaylist` /
   `cuePlaylist` keep the old songs once a playlist is loaded (only the
   link changes), so `MusicBar` destroys the player and creates a fresh one.
-  On a phone the fresh player needs one tap on the video again.
+  A fresh player ignores *play* until its playlist has loaded, so if music
+  was playing it's asked again on CUED / UNSTARTED (`resumeTries`, a few
+  tries for 10 s). A phone that insists on a tap shows *Tap the video*.
 
 ---
 
@@ -524,6 +526,8 @@ your run created afterwards — never `DELETE /v1` once real data exists.
 
 Keep newest first. Every feature PR adds an entry and updates the sections above.
 
+- **2.2.2 — Fix:** switching playlists while music plays now carries on
+  playing (the fresh player is asked again once its playlist loads).
 - **2.2.1 — Music polish.** The playlist link moved off the Songs sheet
   into its own pop-up behind a 🔗 button. New *Play in the YouTube Music
   app* option for Premium (background play, no ads) and a YouTube sign-in
