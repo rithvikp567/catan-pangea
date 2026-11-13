@@ -113,13 +113,13 @@ export class Stepper {
  * @param {HTMLButtonElement} btn
  * @param {() => boolean|void} step  return false to stop repeating
  */
-export function holdRepeat(btn, step, { delay = 380, interval = 110 } = {}){
+export function holdRepeat(btn, step, { delay = 380, interval = 110, repeat:repeats = true } = {}){
   let wait = null, repeat = null;
   const stop = () => { clearTimeout(wait); clearInterval(repeat); wait = repeat = null; };
   btn.addEventListener("pointerdown", e => {
     if(e.button !== 0 || btn.disabled) return;
     e.preventDefault();
-    if(step() === false) return;
+    if(step() === false || !repeats) return;
     wait = setTimeout(() => { repeat = setInterval(() => { if(btn.disabled || step() === false) stop(); }, interval); }, delay);
   });
   for(const ev of ["pointerup", "pointerleave", "pointercancel"]) btn.addEventListener(ev, stop);
@@ -141,20 +141,24 @@ export class CounterControl {
    * @param {(value:number) => string} [p.format]
    * @param {boolean} [p.signed]  show +n / −n with the digits centred and
    *   the sign hanging to their left (for values that go negative)
+   * @param {boolean} [p.wraps]   + on the maximum goes back to the minimum
+   *   (one step per press — holding doesn't spin it round)
+   * @param {(out:HTMLOutputElement, value:number) => void} [p.paint]  draw the value yourself
    */
-  constructor({ label, min, max, onStep, format = String, signed = false }){
-    Object.assign(this, { min, max, format, signed, value:0 });
+  constructor({ label, min, max, onStep, format = String, signed = false, wraps = false, paint = null }){
+    Object.assign(this, { min, max, format, signed, wraps, paintValue:paint, value:0 });
     this.out = h("output", { class:signed ? "counter-value is-signed" : "counter-value", "aria-live":"polite" });
     const btn = (aria, delta) => {
       const b = stepButton(delta, aria, "counter-btn");
       holdRepeat(b, () => {
-        const next = this.value + delta;
+        let next = this.value + delta;
+        if(this.wraps && next > this.max) next = this.min;
         if(next < this.min || next > this.max) return false;
         this.value = next;                 /* optimistic; the synced value follows */
         this.#paint();
         onStep(delta);
         return true;
-      });
+      }, { repeat:!wraps });
       return b;
     };
     this.dec = btn(`Decrease ${label}`, -1);
@@ -167,14 +171,15 @@ export class CounterControl {
   setBounds(min, max){ Object.assign(this, { min, max }); this.#paint(); }
 
   #paint(){
-    if(this.signed && this.value !== 0){
+    if(this.paintValue) this.paintValue(this.out, this.value);
+    else if(this.signed && this.value !== 0){
       /* an invisible copy of the sign on the right keeps the digits centred */
       const sign = this.value > 0 ? "+" : "−";
       this.out.replaceChildren(h("span", { class:"counter-sign" }, sign), String(Math.abs(this.value)),
         h("span", { class:"counter-sign is-ghost", "aria-hidden":"true" }, sign));
     }else this.out.textContent = this.format(this.value);
     this.dec.disabled = this.value <= this.min;
-    this.inc.disabled = this.value >= this.max;
+    this.inc.disabled = !this.wraps && this.value >= this.max;
   }
 }
 

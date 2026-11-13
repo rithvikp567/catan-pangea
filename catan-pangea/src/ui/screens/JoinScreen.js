@@ -114,9 +114,20 @@ export class JoinScreen extends Screen {
     this.banner.replaceChildren(...line, ...(full ? [h("span", { class:"is-warn" }, "Every seat is taken — you can still watch.")] : []));
   }
 
+  /**
+   * Logging in. On any device: if you're already seated in this game you're
+   * straight back at the tracker, and the music picks up where you were.
+   */
   #pick(id){
     this.game.selectProfile(id);
     this.picked = null;
+    this.deps.music?.resumeFor(id, { play:true });
+    const state = this.game.state, seat = state?.session ? state.seatOf(id) : null;
+    if(seat){
+      this.deps.toast.show(`Welcome back, ${seat.profile.name} — you're ${colorById(seat.color)?.label ?? "seated"}.`);
+      this.router.go("tracker");
+      return;
+    }
     this.#setStep("color");
   }
 

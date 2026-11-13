@@ -277,7 +277,7 @@ dialog.about::backdrop{ background:rgb(0 0 0 / .45); }
    ========================================================================== */
 @media (min-width:900px) and (min-height:560px){
   .app{
-    grid-template-columns:minmax(0,1fr) 340px;
+    grid-template-columns:minmax(0,1fr) var(--panel-w, 340px);   /* DesktopLayout: drag to resize */
     grid-template-rows:auto minmax(0,1fr) auto;
     grid-template-areas:"top top" "stage panel" "stage dock";
   }

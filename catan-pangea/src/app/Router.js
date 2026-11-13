@@ -8,10 +8,13 @@ export class Router {
    * @param {object} p
    * @param {HTMLElement} p.mapEl   the map shell, made inert under a screen
    * @param {(route:string) => void} [p.onRoute]
+   * @param {(route:string) => boolean} [p.docked]  a route shown beside the map (desktop
+   *   tracker): the map stays usable instead of going inert
    */
-  constructor({ mapEl, onRoute = () => {} }){
+  constructor({ mapEl, onRoute = () => {}, docked = () => false }){
     this.mapEl = mapEl;
     this.onRoute = onRoute;
+    this.docked = docked;
     this.screens = new Map();
     addEventListener("hashchange", () => this.#apply());
   }
@@ -36,6 +39,8 @@ export class Router {
   }
 
   start(){ this.#apply(); }
+  /** Re-apply the current route (the layout changed). */
+  refresh(){ this.#apply(); }
 
   /** Return to wherever the user came from (the map if unknown). */
   back(){ this.go(this.previous && this.previous !== this.current ? this.previous : ""); }
@@ -49,7 +54,7 @@ export class Router {
       if(name === route){ if(!screen.visible) screen.show({ swap }); }
       else if(screen.visible) screen.hide();
     }
-    this.mapEl.inert = !!route;
+    this.mapEl.inert = !!route && !this.docked(route);
     document.body.dataset.route = route || "map";
     this.onRoute(route);
   }

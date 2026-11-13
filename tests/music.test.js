@@ -35,6 +35,22 @@ test("player errors: blocked or removed songs are skipped; a broken playlist is 
   assert.match(describePlayerError(2).message, /public or unlisted/);
 });
 
+test("where each player is in the music follows them to another device; removing the profile drops it", async () => {
+  const store = new MemoryStore();
+  const phone = new GameService(store, { deviceId:"dev-phone", now:() => 5000 });
+  const laptop = new GameService(store, { deviceId:"dev-laptop" });
+  const id = await phone.createProfile("Dee");
+  assert.equal(await laptop.listening(id), null);
+  const spot = { listId:"PLtable", videoId:"vid3", index:2, count:20, t:95, duration:200, playing:true, open:true, shuffle:false };
+  await phone.saveListening(id, spot);
+  assert.deepEqual(await laptop.listening(id), { ...spot, at:5000, deviceId:"dev-phone" });
+  assert.equal((await laptop.state()).profiles.length, 1, "not part of the watched game state");
+  await phone.saveListening(id, { listId:"PLtable" });
+  assert.equal((await laptop.listening(id)).videoId, "vid3", "a spot without a song is ignored");
+  await laptop.removeProfile(id);
+  assert.equal(await laptop.listening(id), null);
+});
+
 test("the playlist is shared: one phone sets it, every phone sees it; bad links are rejected", async () => {
   const store = new MemoryStore();
   const a = new GameService(store, { deviceId:"dev-a", now:() => 1000 });

@@ -6,8 +6,11 @@
  *                            0–13 (13 triggers the victory screen)
  *   Cities and Knights     — main island knights, off island knights (each
  *                            0–12 × players) and cities (0–4 × players)
- *   Karma & robber         — karma ±; robber cycles 1→2→3, Collect takes
- *                            its value off karma
+ *   Karma, robber & walker — karma ±; robber cycles 1→2→3, Collect takes
+ *                            its value off karma; then the word WALKER, one
+ *                            letter per 7 rolled with the barbarians — the
+ *                            lit letters shake harder as it fills, and
+ *                            WinterEffect snows over every phone's screen
  *
  * Structure is rebuilt only when the seating changes; values update in
  * place so a press-and-hold isn't interrupted by other phones' updates.
@@ -15,7 +18,7 @@
 import { h } from "../dom.js";
 import { Screen } from "./Screen.js";
 import { CounterControl } from "../controls.js";
-import { MAX_VP, COUNTERS } from "../../game/rules.js";
+import { MAX_VP, COUNTERS, WALKER_WORD } from "../../game/rules.js";
 import { syncStatusPill, section, inkOn, ICONS } from "./widgets.js";
 
 const EMPTY_SEAT_HEX = "#B9B5AC";
@@ -58,10 +61,11 @@ export class TrackerScreen extends Screen {
         tile("knightsMain", "Main island"),
         tile("knightsOff", "Off island"),
         tile("cities", "Cities"))),
-      section("Karma & robber", h("div", { class:"tiles is-karma" },
+      section("Karma, robber & walker", h("div", { class:"tiles is-karma" },
         tile("karma", "Karma", { signed:true }),
         h("div", { class:"tile" }, h("span", { class:"tile-label", "aria-hidden":"true" }, "Robber"), this.robberBtn),
-        this.collectBtn)));
+        this.collectBtn),
+        this.buildWalker()));
 
     this.body.append(this.meta, this.empty, this.sections);
   }
@@ -96,6 +100,30 @@ export class TrackerScreen extends Screen {
     this.robberValue.textContent = String(c.robber);
     this.robberBtn.setAttribute("aria-label", `Robber worth ${c.robber} ${c.robber === 1 ? "point" : "points"}. Tap to cycle 1, 2, 3.`);
     this.collectBtn.textContent = `Collect: −${c.robber}`;
+  }
+
+  /** − W A L K E R + : one letter per 7 rolled with the barbarians; + on R starts over. */
+  buildWalker(){             /* not #private: build() runs inside the base constructor */
+    const letters = [...WALKER_WORD].map((ch, i) => h("span", { class:"walker-letter", style:`--i:${i}` }, ch));
+    const word = h("span", { class:"walker-word", "aria-hidden":"true" }, letters);
+    const rule = COUNTERS.walker;
+    const ctl = new CounterControl({
+      label:"Walker (7s with the barbarians)", min:rule.min(0), max:rule.max(0), wraps:true,
+      onStep:d => this.game.adjustCounter("walker", d),
+      paint:(out, value) => {
+        if(!out.contains(word)) out.replaceChildren(word);
+        letters.forEach((l, i) => l.toggleAttribute("data-lit", i < value));
+        word.dataset.level = String(value);
+        /* shakes harder (and faster) with every letter */
+        word.style.setProperty("--amp", `${(0.25 * value * value / 2 + 0.3 * value).toFixed(2)}px`);
+        word.style.setProperty("--rot", `${(0.7 * value).toFixed(1)}deg`);
+        word.style.setProperty("--dur", `${Math.max(0.09, 0.42 - 0.055 * value).toFixed(2)}s`);
+        out.setAttribute("aria-label", value ? `${WALKER_WORD.slice(0, value)}: ${value} of ${WALKER_WORD.length} letters` : "No letters yet");
+      },
+    });
+    ctl.el.classList.add("walker");
+    this.shared.set("walker", ctl);
+    return ctl.el;
   }
 
   #buildSeats(seats, mySeat){

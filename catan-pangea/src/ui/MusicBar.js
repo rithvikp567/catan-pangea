@@ -17,6 +17,11 @@
  * <html>, and css/music.css moves the map and the screens out of its way.
  * The playlist link is shared (GameState.music); playback is per phone —
  * only the phone that's casting needs to play.
+ *
+ * Where each player is in the music (song, time, playing, bar open) is
+ * saved per profile while it plays, so logging in on another device picks
+ * it up there (resumeFor). Nothing is saved until music has played here, so
+ * a phone that's just opened never overwrites where you really were.
  */
 import { h } from "./dom.js";
 import { describePlayerError, playlistUrl, thumbnailUrl } from "../music/playlist.js";
@@ -90,12 +95,21 @@ export class MusicBar {
     this.lastNotice = 0;
     this.wakeLock = null;
     this.renderedIds = "";
+    this.order = [];             /* the playlist in its own order (before shuffle): where a song is, on any device */
+    this.startAt = null;         /* { index, t } for the next player — pick up where you left off */
+    this.playedHere = false;     /* nothing is saved for this profile until music has played on this device */
+    this.dock = "bar";           /* "bar" (phones), or desktop's left column: "column" (big player + songs) / "compact" */
+    this.toggleListeners = new Set();
 
     this.#build();
     game.onChange(state => this.#onState(state));
     new ResizeObserver(() => this.#measure()).observe(this.el);
     addEventListener("resize", () => this.#measure());       /* rotation can move the bar without resizing it */
-    document.addEventListener("visibilitychange", () => this.#keepAwake());
+    document.addEventListener("visibilitychange", () => {
+      this.#keepAwake();
+      if(document.visibilityState === "hidden") this.#save();
+    });
+    addEventListener("pagehide", () => this.#save());
     if(storage.get("musicOpen", false) === true) this.open();
   }
 
@@ -110,6 +124,26 @@ export class MusicBar {
 
   toggle(){ this.isOpen ? this.close() : this.open(); }
 
+  /** Called after the bar opens or closes (the desktop layout makes room). */
+  onToggle(fn){ this.toggleListeners.add(fn); }
+
+  /**
+   * Where the bar lives: "bar" — along the bottom / right side (phones);
+   * desktop's left column — "column" (big player, song list under it) or
+   * "compact" (the 200 × 200 player beside its controls, under the tracker).
+   */
+  setDock(mode){
+    if(mode === this.dock) return;
+    this.dock = mode;
+    this.el.dataset.dock = mode;
+    /* in the column the song list sits inside the bar; elsewhere it's a sheet of its own */
+    if(mode === "bar"){ if(this.songs.parentElement !== document.body) document.body.prepend(this.songs); }
+    else if(this.songs.parentElement !== this.el) this.el.append(this.songs);
+    this.listBtn.hidden = mode === "column";
+    this.#showSongs(false);
+    this.#measure();
+  }
+
   open(){
     this.el.hidden = false;
     document.body.dataset.music = "open";
@@ -118,6 +152,8 @@ export class MusicBar {
     this.#paintOpeners();
     this.#paint();
     if(this.listId) this.#ensurePlayer();
+    if(this.dock === "column") this.#showSongs(true);
+    for(const fn of this.toggleListeners) fn(true);
   }
 
   /** Close the bar. Music pauses: YouTube doesn't allow playing from a hidden player. */
@@ -133,6 +169,41 @@ export class MusicBar {
     this.#measure();
     this.#paintOpeners();
     this.#keepAwake();
+    this.#save();
+    for(const fn of this.toggleListeners) fn(false);
+  }
+
+  /**
+   * Pick the music up where this player left it, on this device or another.
+   * Login (play: true): the bar opens as it was there and, if music was
+   * playing, carries on from about where it would be now. Boot (play:
+   * false): the song and time are cued; play waits for a tap. Music already
+   * playing here is never interrupted.
+   * @returns {Promise<boolean>} whether there was a spot to pick up
+   */
+  async resumeFor(profileId, { play = false } = {}){
+    const spot = await this.game.listening(profileId);
+    if(!spot?.videoId || this.#musicOn()) return false;
+    if(spot.listId !== (this.game.state?.music?.listId ?? null)) return false;   /* the table's playlist changed since */
+    let index = spot.index ?? 0, t = spot.t ?? 0;
+    if(spot.playing && spot.at) t += Math.max(0, Date.now() - spot.at) / 1000;    /* it kept playing over there */
+    if(spot.duration && t > spot.duration - 3){ index += 1; t = 0; }
+    if(spot.count && index >= spot.count) index = 0;
+    if(typeof spot.shuffle === "boolean" && spot.shuffle !== this.shuffle){
+      this.shuffle = spot.shuffle;
+      this.storage.set("musicShuffle", this.shuffle);
+    }
+    this.listId = spot.listId;
+    this.pendingListId = null;
+    this.startAt = { index, t };
+    if(this.playerReady){                       /* made (or still loading) without the spot: start again */
+      await this.#resetPlayer();
+      this.startAt = { index, t };
+    }
+    if(play && spot.open && !this.isOpen) this.open();
+    this.#paint();
+    await this.#startPlayer(play && spot.playing);
+    return true;
   }
 
   /* ---------------- structure ---------------- */
@@ -231,10 +302,14 @@ export class MusicBar {
   #ensurePlayer(){
     if(this.playerReady) return this.playerReady;
     this.title.textContent = "Loading playlist…";
+    /* picking up where you left off: YouTube's index counts from 1 */
+    const at = this.startAt;
+    this.startAt = null;
     this.playerReady = loadYouTubeApi().then(YT => new Promise(resolve => {
       this.player = new YT.Player(this.host, {
         width:"100%", height:"100%",
-        playerVars:{ listType:"playlist", list:this.listId, playsinline:1, rel:0, origin:location.origin },
+        playerVars:{ listType:"playlist", list:this.listId, playsinline:1, rel:0, origin:location.origin,
+          ...(at ? { index:at.index + 1, start:Math.floor(at.t) } : {}) },
         events:{
           onReady:() => { this.player.setLoop(true); resolve(this.player); this.#paint(); this.#checkLoaded(); },
           onStateChange:e => this.#onPlayerState(e.data),
@@ -249,14 +324,24 @@ export class MusicBar {
     return this.playerReady;
   }
 
-  /** If a playlist never shows up (private, deleted, typo), say so. */
+  /**
+   * YouTube sends no event when a new player's playlist arrives, so look
+   * for it: then show the songs (the desktop column lists them right away).
+   * If it never shows up (private, deleted, typo), say so.
+   */
   #checkLoaded(){
-    clearTimeout(this.loadTimer);
-    this.loadTimer = setTimeout(() => {
-      if(!(this.player?.getPlaylist?.() ?? []).length){
+    clearInterval(this.loadPoll);
+    const since = Date.now();
+    this.loadPoll = setInterval(() => {
+      if((this.player?.getPlaylist?.() ?? []).length){
+        clearInterval(this.loadPoll);
+        this.#paint();
+        if(!this.songs.hidden) this.#renderSongs();
+      }else if(Date.now() - since > 8000){
+        clearInterval(this.loadPoll);
         this.#setNow("Couldn't open this playlist", "Make sure it's public or unlisted, or paste another link.");
       }
-    }, 8000);
+    }, 400);
   }
 
   /** Load another playlist; keep playing if it was. */
@@ -265,24 +350,42 @@ export class MusicBar {
     if(listId === this.listId){ this.pendingListId = null; this.#paint(); return; }
     this.pendingListId = null;
     this.listId = listId;
+    this.startAt = null;
     this.renderedIds = "";
     if(this.player){
       /* YouTube's loadPlaylist / cuePlaylist keep the old songs once a playlist is
          loaded (only the link changes), so start a fresh player for the new one */
       await this.playerReady;
       if(this.listId !== listId) return;     /* switched again meanwhile */
-      clearTimeout(this.pauseTimer);
-      this.player?.destroy?.();
-      Object.assign(this, { player:null, playerReady:null, playing:false, started:false, shuffleApplied:false });
-      this.host = h("div");
-      this.video.replaceChildren(this.host);
-      this.#keepAwake();
+      await this.#resetPlayer();
     }
     this.#paint();
+    await this.#startPlayer(play);
+  }
+
+  /** Throw the player away; the next #ensurePlayer() makes a fresh one. */
+  async #resetPlayer(){
+    await this.playerReady;
+    clearTimeout(this.pauseTimer);
+    clearInterval(this.saveTimer);
+    clearInterval(this.loadPoll);
+    this.player?.destroy?.();
+    Object.assign(this, { player:null, playerReady:null, playing:false, started:false, shuffleApplied:false, order:[] });
+    this.renderedIds = "";
+    this.host = h("div");
+    this.video.replaceChildren(this.host);
+    this.#keepAwake();
+  }
+
+  /**
+   * Make the player if the bar is open. With play, keep the music going: a
+   * fresh player ignores play until its playlist has loaded, so
+   * #onPlayerState asks again once it's cued (a few tries — a phone that
+   * wants a tap on the video won't be nagged forever).
+   */
+  async #startPlayer(play){
     if(!this.isOpen) return;
-    /* keep the music going: a fresh player ignores play until its playlist has
-       loaded, so #onPlayerState asks again once it's cued (a few tries — a phone
-       that wants a tap on the video won't be nagged forever) */
+    const listId = this.listId;
     this.resumeTries = play ? 3 : 0;
     clearTimeout(this.resumeTimer);
     /* a phone that wants a tap on the video: give up, so the bar doesn't think music is on */
@@ -312,23 +415,51 @@ export class MusicBar {
 
   #onPlayerState(state){
     const S = globalThis.YT.PlayerState;
-    this.playing = state === S.PLAYING || state === S.BUFFERING;
+    /* a player told where to start buffers before anyone presses play: that's not playing */
+    this.playing = state === S.PLAYING || (state === S.BUFFERING && this.wantsMusic);
     clearTimeout(this.pauseTimer);
-    if(state === S.PLAYING) this.wantsMusic = true;
+    if(state === S.PLAYING){
+      this.wantsMusic = true;
+      this.playedHere = true;
+      this.#save();
+      clearInterval(this.saveTimer);
+      this.saveTimer = setInterval(() => this.#save(), 5000);
+    }
     /* YouTube also reports PAUSED for a moment when it changes songs (Next, a song
        ending): only a pause that lasts means someone paused the music */
     else if(state === S.PAUSED) this.pauseTimer = setTimeout(() => {
-      if(this.player?.getPlayerState?.() === S.PAUSED) this.wantsMusic = false;
+      if(this.player?.getPlayerState?.() !== S.PAUSED) return;
+      this.wantsMusic = false;
+      clearInterval(this.saveTimer);
+      this.#save();
     }, 1000);
     if(state === S.PLAYING){ this.errorsInARow = 0; this.started = true; this.resumeTries = 0; }
     if((state === S.CUED || state === S.PLAYING) && !this.shuffleApplied){
       this.shuffleApplied = true;
+      this.order = this.player.getPlaylist?.() ?? [];       /* before shuffling */
       if(this.shuffle) this.player.setShuffle(true);
     }
     if(this.resumeTries > 0 && (state === S.CUED || state === S.UNSTARTED)){ this.resumeTries--; this.player.playVideo(); }
     this.#keepAwake();
     this.#paint();
     if(!this.songs.hidden) this.#renderSongs();
+  }
+
+  /** Where this player is in the music right now, to pick up on any device. */
+  #spot(){
+    const p = this.player, videoId = this.#currentId();
+    if(!p?.getCurrentTime || !videoId || !this.listId) return null;
+    return {
+      listId:this.listId, videoId, index:Math.max(0, this.order.indexOf(videoId)), count:this.order.length,
+      t:Math.floor(p.getCurrentTime() ?? 0), duration:Math.floor(p.getDuration?.() ?? 0),
+      playing:this.isOpen && this.wantsMusic, open:this.isOpen, shuffle:this.shuffle,
+    };
+  }
+
+  #save(){
+    if(!this.playedHere) return;
+    const spot = this.#spot();
+    if(spot) this.game.saveListening(spot);
   }
 
   /** Is music on here — playing, or between songs? (Paused right now counts as off.) */
@@ -379,7 +510,8 @@ export class MusicBar {
   /** Publish the bar's size; a column (taller than wide) takes width, a bottom bar height. */
   #measure(){
     const root = document.documentElement.style;
-    const open = this.isOpen, w = this.el.offsetWidth, ht = this.el.offsetHeight, side = ht > w;
+    /* in desktop's left column the layout makes room itself (DesktopLayout) */
+    const open = this.isOpen && this.dock === "bar", w = this.el.offsetWidth, ht = this.el.offsetHeight, side = ht > w;
     root.setProperty("--music-h", open && !side ? `${ht}px` : "0px");
     root.setProperty("--music-w", open && side ? `${w}px` : "0px");
   }
@@ -433,6 +565,7 @@ export class MusicBar {
   /* ---------------- songs sheet ---------------- */
 
   #showSongs(show){
+    if(this.dock === "column") show = true;          /* the column always has room for the list */
     if(show) this.#showPop(false);
     this.songs.hidden = !show;
     this.listBtn.setAttribute("aria-pressed", String(show));
