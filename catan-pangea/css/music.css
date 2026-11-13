@@ -12,6 +12,8 @@
 .app{
   height:calc(100vh - var(--music-h)); height:calc(100dvh - var(--music-h));
   margin-right:var(--music-w);
+  /* the music column covers the right edge and its notch inset itself — no second gap */
+  padding-right:max(0px, env(safe-area-inset-right) - var(--music-w));
 }
 /* the bar covers the home-indicator area itself */
 .dock{ padding-bottom:calc(10px + max(0px, env(safe-area-inset-bottom) - var(--music-h))); }
@@ -114,17 +116,18 @@ body[data-music="open"] dialog.about::backdrop{ background:transparent; }
   .music[data-state="setup"]{ grid-template-columns:200px; }
 }
 
-/* ---------- songs sheet: above the bar (beside it in landscape), never over the player ---------- */
-.music-songs{
+/* ---------- sheets (songs, playlist): above the bar (beside it in landscape), never over the player ---------- */
+.music-sheet{
   position:fixed; z-index:74; left:0; right:var(--music-w); bottom:var(--music-h);
-  top:calc(env(safe-area-inset-top) + 40px);
   display:flex; flex-direction:column;
   background:var(--surface); border:1px solid var(--line); border-bottom:0;
   border-radius:20px 20px 0 0; box-shadow:var(--shadow);
 }
+.music-songs{ top:calc(env(safe-area-inset-top) + 40px); }
+.music-pop{ max-height:calc(100dvh - var(--music-h) - env(safe-area-inset-top) - 40px); overflow-y:auto; overscroll-behavior:contain; }
 .songs-head{ display:flex; align-items:center; justify-content:space-between; padding:8px 8px 4px 18px; }
 .songs-head h2{ margin:0; font-size:17px; }
-.songs-list{ flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:0 8px; }
+.songs-list{ flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:0 8px 8px; }
 .song{
   width:100%; display:grid; grid-template-columns:64px minmax(0,1fr); align-items:center; gap:12px;
   min-height:52px; padding:6px 10px; border:0; border-radius:10px;
@@ -137,12 +140,21 @@ body[data-music="open"] dialog.about::backdrop{ background:transparent; }
 .song-text{ display:flex; flex-direction:column; min-width:0; }
 .song-title{ font-size:14px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .song small{ font-size:12px; color:var(--ink-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.songs-foot{ display:flex; flex-direction:column; gap:8px; padding:12px 18px 14px; border-top:1px solid var(--line); }
-.songs-open{ display:inline-flex; align-items:center; gap:6px; align-self:flex-start; min-height:32px; }
-.songs-open svg{ width:15px; height:15px; }
+
+/* playlist pop-up: change the link; Premium → the YouTube Music app */
+.pop-body{ display:flex; flex-direction:column; gap:8px; padding:4px 18px 16px; }
+.pop-premium{ display:flex; flex-direction:column; gap:8px; margin-top:8px; padding-top:14px; border-top:1px solid var(--line); }
+.pop-title{ margin:0; font-size:14px; font-weight:650; }
+.music-app-btn{ min-height:44px; text-decoration:none; }
+.music-app-btn svg{ width:16px; height:16px; }
+.pop-premium .music-hint a{ color:var(--ink-2); }
+
 @media (orientation:landscape) and (max-height:559px){
-  .music-songs{ top:0; left:auto; width:min(380px, 60vw); border-radius:20px 0 0 20px; border:1px solid var(--line); border-right:0; }
+  .music-sheet{ left:auto; width:min(380px, 60vw); border-radius:20px 0 0 20px; border:1px solid var(--line); border-right:0; }
+  .music-songs{ top:0; }
+  .music-pop{ bottom:0; max-height:100%; border-radius:20px 0 0 0; }
 }
 @media (min-width:900px){
-  .music-songs{ left:auto; right:calc(var(--music-w) + 16px); width:420px; top:auto; height:min(560px, calc(100% - var(--music-h) - 32px)); }
+  .music-sheet{ left:auto; right:calc(var(--music-w) + 16px); width:420px; bottom:calc(var(--music-h) + 16px); border-radius:16px; border-bottom:1px solid var(--line); }
+  .music-songs{ top:auto; height:min(560px, calc(100% - var(--music-h) - 32px)); }
 }

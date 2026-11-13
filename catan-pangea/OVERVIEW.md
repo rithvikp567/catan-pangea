@@ -129,7 +129,10 @@ your YouTube or YouTube Music playlist with previous / play / next,
 shuffle and the song list. It stays docked under the map and the tracker
 (on the right when the phone is sideways), so the phone you cast to the TV
 shows the board and plays the music. Paste the playlist link once — every
-phone gets it. On a phone, start the first song by tapping the video.
+phone gets it; change it with the 🔗 button. On a phone, start the first
+song by tapping the video. With YouTube Premium, 🔗 → **Play in the
+YouTube Music app** plays it from the app instead — in the background, no
+ads — and the bar closes so the map gets the whole screen.
 
 ## Code layout
 

@@ -29,8 +29,12 @@ const SVG = {
   shuffle:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 4h4v4M4 20 20 4M20 16v4h-4M14.5 14.5 20 20M4 4l5 5"/></svg>`,
   list:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M4 6h12M4 11h12M4 16h7"/><path d="M19 10v8"/><circle cx="17" cy="18" r="2"/></svg>`,
   close:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>`,
+  link:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a4.5 4.5 0 0 0 6.36 0l3-3a4.5 4.5 0 0 0-6.36-6.36l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.36 0l-3 3a4.5 4.5 0 0 0 6.36 6.36l1-1"/></svg>`,
   external:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>`,
 };
+
+/** YouTube's own sign-in page (Premium removes ads in embeds when the player can see you're signed in). */
+const SIGN_IN_URL = "https://accounts.google.com/ServiceLogin?service=youtube&continue=" + encodeURIComponent("https://www.youtube.com/");
 
 /** Load YouTube's IFrame Player API once. */
 let apiPromise = null;
@@ -119,6 +123,7 @@ export class MusicBar {
     this.player?.pauseVideo?.();
     this.playing = false;
     this.#showSongs(false);
+    this.#showPop(false);
     this.el.hidden = true;
     delete document.body.dataset.music;
     this.storage.set("musicOpen", false);
@@ -142,13 +147,14 @@ export class MusicBar {
     this.prevBtn = iconButton("Previous song", SVG.prev, () => this.player?.previousVideo());
     this.nextBtn = iconButton("Next song", SVG.next, () => this.player?.nextVideo());
     this.shuffleBtn = iconButton("Shuffle", SVG.shuffle, () => this.#toggleShuffle());
-    this.listBtn = iconButton("Songs and playlist link", SVG.list, () => this.#showSongs(this.songs.hidden));
+    this.listBtn = iconButton("Songs", SVG.list, () => this.#showSongs(this.songs.hidden));
+    this.popBtn = iconButton("Playlist link and YouTube Music app", SVG.link, () => this.#showPop(this.pop.hidden));
     const closeBtn = iconButton("Close music (pauses it)", SVG.close, () => this.close());
 
     this.side = h("div", { class:"music-side" },
       h("div", { class:"music-now" }, this.title, this.artist, this.notice),
       h("div", { class:"music-controls" }, this.prevBtn, this.playBtn, this.nextBtn),
-      h("div", { class:"music-extras" }, this.shuffleBtn, this.listBtn, closeBtn));
+      h("div", { class:"music-extras" }, this.shuffleBtn, this.listBtn, this.popBtn, closeBtn));
 
     /* first run: no playlist yet */
     const setupForm = this.#linkForm("Add playlist");
@@ -162,24 +168,40 @@ export class MusicBar {
 
     this.el = h("section", { class:"music", "aria-label":"Music", hidden:true }, this.video, this.side, this.setup);
 
-    /* songs sheet: sits above the bar (beside it in landscape), never over the player */
+    /* sheets sit above the bar (beside it in landscape), never over the player; one at a time */
     this.songList = h("div", { class:"songs-list", role:"list" });
+    this.songs = h("section", { class:"music-sheet music-songs", "aria-label":"Songs", hidden:true },
+      h("header", { class:"songs-head" }, h("h2", {}, "Songs"), iconButton("Close songs", SVG.close, () => this.#showSongs(false), "icon-btn")),
+      this.songList);
+
+    /* playlist pop-up: only when its button is tapped */
     const changeForm = this.#linkForm("Change");
     this.changeInput = changeForm.input;
-    this.openLink = h("a", { class:"link-btn songs-open", target:"_blank", rel:"noopener" });
-    this.songs = h("section", { class:"music-songs", "aria-label":"Songs", hidden:true },
-      h("header", { class:"songs-head" }, h("h2", {}, "Songs"), iconButton("Close songs", SVG.close, () => this.#showSongs(false), "icon-btn")),
-      this.songList,
-      h("footer", { class:"songs-foot" },
-        h("label", { class:"field-label" }, "Playlist link — shared with everyone"),
+    this.appLink = h("a", { class:"btn music-app-btn", target:"_blank", rel:"noopener",
+      /* the app takes over the music: pause and close here so the map gets the screen */
+      onClick:() => setTimeout(() => this.close(), 300) });
+    this.appLink.innerHTML = SVG.external;
+    this.appLink.prepend("Play in the YouTube Music app");
+    this.pop = h("section", { class:"music-sheet music-pop", "aria-label":"Playlist", hidden:true },
+      h("header", { class:"songs-head" }, h("h2", {}, "Playlist"), iconButton("Close", SVG.close, () => this.#showPop(false), "icon-btn")),
+      h("div", { class:"pop-body" },
+        h("label", { class:"field-label" }, "Change the playlist for everyone"),
         changeForm.form,
-        this.openLink));
+        h("div", { class:"pop-premium" },
+          h("p", { class:"pop-title" }, "Have YouTube Premium?"),
+          this.appLink,
+          h("p", { class:"music-hint" },
+            "Premium keeps the app playing in the background with no ads, so this bar closes and the map gets the whole screen. Screen mirroring still sends the music to the TV."),
+          h("p", { class:"music-hint" },
+            "To skip ads in this player instead, ",
+            h("a", { href:SIGN_IN_URL, target:"_blank", rel:"noopener" }, "sign in to YouTube"),
+            " in this browser. That works on Android; on iPhone, Safari usually hides the sign-in from players on other sites."))));
 
     this.observer = new IntersectionObserver(entries => {
       for(const e of entries) if(e.isIntersecting){ this.observer.unobserve(e.target); this.#fillSong(e.target); }
     }, { root:this.songList, rootMargin:"200px" });
 
-    document.body.append(this.songs, this.el);
+    document.body.append(this.songs, this.pop, this.el);
   }
 
   /** A paste-a-link form (setup and the songs sheet each have one). */
@@ -194,6 +216,7 @@ export class MusicBar {
       if(!id) return;                      /* the toast explains what's wrong */
       input.value = "";
       input.blur();
+      this.#showPop(false);
       this.#switchTo(id, { play:this.playing });
       this.toast.show("Playlist saved for everyone.");
     } }, input, h("button", { type:"submit", class:"btn" }, submitLabel));
@@ -240,14 +263,21 @@ export class MusicBar {
     this.pendingListId = null;
     this.listId = listId;
     this.renderedIds = "";
-    if(!this.player){ if(this.isOpen) this.#ensurePlayer(); this.#paint(); return; }
-    await this.playerReady;                /* created but not ready yet: wait, then switch */
-    if(this.listId !== listId || !this.player?.cuePlaylist) return;
-    const args = { listType:"playlist", list:listId, index:0 };
-    play ? this.player.loadPlaylist(args) : this.player.cuePlaylist(args);
-    this.shuffleApplied = false;
-    this.#checkLoaded();
+    if(this.player){
+      /* YouTube's loadPlaylist / cuePlaylist keep the old songs once a playlist is
+         loaded (only the link changes), so start a fresh player for the new one */
+      await this.playerReady;
+      if(this.listId !== listId) return;     /* switched again meanwhile */
+      this.player?.destroy?.();
+      Object.assign(this, { player:null, playerReady:null, playing:false, started:false, shuffleApplied:false });
+      this.host = h("div");
+      this.video.replaceChildren(this.host);
+      this.#keepAwake();
+    }
     this.#paint();
+    if(!this.isOpen) return;
+    const player = await this.#ensurePlayer();
+    if(play && player && this.listId === listId) player.playVideo();   /* phones may still need a tap on the video */
   }
 
   #togglePlay(){
@@ -353,9 +383,7 @@ export class MusicBar {
     this.playBtn.title = this.playing ? "Pause" : "Play";
     this.shuffleBtn.setAttribute("aria-pressed", String(this.shuffle));
     this.notice.hidden = !this.pendingListId;
-    this.openLink.href = playlistUrl(this.listId);
-    this.openLink.replaceChildren("Open in YouTube Music");
-    this.openLink.insertAdjacentHTML("beforeend", SVG.external);
+    this.appLink.href = playlistUrl(this.listId);
     if(ready) this.#paintNow();
   }
 
@@ -381,9 +409,16 @@ export class MusicBar {
   /* ---------------- songs sheet ---------------- */
 
   #showSongs(show){
+    if(show) this.#showPop(false);
     this.songs.hidden = !show;
     this.listBtn.setAttribute("aria-pressed", String(show));
     if(show) this.#renderSongs();
+  }
+
+  #showPop(show){
+    if(show) this.#showSongs(false);
+    this.pop.hidden = !show;
+    this.popBtn.setAttribute("aria-pressed", String(show));
   }
 
   #renderSongs(){
