@@ -190,7 +190,16 @@ on the tracker): everything works, but nothing is shared between phones.
   and returns, it shows again.
 - **Season wins** (`#/wins`): wins per profile per calendar year. Reaching
   13 records a win; dropping back below 13 removes it (so corrections fix
-  the tally).
+  the tally). Once anyone has won that season, first place wears an 8-bit
+  **crown** (a glint sweeps across it, it glows, sparkles twinkle) and
+  everyone else gets a **turd** (stink rises off it, two flies buzz round
+  it). A tie for first crowns everyone tied (`GameState.winsFor` marks
+  them `leader`); a season with no wins shows neither. The art is pixel
+  grids in `ui/badges.js` (one letter per pixel, outline added), the
+  animation is CSS in `screens.css` ("season badges"), stepped in whole
+  art pixels where it can, and stops under *reduce motion*. The list
+  isn't redrawn while the standings are unchanged, so the animations
+  aren't restarted by every tap in the tracker.
 - **Admin** (`#/admin`, password `password` — not security, a shared
   management account): remove profiles (frees their seat, deletes their
   wins, lets their device create a new profile) and add/remove wins.
@@ -541,6 +550,7 @@ catan-pangea/                       ← deployed as-is to GitHub Pages
     VictoryOverlay.js               victory / defeat screen
     MusicBar.js                     docked YouTube player (IFrame API) following the shared playback: speaker / remote, songs sheet, playlist pop-up
     WinterEffect.js                 8-bit snow + frost that build up as WALKER fills
+    badges.js                       8-bit season badges: the crown (first place) and the turd (everyone else)
     DesktopLayout.js                desktop left column + its drag handles; the music & tracker view
     screens/Screen.js               base class for full-screen views
     screens/JoinScreen.js, TrackerScreen.js, WinsScreen.js, AdminScreen.js, widgets.js
@@ -835,6 +845,13 @@ your run created afterwards — never `DELETE /v1` once real data exists.
 ## 10. Changelog
 
 Keep newest first. Every feature PR adds an entry and updates the sections above.
+
+- **2.9.0 — Season wins: a crown for first, turds for the rest.** In the
+  standings, first place gets an 8-bit gold crown that glints, glows and
+  sparkles; everyone else gets a turd with rising stink and two buzzing
+  flies (`ui/badges.js`, CSS in `screens.css`). Ties for first share the
+  crown; nothing shows until someone has won that season; still under
+  *reduce motion*. `GameState.winsFor` rows now carry `leader`.
 
 - **2.8.1 — Fix: YouTube ads no longer pause the music.** An ad before a
   song made the speaker think it was a phone waiting for its first tap:
