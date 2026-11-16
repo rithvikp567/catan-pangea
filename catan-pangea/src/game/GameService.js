@@ -23,7 +23,7 @@ import { GameState } from "./GameState.js";
 import { parsePlaylist } from "../music/playlist.js";
 import { COMMANDS as PLAYBACK } from "../music/playback.js";
 import {
-  MAX_VP, COUNTERS, clampVP, stepCounter, abstainRobber, robKarma, newSession, carrySeats, validateName,
+  MAX_VP, COUNTERS, clampVP, stepCounter, abstainKarma, robKarma, newSession, carrySeats, validateName,
 } from "./rules.js";
 
 export class GameError extends Error {
@@ -105,8 +105,8 @@ export class GameService {
    * keeps their seat and color (scores and counters start over).
    * @returns {Promise<boolean>} whether this board became the session
    */
-  async publishBoard(snapshot, settings, { createdBy = null, onlyIfNone = false } = {}){
-    const session = newSession({ id:randomId("s_", this.random), board:snapshot, settings, createdAt:this.now(), createdBy });
+  async publishBoard(snapshot, settings, { createdBy = null, onlyIfNone = false, buildAt = null } = {}){
+    const session = newSession({ id:randomId("s_", this.random), board:snapshot, settings, createdAt:this.now(), createdBy, buildAt });
     const profiles = onlyIfNone ? {} : (await this.store.get(this.#p("profiles"))) ?? {};
     const res = await this.store.transact(this.#p("session"), cur => {
       if(onlyIfNone) return cur?.meta ? undefined : session;
@@ -197,13 +197,9 @@ export class GameService {
     });
   }
 
-  /** Abstain: the robber is worth one more (up to 3). */
+  /** Abstain: karma +1, and the robber is worth one more (up to 3). */
   async abstainRobber(){
-    await this.store.transact(this.#p("session", "counters"), c => {
-      if(!c) return undefined;
-      const robber = abstainRobber(c.robber ?? 1);
-      return robber === (c.robber ?? 1) ? undefined : { ...c, robber };
-    });
+    await this.store.transact(this.#p("session", "counters"), c => c ? { ...c, ...abstainKarma(c.karma ?? 0, c.robber ?? 1) } : undefined);
   }
 
   /** Rob: karma goes down by the robber's value, and the robber starts over at 1. */

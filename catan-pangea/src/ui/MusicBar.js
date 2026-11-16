@@ -183,8 +183,6 @@ export class MusicBar {
   get isOpen(){ return !this.el.hidden; }
   /** Put away for now (the season wins screen, the intro): nothing of the music shows. */
   get isAway(){ return this.away.size > 0; }
-  /** This device plays the table's sound (the speaker). */
-  get isSpeaker(){ return this.#isSpeaker; }
 
   /** Height of the mini bar along the bottom (0 while the player is open, or the music is away). */
   get miniHeight(){ return this.isOpen || this.isAway ? 0 : this.mini.offsetHeight; }

@@ -108,7 +108,10 @@ All weights live in `PENALTY` in `src/engine/objective.js`. Lower is better:
 | **Replay a seed** *(Advanced)* | Same seed + same settings = the identical board |
 
 **New map** always rolls a fresh seed. The current seed is shown under the
-score, and settings are remembered on the device.
+score, and settings are remembered on the device. A new map builds itself in
+on every phone at once — tiles flying in, numbers flipping over, ports
+popping on — with sound effects in step on every open phone; the volume
+button in the map's bottom corner mutes them on yours.
 
 ## Game tracker
 
@@ -119,7 +122,8 @@ the map on screen, so a **New map** starts a fresh game for everyone
 victory points (0–13 — hitting 13 shows Victory / Defeat), each player's
 honor coin (flip your own), Cities and Knights (main island and off
 island knights, 0–12 × players each, plus cities, 0–4 × players), karma, and the
-robber (1 → 2 → 3, **Collect** takes it off karma). Wins are tallied per season
+robber (1 → 2 → 3: **Abstain** adds 1 to karma and makes it worth one more,
+**Rob** takes it off karma and starts it over at 1). Wins are tallied per season
 (calendar year); an admin profile can fix wins and remove profiles.
 
 **WALKER** gets a letter each time a 7 is rolled with the barbarians. As the

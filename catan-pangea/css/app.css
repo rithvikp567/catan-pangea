@@ -77,6 +77,20 @@ button{ touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
   position:absolute; left:0; right:0; bottom:6px; margin:0;
   text-align:center; font-size:12px; color:var(--ink-3); pointer-events:none;
 }
+/* the sound effects' volume button, in the map's bottom right corner (App: Sound.setMuted);
+   `.stage` in front so it outranks .icon-btn (and its :hover, which sticks after a tap on a phone) */
+.stage .stage-mute{
+  position:absolute; right:6px; bottom:4px; z-index:2;
+  width:36px; height:36px; color:var(--ink-3);
+  background:color-mix(in srgb, var(--bg) 72%, transparent);
+}
+.stage .stage-mute:hover{ color:var(--ink); background:var(--surface-2); }
+.stage .stage-mute svg{ width:19px; height:19px; }
+.stage-mute .mute-off{ display:none; }
+.stage-mute[aria-pressed="true"] .mute-on{ display:none; }
+.stage-mute[aria-pressed="true"] .mute-off{ display:inline; }
+.stage .stage-mute[aria-pressed="true"]{ color:var(--bad); }
+.stage-mute:active svg{ transform:scale(.88); }
 
 .dock{
   grid-area:dock;

@@ -66,7 +66,7 @@ export class TrackerScreen extends Screen {
       return h("div", { class:"tile" }, h("span", { class:"tile-label", "aria-hidden":"true" }, label), ctl.el);
     };
 
-    /* the robber, 1–3: Abstain makes it worth one more; Rob takes it off karma and starts it over */
+    /* the robber, 1–3: Abstain is karma +1 and the robber worth one more; Rob takes it off karma and starts it over */
     this.robberPips = h("span", { class:"robber-pips", "aria-hidden":"true" }, ROBBER_VALUES.map(() => h("i")));
     this.abstainBtn = h("button", { type:"button", class:"btn robber-act abstain-btn", onClick:() => this.game.abstainRobber() },
       h("span", {}, "Abstain"), this.robberPips);
@@ -125,10 +125,9 @@ export class TrackerScreen extends Screen {
     this.#fit();
     const top = ROBBER_VALUES.at(-1), pts = n => `${n} ${n === 1 ? "point" : "points"}`;
     [...this.robberPips.children].forEach((pip, i) => pip.toggleAttribute("data-lit", i < c.robber));
-    this.abstainBtn.disabled = c.robber >= top;
     this.abstainBtn.setAttribute("aria-label", c.robber >= top
-      ? `Abstain: the robber is already at its most, ${pts(top)}`
-      : `Abstain: the robber is worth ${pts(c.robber)}; abstaining makes it ${pts(c.robber + 1)}`);
+      ? `Abstain: karma up by 1; the robber stays at its most, ${pts(top)}`
+      : `Abstain: karma up by 1, and the robber goes from ${pts(c.robber)} to ${pts(c.robber + 1)}`);
     this.robValue.textContent = `−${c.robber}`;
     this.robBtn.setAttribute("aria-label", `Rob: karma down by ${c.robber}, and the robber starts over at 1`);
     this.#bump(this.robberPips, c.robber, "robber");

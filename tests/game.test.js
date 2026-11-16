@@ -2,7 +2,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { MemoryStore } from "../catan-pangea/src/sync/MemoryStore.js";
 import { GameService, GameError } from "../catan-pangea/src/game/GameService.js";
-import { MAX_VP, KNIGHTS_PER_PLAYER, CITIES_PER_PLAYER, KARMA_LIMIT, WALKER_WORD, stepWithin, abstainRobber, robKarma, validateName, seasonOf } from "../catan-pangea/src/game/rules.js";
+import { MAX_VP, KNIGHTS_PER_PLAYER, CITIES_PER_PLAYER, KARMA_LIMIT, WALKER_WORD, stepWithin, abstainKarma, robKarma, validateName, seasonOf } from "../catan-pangea/src/game/rules.js";
 
 /* a tiny fake board snapshot is enough — the service never inspects tiles */
 const board = (players = 3, seed = "test-seed") => ({
@@ -26,8 +26,9 @@ beforeEach(async () => {
 });
 const state = () => alice.state();
 
-test("rules: abstain raises the robber to 3 at most, rob takes it off karma and resets it; names are validated; steps stay in bounds", () => {
-  assert.deepEqual([1, 2, 3].map(abstainRobber), [2, 3, 3]);
+test("rules: abstain adds 1 to karma and raises the robber to 3 at most, rob takes it off karma and resets it; steps stay in bounds", () => {
+  assert.deepEqual([1, 2, 3].map(r => abstainKarma(0, r)), [{ karma:1, robber:2 }, { karma:1, robber:3 }, { karma:1, robber:3 }]);
+  assert.deepEqual(abstainKarma(KARMA_LIMIT, 1), { karma:KARMA_LIMIT, robber:2 });
   assert.deepEqual(robKarma(2, 3), { karma:-1, robber:1 });
   assert.deepEqual(robKarma(-KARMA_LIMIT, 2), { karma:-KARMA_LIMIT, robber:1 });
   assert.equal(stepWithin(6, +1, 0, 6), 6);
@@ -133,25 +134,27 @@ test("walker: one letter per press up to WALKER; + on the last letter starts ove
   assert.equal((await state()).counters.walker, 1);
 });
 
-test("karma is ±; abstain raises the robber (up to 3), rob takes its value off karma and resets it to 1", async () => {
+test("karma is ±; abstain adds 1 to karma and raises the robber (up to 3), rob takes its value off karma and resets it to 1", async () => {
   let c;
 
   await alice.adjustCounter("karma", +2);
   assert.equal((await state()).counters.robber, 1, "a new game's robber is 1");
-  await bob.abstainRobber(); await bob.abstainRobber();   /* 1 → 2 → 3 */
-  assert.equal((await state()).counters.robber, 3);
-  await carol.abstainRobber();                            /* stays at 3 */
-  assert.equal((await state()).counters.robber, 3);
+  await bob.abstainRobber(); await bob.abstainRobber();   /* robber 1 → 2 → 3, karma 2 → 3 → 4 */
+  c = (await state()).counters;
+  assert.deepEqual([c.karma, c.robber], [4, 3]);
+  await carol.abstainRobber();                            /* the robber stays at 3; karma still goes up */
+  c = (await state()).counters;
+  assert.deepEqual([c.karma, c.robber], [5, 3]);
   await carol.rob();
   c = (await state()).counters;
-  assert.equal(c.karma, -1, "2 − 3");
+  assert.equal(c.karma, 2, "5 − 3");
   assert.equal(c.robber, 1, "rob starts the robber over");
   await alice.abstainRobber(); await bob.rob();
   c = (await state()).counters;
-  assert.deepEqual([c.karma, c.robber], [-3, 1], "−1 − 2");
+  assert.deepEqual([c.karma, c.robber], [1, 1], "2 + 1 − 2");
   await alice.adjustCounter("karma", +2);
   await alice.adjustCounter("karma", +5);             /* karma still edits on its own */
-  assert.equal((await state()).counters.karma, 4);
+  assert.equal((await state()).counters.karma, 8);
   for(let i = 0; i < 120; i++) await alice.adjustCounter("karma", -1);
   assert.equal((await state()).counters.karma, -KARMA_LIMIT);
 });
@@ -167,9 +170,10 @@ test("a new board starts a fresh session: trackers reset, seats and colors carry
   const firstId = (await state()).sessionId;
   assert.equal((await state()).hasProgress, true);
 
-  await bob.publishBoard(board(4, "new-seed"), { ...SETTINGS, players:4 }, { createdBy:ids.bob });
+  await bob.publishBoard(board(4, "new-seed"), { ...SETTINGS, players:4 }, { createdBy:ids.bob, buildAt:NOW + 800 });
   const s = await state();
   assert.notEqual(s.sessionId, firstId);
+  assert.equal(s.session.meta.buildAt, NOW + 800, "every device builds the new map in from the same moment");
   assert.equal(s.seats.length, 4);
   assert.deepEqual(s.seats.map(x => [x.profile?.name ?? null, x.color]), [["Alice","red"], ["Carol","green"], [null, null], [null, null]]);
   assert.ok(s.seats.every(x => x.vp === 0 && x.honorable), "scores and coins start over");
@@ -185,6 +189,7 @@ test("a new board with fewer seats keeps the first players; removed profiles are
   await carol.join(ids.carol, "white");
   await alice.publishBoard(board(2, "small"), { ...SETTINGS, players:2 });
   let s = await state();
+  assert.equal(s.session.meta.buildAt, undefined, "no build time unless one is given");
   assert.deepEqual(s.seats.map(x => x.profile?.name), ["Alice", "Bob"]);
   assert.equal(s.seatOf(ids.carol), null, "Carol has to pick again");
 

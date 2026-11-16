@@ -104,9 +104,10 @@ export class GameController {
   rob(){ return this.#run(() => this.service.rob()); }
 
   /** @returns {Promise<boolean>} whether the board became the shared game */
-  publishBoard(board, settings, { onlyIfNone = false } = {}){
+  /** @param {{ onlyIfNone?:boolean, buildAt?:number|null }} [p]  buildAt: when the new map starts building in, on every device */
+  publishBoard(board, settings, { onlyIfNone = false, buildAt = null } = {}){
     return this.#run(() => this.service.publishBoard(board.toSnapshot(), settings, {
-      createdBy:this.me?.id ?? null, onlyIfNone,
+      createdBy:this.me?.id ?? null, onlyIfNone, buildAt,
     })).then(Boolean);
   }
 
