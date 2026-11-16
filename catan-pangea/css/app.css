@@ -44,7 +44,9 @@ button{ touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
   font-weight:650; font-size:17px; letter-spacing:-.01em;
 }
 .brand svg{ width:20px; height:20px; }
-.tools{ display:flex; gap:4px; }
+/* the icons take the room the brand leaves and shrink a little rather than wrap (six on a 360 px phone) */
+.tools{ display:flex; gap:4px; flex:1 1 0; min-width:0; justify-content:flex-end; }
+.tools .icon-btn{ flex:0 1 40px; min-width:30px; }
 .topbar .mode{ order:3; flex:1 1 100%; }
 
 .stage{
@@ -259,7 +261,7 @@ dialog.about::backdrop{ background:rgb(0 0 0 / .45); }
   .topbar{ padding:10px 12px 0 0; gap:8px; }
   .topbar .mode{ order:3; }
   .topbar .mode .seg{ font-size:13px; padding:0 6px; }
-  .tools{ flex:1 1 100%; justify-content:space-between; }   /* icons span the rail, lined up with the buttons below */
+  .tools{ flex:1 1 100%; justify-content:space-between; gap:0; }   /* icons span the rail, lined up with the buttons below */
   .brand{ font-size:15px; }
   .dock{ flex-direction:column; padding:0 12px calc(10px + env(safe-area-inset-bottom)) 0; }
   .stage{ padding:6px 4px 6px 8px; }

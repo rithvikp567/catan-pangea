@@ -79,7 +79,7 @@ export class App {
     });
     $("modeSwitch").append(this.modeSwitch.el);
 
-    this.router = new Router({ mapEl:$("app"), docked:route => !!this.layout?.docks(route), onRoute:() => this.layout?.update() });
+    this.router = new Router({ mapEl:$("app"), docked:route => !!this.layout?.docks(route), onRoute:route => this.layout?.routed(route) });
     this.music = new MusicBar({ game:this.game, toast:this.toast, storage:this.storage });
     const deps = {
       game:this.game, router:this.router, toast:this.toast, music:this.music, install:this.install,
@@ -93,6 +93,7 @@ export class App {
     this.winter = new WinterEffect({ max:COUNTERS.walker.max(0) });
     this.layout = new DesktopLayout({ router:this.router, music:this.music, storage:this.storage,
       trackerBtn:$("trackerBtn"), topbar:doc.querySelector(".topbar") });
+    deps.layout = this.layout;     /* the tracker's back button leaves the music & tracker view */
     this.game.onChange(state => this.#onGameState(state));
 
     this.#wire($);
@@ -259,6 +260,8 @@ export class App {
     /* on desktop the tracker sits beside the map, so the button opens and closes it */
     $("trackerBtn").addEventListener("click", () => this.router.go(this.router.route === "tracker" ? "" : "tracker"));
     this.music.addOpener($("musicBtn"));
+    /* hide the map: the tracker and the music half and half (every device) */
+    $("splitBtn").addEventListener("click", () => this.layout.enterSplit());
     /* install: shown until the app is installed (Android / desktop: the browser's dialog; iPhone: how-to) */
     const installBtn = $("installBtn");
     const syncInstall = () => { installBtn.hidden = !this.install.mode; };

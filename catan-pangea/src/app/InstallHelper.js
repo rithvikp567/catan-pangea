@@ -7,12 +7,17 @@
  *   - iPhone / iPad: there is no install dialog to show — people add it
  *     themselves with Share → Add to Home Screen, so we explain that.
  *   - Already running as the installed app: nothing to offer.
+ *   - Desktop computers (a mouse or trackpad as the main pointer): nothing
+ *     either — the app is made for phones; the browser's own install icon
+ *     in the address bar still works for anyone who wants it.
  *
  * The service worker (sw.js) is registered here too: browsers want one
  * before they offer to install, and it lets the app open with no signal.
  */
 const IOS = /iPhone|iPad|iPod/.test(globalThis.navigator?.userAgent ?? "")
   || (globalThis.navigator?.platform === "MacIntel" && globalThis.navigator?.maxTouchPoints > 1);
+/* a computer, not a phone or tablet: the main pointer is a mouse or trackpad (an iPad with one still counts as an iPad) */
+const COMPUTER = globalThis.matchMedia?.("(hover: hover) and (pointer: fine)");
 
 export class InstallHelper {
   /** @param {import("./storage.js").SafeStorage} storage */
@@ -23,6 +28,7 @@ export class InstallHelper {
     this.listeners = new Set();
     addEventListener("beforeinstallprompt", e => { e.preventDefault(); this.deferred = e; this.#emit(); });
     addEventListener("appinstalled", () => { this.deferred = null; this.justInstalled = true; this.#emit(); });
+    COMPUTER?.addEventListener("change", () => this.#emit());
   }
 
   /** Register sw.js (skipped with ?nosw, for debugging). */
@@ -37,12 +43,16 @@ export class InstallHelper {
       || matchMedia("(display-mode: standalone), (display-mode: fullscreen)").matches;
   }
 
+  /** A desktop computer? (No install button or card there.) */
+  get computer(){ return !IOS && !!COMPUTER?.matches; }
+
   /**
    * What we can offer here: "prompt" (show the browser's install dialog),
-   * "ios" (explain Add to Home Screen), or null (installed, or not offered).
+   * "ios" (explain Add to Home Screen), or null (installed, a computer, or
+   * not offered).
    */
   get mode(){
-    if(this.installed) return null;
+    if(this.installed || this.computer) return null;
     if(this.deferred) return "prompt";
     return IOS ? "ios" : null;
   }

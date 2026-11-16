@@ -23,6 +23,17 @@ import { syncStatusPill, section, inkOn, ICONS } from "./widgets.js";
 
 const EMPTY_SEAT_HEX = "#B9B5AC";
 
+/**
+ * How the lit WALKER letters shake at each level (1–6 letters): how far
+ * (px), how much they tilt (degrees) and how long one shake takes (s).
+ * Full word: ~2.7 px, 2.1°, every 0.2 s (2.3.x shook 6.3 px, 4.2°, 0.09 s).
+ */
+const JITTER = Object.freeze({
+  amp:v => 0.05 * v * v + 0.15 * v,
+  rot:v => 0.35 * v,
+  dur:v => Math.max(0.2, 0.5 - 0.05 * v),
+});
+
 export class TrackerScreen extends Screen {
   constructor(deps){ super("tracker", "Tracker", deps); }
 
@@ -70,6 +81,13 @@ export class TrackerScreen extends Screen {
     this.body.append(this.meta, this.empty, this.sections);
   }
 
+  /** In the music & tracker view, back brings the map back (DesktopLayout.showMap). */
+  onBack(){
+    const layout = this.deps.layout;
+    if(layout?.splitActive) layout.showMap();
+    else this.router.go("");
+  }
+
   render(state){
     this.pillSlot.replaceChildren(syncStatusPill(this.game.status));
     const session = state?.session;
@@ -114,10 +132,10 @@ export class TrackerScreen extends Screen {
         if(!out.contains(word)) out.replaceChildren(word);
         letters.forEach((l, i) => l.toggleAttribute("data-lit", i < value));
         word.dataset.level = String(value);
-        /* shakes harder (and faster) with every letter */
-        word.style.setProperty("--amp", `${(0.25 * value * value / 2 + 0.3 * value).toFixed(2)}px`);
-        word.style.setProperty("--rot", `${(0.7 * value).toFixed(1)}deg`);
-        word.style.setProperty("--dur", `${Math.max(0.09, 0.42 - 0.055 * value).toFixed(2)}s`);
+        /* shakes harder (and faster) with every letter — JITTER sets how much */
+        word.style.setProperty("--amp", `${JITTER.amp(value).toFixed(2)}px`);
+        word.style.setProperty("--rot", `${JITTER.rot(value).toFixed(2)}deg`);
+        word.style.setProperty("--dur", `${JITTER.dur(value).toFixed(2)}s`);
         out.setAttribute("aria-label", value ? `${WALKER_WORD.slice(0, value)}: ${value} of ${WALKER_WORD.length} letters` : "No letters yet");
       },
     });
