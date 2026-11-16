@@ -811,6 +811,18 @@ your run created afterwards — never `DELETE /v1` once real data exists.
   phone that has never played (it needs its first tap on the video) gives
   up after 8 s and reports *paused*, so nobody sees a playing bar with no
   sound.
+- **YouTube ads look like "not started".** Without Premium a song may open
+  with an ad (or two): the player reports UNSTARTED while the *ad's* time
+  runs. The speaker spots it (the time running steadily over two ticks
+  while the song isn't PLAYING / PAUSED — a seek is a single jump), counts
+  the player as working (no "tap the video" give-up), says *Ad — the song
+  starts after it* under the song, and judges, seeks and re-cues nothing
+  until the song itself plays; a remote's pause still pauses the ad. The
+  shared clock runs through the ad, and the speaker's first report after
+  it puts it back where the song really is. Ads never show on localhost:
+  to test this, serve the checkout at the live address (CDP
+  `Fetch.requestPaused` → `Fetch.fulfillRequest` with local files,
+  `Network.setBypassServiceWorker`) in a fresh browser profile.
 - **Players play one song at a time** (`loadVideoById` / `cueVideoById`),
   never YouTube's playlist mode — the order, next and the end of a song are
   ours, so they're the same on every device. A player opens on the
@@ -823,6 +835,14 @@ your run created afterwards — never `DELETE /v1` once real data exists.
 ## 10. Changelog
 
 Keep newest first. Every feature PR adds an entry and updates the sections above.
+
+- **2.8.1 — Fix: YouTube ads no longer pause the music.** An ad before a
+  song made the speaker think it was a phone waiting for its first tap:
+  after 8 s it marked the music paused for everyone and re-cued the song,
+  cutting the ad short so the song never started (since 2.7.0; only on the
+  live site — localhost gets no ads). The speaker now recognises an ad,
+  waits it out with *Ad — the song starts after it*, and the song starts
+  on its own afterwards.
 
 - **2.8.0 — The music stays put; frost all round; centred on desktop.**
   The sound now stays on the device playing it whatever anyone changes —
