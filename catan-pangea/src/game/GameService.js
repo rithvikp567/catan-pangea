@@ -234,7 +234,7 @@ export class GameService {
 
   /**
    * Run a playback command (music/playback.js COMMANDS) as a transaction.
-   * @param {string} command  load | play | pause | skip | ended | seek | shuffle | takeOver | release | sync
+   * @param {string} command  load | play | pause | skip | ended | seek | shuffle | takeOver | sync
    * @param {{ name?:string|null, kind?:string|null }} [who]  shown as "On Sam's phone" while this device plays the sound
    * @returns {Promise<boolean>} whether it changed anything
    */

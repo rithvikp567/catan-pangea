@@ -91,6 +91,7 @@ export class App {
     for(const s of this.screens) this.router.register(s);
     this.victory = new VictoryOverlay(deps);
     this.winter = new WinterEffect({ max:COUNTERS.walker.max(0) });
+    this.winter.keepClear(this.music.video);       /* frost all round the window, never over the YouTube player */
     this.layout = new DesktopLayout({ router:this.router, music:this.music, storage:this.storage,
       trackerBtn:$("trackerBtn"), splitBtn:$("splitBtn"), topbar:doc.querySelector(".topbar") });
     deps.layout = this.layout;     /* the tracker's back button leaves the music & tracker view */

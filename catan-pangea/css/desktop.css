@@ -25,6 +25,10 @@ body[data-desk] .screen[data-screen="tracker"]{
   container-type:size;           /* the seat rows share the column's height, not the window's */
 }
 
+/* every screen (the tracker in its pane, the season wins, admin) sits in the
+   middle of its space when it's shorter, and scrolls from the top when it isn't */
+body[data-desk] .screen .screen-inner{ min-height:100%; display:flex; flex-direction:column; justify-content:center; }
+
 /* ---------- the music: the bottom of the column (all of it without the tracker) ---------- */
 body[data-desk] .music{
   left:0; right:auto; top:var(--music-top, 0px); bottom:0; width:var(--left-w);
@@ -41,6 +45,7 @@ body[data-desk] .music[data-dock="column"]{
   display:grid; grid-template-columns:200px minmax(0,1fr); align-content:start; justify-content:stretch;
 }
 body[data-desk] .music[data-dock="column"]{ grid-template-rows:200px minmax(0,1fr); align-content:stretch; }
+body[data-desk] .music[data-dock="compact"]{ align-content:center; }     /* the player and its controls in the middle of the pane */
 body[data-desk] .music[data-dock="compact"] .music-video,
 body[data-desk] .music[data-dock="column"] .music-video{ width:200px; height:200px; }
 

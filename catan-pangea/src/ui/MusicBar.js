@@ -10,8 +10,9 @@
  * list, the time slider — change it for everyone. One device plays the
  * sound: the *speaker*, normally the phone cast to the TV. On every other
  * device (a remote) the player shows the song, still, with "On Sam's phone"
- * under it; tap that for "Play here", which moves the sound. Whoever
- * presses play while no speaker is around becomes it.
+ * under it; tap that for "Play here", which moves the sound. The sound
+ * stays where it is whatever anyone changes — only Play here moves it
+ * (the very first play, with no speaker yet, makes that device the speaker).
  *
  * The speaker follows each shared change it hasn't followed yet (rev) and
  * reports back what its player really does (#tick → sync): buffering or an
@@ -157,8 +158,6 @@ export class MusicBar {
     sizes.observe(this.mini);
     addEventListener("resize", () => this.#measure());       /* rotation can move the bar without resizing it */
     document.addEventListener("visibilitychange", () => { this.lastBeat = 0; this.#keepAwake(); });
-    /* the speaker leaving (closed, reloaded): the music pauses where it is, and anyone's play takes it */
-    addEventListener("pagehide", () => { if(this.#isSpeaker) this.#send("release"); });
     setInterval(() => this.#tick(), TICK_MS);
     if(storage.get("musicOpen", false) === true) this.open();
   }
@@ -239,8 +238,10 @@ export class MusicBar {
   get #t(){ return this.game.now(); }
   /** This device plays the sound. */
   get #isSpeaker(){ return !!this.pb?.now?.speaker && this.pb.now.speaker === this.game.deviceId; }
-  /** Another device plays the sound: this one is a remote. */
-  get #elsewhere(){ return speakerOnline(this.pb, this.#t) && !this.#isSpeaker; }
+  /** Another device plays the sound: this one is a remote (even while that one isn't responding — only Play here moves the sound). */
+  get #elsewhere(){ return !!this.pb?.now?.speaker && !this.#isSpeaker; }
+  /** The speaker hasn't been heard from for a while (closed, locked, offline). */
+  get #quiet(){ return this.#elsewhere && !speakerOnline(this.pb, this.#t); }
   /** The table's music is playing somewhere it can be heard. */
   get #playing(){ return isPlaying(this.pb, this.#t); }
   /** The shared playback has this playlist's songs. */
@@ -365,7 +366,7 @@ export class MusicBar {
           this.toast.show(`The music plays on ${where}. To play it here instead, tap “On ${where}”.`, { ms:4500 });
         }else{
           this.claimedAt = t;
-          this.#send("play", { here:true });                     /* nobody's playing: this device is the speaker now */
+          this.#send("play", { here:true });                     /* no speaker yet: this device is it */
         }
       }
       if(state === S.ENDED && this.#isSpeaker) this.#send("ended", { videoId:this.songId });
@@ -381,11 +382,12 @@ export class MusicBar {
    */
   #tick(){
     if(this.listId){
-      const key = `${this.#playing}|${this.#elsewhere}`;
+      const key = `${this.#playing}|${this.#elsewhere}|${this.#quiet}`;
       if(key !== this.paintKey){ this.paintKey = key; this.#paint(); }   /* e.g. the speaker went quiet: "Play", and no "On Sam's phone" */
       this.#paintTime();
     }
-    if(!this.#isSpeaker || document.visibilityState !== "visible") return;
+    /* (hidden too: a computer keeps playing in a background tab, and a remote mustn't think it's gone) */
+    if(!this.#isSpeaker) return;
     const t = this.#t;
     if(t - this.lastBeat >= BEAT_MS){ this.lastBeat = t; this.game.musicBeat(); }
     if(!this.#queueReady) return;
@@ -641,8 +643,6 @@ export class MusicBar {
           h("p", { class:"pop-title" }, "Have YouTube Premium?"),
           this.appLink,
           h("p", { class:"music-hint" },
-            "Premium keeps the app playing in the background with no ads, so this bar closes and the map gets the whole screen. Screen mirroring still sends the music to the TV. (The app plays on its own — the other phones can't control it.)"),
-          h("p", { class:"music-hint" },
             "To skip ads in this player instead, ",
             h("a", { href:SIGN_IN_URL, target:"_blank", rel:"noopener" }, "sign in to YouTube"),
             " in this browser. That works on Android; on iPhone, Safari usually hides the sign-in from players on other sites."))));
@@ -732,9 +732,9 @@ export class MusicBar {
     this.whereBtn.hidden = !elsewhere;
     this.el.toggleAttribute("data-elsewhere", elsewhere);
     if(elsewhere){
-      const where = this.#where();
-      this.whereText.textContent = `On ${where}`;
-      this.whereBtn.setAttribute("aria-label", `Playing on ${where} — tap to play it here instead`);
+      const where = this.#where(), quiet = this.#quiet;
+      this.whereText.textContent = quiet ? `On ${where} · not responding` : `On ${where}`;
+      this.whereBtn.setAttribute("aria-label", `${quiet ? "Set to play on" : "Playing on"} ${where} — tap to play it here instead`);
     }
     this.#paintHere();
     this.appLink.href = playlistUrl(this.listId);
@@ -780,7 +780,7 @@ export class MusicBar {
       if(art) this.miniArt.replaceChildren(h("img", { src:art, alt:"", width:44, height:44 }));
       else this.miniArt.innerHTML = SVG.note;   /* static, trusted markup */
     }
-    const where = ready && this.#elsewhere ? `On ${this.#where()}` : "";
+    const where = ready && this.#elsewhere ? `On ${this.#where()}${this.#quiet ? " (not responding)" : ""}` : "";
     this.miniTitle.textContent = setup ? "Music for the table" : song?.title || (ready ? "…" : "Your playlist");
     this.miniArtist.textContent = setup ? "Tap to add a YouTube playlist"
       : [song?.title ? song.author : (ready ? "" : "Tap play to start"), where].filter(Boolean).join(" · ");
@@ -812,11 +812,13 @@ export class MusicBar {
     if(!ready) return;
     const elsewhere = this.#elsewhere;
     this.hereBtn.hidden = !elsewhere;
-    this.hereText.textContent = elsewhere
-      ? `On ${this.#where()}. Every phone's buttons control it there — or move the sound to this ${kind}.`
-      : this.#isSpeaker && speakerOnline(this.pb, this.#t)
-        ? `On this ${kind}. Everyone's play, skip and time slider control it here.`
-        : `Nowhere yet. Press play and it plays on this ${kind}; every other device becomes a remote for it.`;
+    this.hereText.textContent = !elsewhere
+      ? this.#isSpeaker
+        ? `On this ${kind}. Everyone's play, skip and time slider control it here; it stays here until someone taps Play here on theirs.`
+        : `Nowhere yet. Press play and it plays on this ${kind}; every other device becomes a remote for it.`
+      : this.#quiet
+        ? `On ${this.#where()}, which isn't responding (closed, locked or offline). It plays there again when it's back — or move the sound to this ${kind}.`
+        : `On ${this.#where()}. Every phone's buttons control it there, and it stays there — or move the sound to this ${kind}.`;
   }
 
   /* ---------------- songs sheet ---------------- */

@@ -7,13 +7,16 @@
  *     Flakes blink (vanish for a few frames), twinkle (flash into a star)
  *     and pulse (breathe between sizes). More, bigger and faster flakes
  *     with every letter.
- *   - Frost: pixel frost creeping in from the screen edges, deeper in the
- *     corners, with icicles along the top. It grows and recedes smoothly.
+ *   - Frost: pixel frost creeping in from the edges of the whole window —
+ *     around the music bar too — deeper in the corners, with icicles along
+ *     the top. It grows and recedes smoothly.
  *   - Back to 0 (the word started over): everything fades out slowly
  *     instead of vanishing.
  *
- * Purely decorative: pointer-events none, and drawn under the music bar so
- * it never covers the YouTube player. Reduced motion: frost only, no snow.
+ * Purely decorative: pointer-events none. Drawn over everything (the music
+ * bar included) except what keepClear() names — the YouTube player, which
+ * YouTube's rules say nothing may cover: a clip-path cuts a hole exactly
+ * where it is, following it as it moves. Reduced motion: frost only, no snow.
  */
 import { h } from "./dom.js";
 
@@ -68,6 +71,8 @@ export class WinterEffect {
     this.flakes = [];
     this.running = false;
     this.fading = false;
+    this.clearOf = [];            /* elements winter never covers */
+    this.clipKey = "";
 
     this.frostCanvas = h("canvas", { class:"winter-frost" });
     this.snowCanvas = h("canvas", { class:"winter-snow" });
@@ -78,7 +83,32 @@ export class WinterEffect {
     this.reduced.addEventListener("change", () => this.#restart());
     matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => this.refreshTheme());
     new ResizeObserver(() => this.#resize()).observe(this.el);
+    /* the player moves (rotation, docks, drag handles): keep the hole on it (every frame while snowing, too) */
+    setInterval(() => { if(!this.el.hidden) this.#clip(); }, 250);
     this.refreshTheme();
+  }
+
+  /** Never draw over these (the YouTube player). */
+  keepClear(...elements){
+    this.clearOf.push(...elements);
+    this.#clip();
+  }
+
+  /** Cut a hole in the whole effect (snow, frost and tint) wherever a keepClear element is showing. */
+  #clip(){
+    const holes = [];
+    for(const el of this.clearOf){
+      if(!el.isConnected || !el.getClientRects().length) continue;          /* hidden (display:none somewhere above) */
+      const r = el.getBoundingClientRect();
+      if(r.width >= 1 && r.height >= 1) holes.push([Math.floor(r.left) - 1, Math.floor(r.top) - 1, Math.ceil(r.right) + 1, Math.ceil(r.bottom) + 1]);
+    }
+    const key = holes.join(";");
+    if(key === this.clipKey) return;
+    this.clipKey = key;
+    /* the window, then each hole: with evenodd the holes are cut out (the joins back to 0 0 have no area) */
+    const pts = ["0 0", "100% 0", "100% 100%", "0 100%", "0 0"];
+    for(const [l, t, r, b] of holes) pts.push(`${l}px ${t}px`, `${r}px ${t}px`, `${r}px ${b}px`, `${l}px ${b}px`, `${l}px ${t}px`, "0 0");
+    this.el.style.clipPath = holes.length ? `polygon(evenodd, ${pts.join(", ")})` : "";
   }
 
   /** @param {number} level  letters lit, 0…max */
@@ -90,6 +120,7 @@ export class WinterEffect {
     if(level === 0){ if(was > 0) this.#fadeOut(); return; }
     this.#cancelFade();
     this.el.hidden = false;
+    this.#clip();
     this.#resize();
     this.#restart();
   }
@@ -223,6 +254,7 @@ export class WinterEffect {
     if(!this.snowCtx){ this.#resize(); requestAnimationFrame(n => this.#tick(n)); return; }   /* not laid out yet */
     const dt = Math.min(.05, (now - this.last) / 1000);
     this.last = now;
+    this.#clip();
     const f = this.#target, t = now / 1000;
 
     /* frost eases toward the level (it stays put while fading out) */

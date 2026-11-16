@@ -5,7 +5,7 @@ import { MemoryStore } from "../catan-pangea/src/sync/MemoryStore.js";
 import { GameService, GameError } from "../catan-pangea/src/game/GameService.js";
 import {
   BEAT_MS, SPEAKER_TIMEOUT_MS, livePosition, isPlaying, speakerOnline, shuffled,
-  load, play, pause, skip, ended, seek, setShuffle, takeOver, release, sync,
+  load, play, pause, skip, ended, seek, setShuffle, takeOver, sync, COMMANDS,
 } from "../catan-pangea/src/music/playback.js";
 
 test("playlist links: YouTube, YouTube Music, share links and bare ids all give the list id", () => {
@@ -87,7 +87,7 @@ test("playback: the clock runs only while playing and the speaker is there", () 
   assert.equal(pause(pb, null, ctx(17_000)), undefined, "already paused: no change");
 });
 
-test("playback: a remote's play plays on the speaker; Play here moves it; the speaker leaving pauses it", () => {
+test("playback: the sound stays on the speaker whatever anyone does — only Play here moves it", () => {
   let pb = play(load(null, { listId:"PL", setAt:1, songs:SONGS }, ctx(0)), {}, ctx(0, "dev-tv"));
   pb = pause(pb, null, ctx(5000, "dev-alex"));
   pb = play(pb, {}, ctx(6000, "dev-alex", { name:"Alex" }));
@@ -96,21 +96,24 @@ test("playback: a remote's play plays on the speaker; Play here moves it; the sp
   pb = play(pb, { index:3 }, ctx(7000, "dev-alex"));
   assert.deepEqual([pb.now.index, pb.now.videoId, pb.now.pos, pb.now.speaker], [3, "d4", 0, "dev-tv"], "a song from the list");
 
-  /* the TV phone went quiet: the next play takes the music */
+  /* the TV phone went quiet (locked, closed): a remote's play still plays there — it picks up when it's back */
   const later = 7000 + SPEAKER_TIMEOUT_MS + 1;
-  const taken = play(pause(pb, null, ctx(8000)), {}, ctx(later, "dev-alex", { name:"Alex", kind:"computer" }));
-  assert.deepEqual([taken.now.speaker, taken.now.speakerName, taken.now.speakerKind, taken.beat], ["dev-alex", "Alex", "computer", later]);
+  const quiet = play(pause(pb, null, ctx(8000)), {}, ctx(later, "dev-alex", { name:"Alex", kind:"computer" }));
+  assert.equal(quiet.now.speaker, "dev-tv", "a speaker that isn't responding keeps the sound");
+  assert.equal(quiet.now.playing, true);
+  assert.equal(isPlaying(quiet, later), false, "…but nothing shows as playing until it's back");
+  assert.equal(play(quiet, { index:1 }, ctx(later, "dev-alex")).now.speaker, "dev-tv", "nor does picking a song move it");
+  assert.equal(skip(quiet, 1, ctx(later, "dev-alex")).now.speaker, "dev-tv");
+  /* Play here on a remote moves it, quiet speaker or not */
+  const moved = takeOver(quiet, null, ctx(later, "dev-alex", { name:"Alex", kind:"computer" }));
+  assert.deepEqual([moved.now.speaker, moved.now.speakerName, moved.now.speakerKind, moved.beat], ["dev-alex", "Alex", "computer", later]);
 
   /* Play here keeps the song, the time and playing as they were */
   const here = takeOver(pb, null, ctx(9000, "dev-alex", { name:"Alex" }));
   assert.deepEqual([here.now.speaker, here.now.videoId, here.now.playing, here.now.pos], ["dev-alex", "d4", true, 2]);
   assert.equal(takeOver(here, null, ctx(9500, "dev-alex")), undefined, "already here");
-
-  assert.equal(release(here, null, ctx(9600, "dev-tv")), undefined, "only the speaker can leave");
-  const left = release(here, null, ctx(10_000, "dev-alex"));
-  assert.equal(left.now.playing, false);
-  assert.equal(left.now.speaker, null);
-  assert.equal(left.now.pos, 3);
+  assert.equal(play(here, { here:true }, ctx(9600, "dev-alex")).now.speaker, "dev-alex");
+  assert.equal("release" in COMMANDS, false, "nothing hands the sound on by itself — not even closing the page");
 });
 
 test("playback: next, previous and a song ending go round the playlist — a song's end counts once", () => {
