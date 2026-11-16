@@ -130,6 +130,9 @@ export class MusicBar {
     this.askedAt = 0;            /* when the speaker last asked its player to play */
     this.playTries = 0;          /* a play that lands while a song is still being cued is ignored: ask again once it's cued */
     this.retryAt = 0;
+    this.lastCur = 0;            /* the speaker's player time at the last tick … */
+    this.adTicks = 0;            /* … running while YouTube says the song hasn't started: an ad */
+    this.adUntil = 0;            /* an ad is playing (until about then): judge nothing, move nothing */
     this.settleUntil = 0;        /* the player is still loading / seeking: don't judge it yet */
     this.quietUntil = 0;         /* this player was just paused (it stopped being the speaker): not someone's tap */
     this.claimedAt = 0;          /* this device just took the music: its PLAYING is expected */
@@ -314,13 +317,14 @@ export class MusicBar {
     }
     if(!loaded){ this.#place(now.playing ? "load" : "cue", now.videoId, pos); return; }
     const state = this.#localState(), cued = state === STATE().CUED || state === STATE().UNSTARTED;
-    const off = Math.abs((p.getCurrentTime?.() ?? 0) - pos) > DRIFT_S;
+    const ad = t < this.adUntil;          /* (the time is the ad's then, not the song's) */
+    const off = !ad && Math.abs((p.getCurrentTime?.() ?? 0) - pos) > DRIFT_S;
     if(now.playing){
       if(off) p.seekTo(pos, true);
-      if(!active){ p.playVideo(); this.#asked(t); }
+      if(!active && !ad){ p.playVideo(); this.#asked(t); }
       else if(off) this.settleUntil = t + 3000;
     }else{
-      if(active) p.pauseVideo();
+      if(active || ad) p.pauseVideo();
       if(off) cued ? this.#place("cue", now.videoId, pos) : p.seekTo(pos, true);   /* (seekTo plays a cued video) */
     }
   }
@@ -352,7 +356,7 @@ export class MusicBar {
 
   #onPlayerState(state){
     const S = STATE(), t = this.#t;
-    if(state === S.PLAYING){ this.started = true; this.errorsInARow = 0; this.problem = null; }
+    if(state === S.PLAYING){ this.started = true; this.errorsInARow = 0; this.problem = null; this.adUntil = 0; this.adTicks = 0; }   /* (the song itself: any ad is over) */
     if(this.mode === "song" && this.#queueReady){
       /* the speaker asked to play while the song was still being cued: ask again now */
       if(state === S.CUED && this.#isSpeaker && this.pb.now.playing && this.songId === this.pb.now.videoId && this.playTries-- > 0) this.player.playVideo();
@@ -394,8 +398,21 @@ export class MusicBar {
     if(!this.isOpen){ if(this.pb.now.playing && t - this.closedAt > 3000) this.open(); return; }   /* a play that came in just as it closed */
     if(!this.ready) return;
     const now = this.pb.now;
-    if(now.rev !== this.seenRev || this.mode !== "song" || this.songId !== now.videoId || t < this.settleUntil) return;
     const S = STATE(), state = this.player.getPlayerState?.(), cur = this.player.getCurrentTime?.() ?? 0;
+    /* an ad (YouTube's, before a song): the player says UNSTARTED / BUFFERING while the time runs —
+       the ad's. It works, so it isn't waiting for a tap; until the song starts, judge nothing. A seek
+       is a single jump, so it takes the time running steadily over two ticks. */
+    const step = cur - this.lastCur;
+    this.lastCur = cur;
+    this.adTicks = this.mode === "song" && state !== S.PLAYING && state !== S.PAUSED && step > .2 && step < 1.5 ? this.adTicks + 1 : 0;
+    if(this.adTicks >= 2){
+      const fresh = t >= this.adUntil;
+      this.adUntil = t + 2500;
+      this.started = true;
+      if(fresh){ this.#paint(); this.#keepAwake(); }                      /* "Ad — the song starts after it"; the screen stays on */
+    }
+    if(t < this.adUntil) return;
+    if(now.rev !== this.seenRev || this.mode !== "song" || this.songId !== now.videoId || t < this.settleUntil) return;
     const duration = Math.round(this.player.getDuration?.() ?? 0);
     const report = patch => { if(t - this.lastSync < SYNC_GAP_MS) return; this.lastSync = t; this.#send("sync", { rev:now.rev, ...patch }); };
     this.pausedTicks = state === S.PAUSED ? this.pausedTicks + 1 : 0;
@@ -550,7 +567,7 @@ export class MusicBar {
 
   /** Keep the phone awake while music plays here — a locked phone stops it. */
   async #keepAwake(){
-    const want = this.isOpen && this.#localActive() && document.visibilityState === "visible";
+    const want = this.isOpen && (this.#localActive() || this.#t < this.adUntil) && document.visibilityState === "visible";
     try{
       if(want && !this.wakeLock && navigator.wakeLock){
         this.wakeLock = await navigator.wakeLock.request("screen");
@@ -757,7 +774,9 @@ export class MusicBar {
         this.#paintNow();
       });
     }
-    const hint = this.#isSpeaker && !this.started && this.pb.now.playing ? "Tap the video to start" : null;
+    const hint = !this.#isSpeaker ? null
+      : this.#t < this.adUntil ? "Ad — the song starts after it"
+      : !this.started && this.pb.now.playing ? "Tap the video to start" : null;
     this.#setNow(this.now.title || "…", hint ?? this.now.author);
   }
 
