@@ -3,34 +3,43 @@
  * every screen, so music keeps playing while the map or the tracker is up
  * (and screen mirroring carries the sound to the TV with the picture).
  *
+ * ONE shared playback for the whole table (music/playback.js, synced at
+ * /v1/playback): every device shows the same song, the same order
+ * (shuffled or not), playing or paused and the same time, and every
+ * device's buttons — play, pause, previous, next, shuffle, a song in the
+ * list, the time slider — change it for everyone. One device plays the
+ * sound: the *speaker*, normally the phone cast to the TV. On every other
+ * device (a remote) the player shows the song, still, with "On Sam's phone"
+ * under it; tap that for "Play here", which moves the sound. Whoever
+ * presses play while no speaker is around becomes it.
+ *
+ * The speaker follows each shared change it hasn't followed yet (rev) and
+ * reports back what its player really does (#tick → sync): buffering or an
+ * ad put it behind, someone used the video's own controls, or a phone that
+ * needs its first tap on the video never started.
+ *
  * YouTube's embed rules shape it (developers.google.com/youtube/terms):
  *   - the player stays visible, at least 200 × 200, and nothing is drawn
  *     over it — so this is a docked bar, never a hidden audio-only player;
- *   - nothing plays while the bar is closed: closing pauses;
- *   - no autoplay: music starts when someone taps play (on phones the
- *     very first play has to be a tap on the YouTube player itself —
- *     browsers only let a video start from a tap inside its own frame);
+ *   - nothing plays while the bar is closed: closing it on the speaker
+ *     pauses the music, and a remote's play opens the speaker's bar;
+ *   - no autoplay: music starts from someone's tap (on phones the very
+ *     first play has to be a tap on the YouTube player itself — browsers
+ *     only let a video start from a tap inside its own frame), and a
+ *     remote's player never plays;
  *   - YouTube's own controls and ads are left alone.
  *
  * Portrait: a bar along the bottom. Phone landscape: a column on the
  * right. Closed, it shrinks to a thin mini bar along the bottom (every
- * device, like a music app's) — the song, a play button and a way back to
- * the player; play opens the player and plays (YouTube's rules: nothing
- * plays while the player is hidden, so closing still pauses). Open or
- * closed it measures itself into --music-h / --music-w on <html>, and
- * css/music.css moves the map and the screens out of its way.
- * DesktopLayout can dock it elsewhere (setDock): desktop's left column,
- * or the music half of the music & tracker view (any device).
- * The playlist link is shared (GameState.music); playback is per phone —
- * only the phone that's casting needs to play.
- *
- * Where each player is in the music (song, time, playing, bar open) is
- * saved per profile while it plays, so logging in on another device picks
- * it up there (resumeFor). Nothing is saved until music has played here, so
- * a phone that's just opened never overwrites where you really were.
+ * device, like a music app's) — the song, play, next and a way back to the
+ * player. Open or closed it measures itself into --music-h / --music-w on
+ * <html>, and css/music.css moves the map and the screens out of its way.
+ * DesktopLayout can dock it elsewhere (setDock): desktop's left column, or
+ * the music half of the music & tracker view.
  */
 import { h } from "./dom.js";
-import { describePlayerError, playlistUrl, thumbnailUrl } from "../music/playlist.js";
+import { describePlayerError, parsePlaylist, playlistUrl, thumbnailUrl } from "../music/playlist.js";
+import { BEAT_MS, isPlaying, livePosition, songCount, speakerOnline } from "../music/playback.js";
 
 const SVG = {
   play:`<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.6v12.8a1 1 0 0 0 1.52.85l10.2-6.4a1 1 0 0 0 0-1.7L9.52 4.75A1 1 0 0 0 8 5.6z"/></svg>`,
@@ -43,11 +52,18 @@ const SVG = {
   link:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a4.5 4.5 0 0 0 6.36 0l3-3a4.5 4.5 0 0 0-6.36-6.36l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.36 0l-3 3a4.5 4.5 0 0 0 6.36 6.36l1-1"/></svg>`,
   up:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 14.5l6-6 6 6"/></svg>`,
   note:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17.5V6l10-2v11.5"/><circle cx="6.5" cy="17.5" r="2.5"/><circle cx="16.5" cy="15.5" r="2.5"/></svg>`,
+  speaker:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5v5h3.5l4.5 4v-13l-4.5 4H4z"/><path d="M15.5 9.2a4 4 0 0 1 0 5.6M18.3 6.6a7.6 7.6 0 0 1 0 10.8"/></svg>`,
   external:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>`,
 };
 
 /** YouTube's own sign-in page (Premium removes ads in embeds when the player can see you're signed in). */
 const SIGN_IN_URL = "https://accounts.google.com/ServiceLogin?service=youtube&continue=" + encodeURIComponent("https://www.youtube.com/");
+
+const TICK_MS = 500;          /* the time display, and the speaker's checks on its player */
+const DRIFT_S = 3;            /* the speaker's song this far off the shared clock: one of them moves */
+const SYNC_GAP_MS = 2500;     /* the speaker reports its player at most this often */
+const FIRST_TAP_MS = 8000;    /* a speaker that never started (a phone waiting for the first tap on the video): it's paused, say so */
+const READ_WAIT_MS = 6000;    /* a new playlist: the speaker lets another device read its songs, so it keeps its player (a phone needs a tap for a new one) */
 
 /** Load YouTube's IFrame Player API once. */
 let apiPromise = null;
@@ -62,6 +78,7 @@ function loadYouTubeApi(){
   });
   return apiPromise;
 }
+const STATE = () => globalThis.YT.PlayerState;
 
 /** Song titles from YouTube's oEmbed endpoint (no API key), cached per video. */
 const titles = new Map();
@@ -73,6 +90,13 @@ function songInfo(videoId){
   }
   return titles.get(videoId);
 }
+
+/** "phone", "tablet" or "computer" — for "On Sam's phone". */
+const deviceKind = () => matchMedia("(hover: hover) and (pointer: fine)").matches ? "computer"
+  : Math.min(screen.width, screen.height) >= 600 ? "tablet" : "phone";
+
+/** 3:07 */
+const clock = s => { s = Math.max(0, Math.floor(s || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 
 const iconButton = (label, svg, onClick, cls = "music-btn") => {
   const b = h("button", { type:"button", class:cls, "aria-label":label, title:label, onClick });
@@ -89,39 +113,53 @@ export class MusicBar {
    */
   constructor({ game, toast, storage }){
     Object.assign(this, { game, toast, storage });
+    this.kind = deviceKind();
     this.openers = new Set();
+    this.toggleListeners = new Set();
+    this.listId = null;          /* the table's playlist (GameState.music) … */
+    this.setAt = null;           /* … and when it was set: re-pasting the link reads its songs again */
+    this.pb = undefined;         /* the shared playback (/v1/playback); null: none yet, undefined: not loaded yet */
     this.player = null;          /* YT.Player once created */
     this.playerReady = null;     /* Promise while it's being created */
-    this.listId = null;          /* the playlist loaded in the player */
-    this.pendingListId = null;   /* someone changed it while this phone was playing */
-    this.playing = false;
-    this.wantsMusic = false;     /* on from play until a pause that lasts, or Close — survives the gap between songs */
-    this.started = false;        /* has anything played yet? phones need that first tap on the video */
-    this.resumeTries = 0;        /* after a playlist switch: ask the fresh player to play this many more times */
-    this.shuffle = storage.get("musicShuffle", false) === true;
+    this.ready = false;          /* the player can take commands */
+    this.mode = null;            /* "list": reading the playlist's songs; "song": one song, cued or playing */
+    this.songId = null;          /* the song in the player */
+    this.seenRev = null;         /* the shared change this player last followed */
+    this.started = false;        /* has this player played yet? phones need that first tap on the video */
+    this.askedAt = 0;            /* when the speaker last asked its player to play */
+    this.playTries = 0;          /* a play that lands while a song is still being cued is ignored: ask again once it's cued */
+    this.retryAt = 0;
+    this.settleUntil = 0;        /* the player is still loading / seeking: don't judge it yet */
+    this.quietUntil = 0;         /* this player was just paused (it stopped being the speaker): not someone's tap */
+    this.claimedAt = 0;          /* this device just took the music: its PLAYING is expected */
+    this.closedAt = 0;           /* closed here just now: the speaker's own pause is on its way */
+    this.paintKey = "";          /* playing / where, as last painted (they change with time: a speaker can go quiet) */
+    this.pausedTicks = 0;
+    this.lastSync = 0;
+    this.lastBeat = 0;
+    this.readKey = null;         /* the playlist whose songs this device is reading */
+    this.readNow = null;         /* the playlist this device just set: read it straight away */
+    this.wantPlay = false;       /* play was pressed before the songs were read */
+    this.problem = null;         /* [title, line] while YouTube can't play */
+    this.now = null;             /* { id, title, author } of the table's song */
     this.errorsInARow = 0;
     this.lastNotice = 0;
     this.wakeLock = null;
     this.renderedIds = "";
-    this.order = [];             /* the playlist in its own order (before shuffle): where a song is, on any device */
-    this.startAt = null;         /* { index, t } for the next player — pick up where you left off */
-    this.playedHere = false;     /* nothing is saved for this profile until music has played on this device */
+    this.seeking = false;        /* the time slider is being dragged */
     this.dock = "bar";           /* "bar" (phones), or desktop's left column: "column" (big player + songs) / "compact" */
-    this.now = null;             /* { id, title, author } of the song in the player, for the mini bar */
-    this.cued = null;            /* the same for the song picked up from another device before the player exists */
-    this.toggleListeners = new Set();
 
     this.#build();
     game.onChange(state => this.#onState(state));
+    game.onPlayback(pb => this.#onPlayback(pb));
     const sizes = new ResizeObserver(() => this.#measure());
     sizes.observe(this.el);
     sizes.observe(this.mini);
     addEventListener("resize", () => this.#measure());       /* rotation can move the bar without resizing it */
-    document.addEventListener("visibilitychange", () => {
-      this.#keepAwake();
-      if(document.visibilityState === "hidden") this.#save();
-    });
-    addEventListener("pagehide", () => this.#save());
+    document.addEventListener("visibilitychange", () => { this.lastBeat = 0; this.#keepAwake(); });
+    /* the speaker leaving (closed, reloaded): the music pauses where it is, and anyone's play takes it */
+    addEventListener("pagehide", () => { if(this.#isSpeaker) this.#send("release"); });
+    setInterval(() => this.#tick(), TICK_MS);
     if(storage.get("musicOpen", false) === true) this.open();
   }
 
@@ -169,19 +207,20 @@ export class MusicBar {
     this.mini.hidden = true;
     document.body.dataset.music = "open";
     this.storage.set("musicOpen", true);
+    if(this.problem && !this.#queueReady){ this.problem = null; this.readKey = null; }   /* couldn't read the playlist: try again */
     this.#measure();
     this.#paintOpeners();
-    this.#paint();
-    if(this.listId) this.#ensurePlayer();
     if(this.#songsInside) this.#showSongs(true);
+    this.#refresh();
     for(const fn of this.toggleListeners) fn(true);
   }
 
-  /** Close the bar. Music pauses: YouTube doesn't allow playing from a hidden player. */
+  /** Close the bar. YouTube doesn't allow playing from a hidden player, so on the speaker the music pauses (for everyone). */
   close(){
+    this.closedAt = this.#t;
+    if(this.#isSpeaker && this.pb?.now?.playing) this.#send("pause");
     this.player?.pauseVideo?.();
-    this.playing = false;
-    this.wantsMusic = false;
+    this.wantPlay = false;
     this.#showSongs(false);
     this.#showPop(false);
     this.el.hidden = true;
@@ -191,42 +230,334 @@ export class MusicBar {
     this.#measure();
     this.#paintOpeners();
     this.#keepAwake();
-    this.#save();
+    this.#paint();
     for(const fn of this.toggleListeners) fn(false);
   }
 
-  /**
-   * Pick the music up where this player left it, on this device or another.
-   * Login (play: true): the bar opens as it was there and, if music was
-   * playing, carries on from about where it would be now. Boot (play:
-   * false): the song and time are cued; play waits for a tap. Music already
-   * playing here is never interrupted.
-   * @returns {Promise<boolean>} whether there was a spot to pick up
-   */
-  async resumeFor(profileId, { play = false } = {}){
-    const spot = await this.game.listening(profileId);
-    if(!spot?.videoId || this.#musicOn()) return false;
-    if(spot.listId !== (this.game.state?.music?.listId ?? null)) return false;   /* the table's playlist changed since */
-    let index = spot.index ?? 0, t = spot.t ?? 0;
-    if(spot.playing && spot.at) t += Math.max(0, Date.now() - spot.at) / 1000;    /* it kept playing over there */
-    if(spot.duration && t > spot.duration - 3){ index += 1; t = 0; }
-    if(spot.count && index >= spot.count) index = 0;
-    if(typeof spot.shuffle === "boolean" && spot.shuffle !== this.shuffle){
-      this.shuffle = spot.shuffle;
-      this.storage.set("musicShuffle", this.shuffle);
-    }
-    this.listId = spot.listId;
-    this.pendingListId = null;
-    this.startAt = { index, t };
-    this.#cue(index === (spot.index ?? 0) ? spot.videoId : null);     /* (a later song: not known until the player loads) */
-    if(this.playerReady){                       /* made (or still loading) without the spot: start again */
-      await this.#resetPlayer();
-      this.startAt = { index, t };
-    }
-    if(play && spot.open && !this.isOpen) this.open();
+  /* ---------------- who plays the sound ---------------- */
+
+  get #t(){ return this.game.now(); }
+  /** This device plays the sound. */
+  get #isSpeaker(){ return !!this.pb?.now?.speaker && this.pb.now.speaker === this.game.deviceId; }
+  /** Another device plays the sound: this one is a remote. */
+  get #elsewhere(){ return speakerOnline(this.pb, this.#t) && !this.#isSpeaker; }
+  /** The table's music is playing somewhere it can be heard. */
+  get #playing(){ return isPlaying(this.pb, this.#t); }
+  /** The shared playback has this playlist's songs. */
+  get #queueReady(){
+    const q = this.pb?.queue;
+    return !!this.listId && q?.listId === this.listId && (q.setAt ?? null) === this.setAt && songCount(this.pb) > 0;
+  }
+  /** "Sam's phone" */
+  #where(){
+    const n = this.pb?.now ?? {}, kind = n.speakerKind ?? "device";
+    return n.speakerName ? `${n.speakerName}'s ${kind}` : `another ${kind}`;
+  }
+  #localState(){ return this.ready ? this.player.getPlayerState?.() : null; }
+  #localActive(){ const s = this.#localState(); return s != null && (s === STATE().PLAYING || s === STATE().BUFFERING); }
+
+  #send(command, arg){ return this.game.controlMusic(command, arg, { kind:this.kind }); }
+
+  /* ---------------- shared state → this device ---------------- */
+
+  #onState(state){
+    const m = state?.music ?? null, listId = m?.listId ?? null, setAt = m?.setAt ?? null;
+    if(listId === this.listId && setAt === this.setAt){ this.#paint(); return; }
+    this.listId = listId;
+    this.setAt = setAt;
+    this.renderedIds = "";
+    if(!listId) this.player?.stopVideo?.();
+    this.#refresh();
+  }
+
+  #onPlayback(pb){
+    if(pb?.now?.videoId !== this.pb?.now?.videoId) this.problem = null;
+    this.pb = pb;
+    this.#refresh();
+  }
+
+  /** Bring this device in line with the shared playback. */
+  #refresh(){
+    const ready = this.#queueReady;
+    if(ready && this.wantPlay){ this.wantPlay = false; this.#elsewhere ? this.#send("play") : this.#playHere(); }
+    /* someone pressed play and the sound comes from here: the player shows (never from a hidden player) */
+    if(ready && this.#isSpeaker && this.pb.now.playing && !this.isOpen && this.#t - this.closedAt > 3000){ this.open(); return; }
+    if(this.isOpen && this.listId && this.pb !== undefined) ready ? this.#follow() : this.#readSongs();
     this.#paint();
-    await this.#startPlayer(play && spot.playing);
-    return true;
+  }
+
+  /**
+   * The player follows the shared playback. The speaker plays it (seeking
+   * when it's more than DRIFT_S off); a remote shows the song, cued and
+   * still. Only changes this player hasn't followed yet count — the
+   * speaker's own player changes go the other way, in #tick.
+   */
+  #follow(){
+    const now = this.pb.now, t = this.#t;
+    if(!this.ready){
+      if(!this.playerReady){
+        Object.assign(this, { mode:"song", songId:now.videoId, seenRev:null });
+        this.#ensurePlayer({ videoId:now.videoId, playerVars:{ start:Math.floor(livePosition(this.pb, t)) } });
+      }
+      return;
+    }
+    const loaded = this.mode === "song" && this.songId === now.videoId;
+    if(loaded && now.rev === this.seenRev) return;
+    this.seenRev = now.rev;
+    const p = this.player, pos = livePosition(this.pb, t), active = this.#localActive();
+
+    if(!this.#isSpeaker){
+      if(active){ this.quietUntil = t + 2500; p.pauseVideo(); }
+      if(!loaded) this.#place("cue", now.videoId, pos);
+      return;
+    }
+    if(!loaded){ this.#place(now.playing ? "load" : "cue", now.videoId, pos); return; }
+    const state = this.#localState(), cued = state === STATE().CUED || state === STATE().UNSTARTED;
+    const off = Math.abs((p.getCurrentTime?.() ?? 0) - pos) > DRIFT_S;
+    if(now.playing){
+      if(off) p.seekTo(pos, true);
+      if(!active){ p.playVideo(); this.#asked(t); }
+      else if(off) this.settleUntil = t + 3000;
+    }else{
+      if(active) p.pauseVideo();
+      if(off) cued ? this.#place("cue", now.videoId, pos) : p.seekTo(pos, true);   /* (seekTo plays a cued video) */
+    }
+  }
+
+  /** Put a song in the player: "load" plays it, "cue" shows it still. */
+  #place(how, videoId, pos){
+    this.mode = "song";
+    this.songId = videoId;
+    const args = { videoId, startSeconds:Math.floor(pos) };
+    if(how === "load"){ this.player.loadVideoById(args); this.#asked(this.#t); }
+    else this.player.cueVideoById(args);
+    this.settleUntil = this.#t + 4000;
+  }
+
+  /** The speaker asked its player to play. */
+  #asked(t){
+    this.askedAt = t;
+    this.playTries = 2;
+    this.settleUntil = Math.max(this.settleUntil, t + 3000);
+    if(!this.started){
+      clearTimeout(this.hintTimer);
+      this.hintTimer = setTimeout(() => {
+        if(!this.started && this.#isSpeaker && this.isOpen) this.toast.show("Tap the video to start — phones need the first tap on the player itself.", { ms:4000 });
+      }, 1500);
+    }
+  }
+
+  /* ---------------- this device's player → shared state ---------------- */
+
+  #onPlayerState(state){
+    const S = STATE(), t = this.#t;
+    if(state === S.PLAYING){ this.started = true; this.errorsInARow = 0; this.problem = null; }
+    if(this.mode === "song" && this.#queueReady){
+      /* the speaker asked to play while the song was still being cued: ask again now */
+      if(state === S.CUED && this.#isSpeaker && this.pb.now.playing && this.songId === this.pb.now.videoId && this.playTries-- > 0) this.player.playVideo();
+      /* someone tapped the video on a remote */
+      if(state === S.PLAYING && !this.#isSpeaker && t > this.quietUntil && t - this.claimedAt > 3000){
+        if(this.#elsewhere){
+          this.quietUntil = t + 2500;
+          this.player.pauseVideo();
+          if(!this.pb.now.playing) this.#send("play");          /* their tap starts the music — on the speaker */
+          const where = this.#where();
+          this.toast.show(`The music plays on ${where}. To play it here instead, tap “On ${where}”.`, { ms:4500 });
+        }else{
+          this.claimedAt = t;
+          this.#send("play", { here:true });                     /* nobody's playing: this device is the speaker now */
+        }
+      }
+      if(state === S.ENDED && this.#isSpeaker) this.#send("ended", { videoId:this.songId });
+    }
+    this.#keepAwake();
+    this.#paint();
+  }
+
+  /**
+   * Twice a second: the time display, and on the speaker, its "still here"
+   * and a look at what its player is really doing, reported to everyone
+   * when it differs from the shared playback.
+   */
+  #tick(){
+    if(this.listId){
+      const key = `${this.#playing}|${this.#elsewhere}`;
+      if(key !== this.paintKey){ this.paintKey = key; this.#paint(); }   /* e.g. the speaker went quiet: "Play", and no "On Sam's phone" */
+      this.#paintTime();
+    }
+    if(!this.#isSpeaker || document.visibilityState !== "visible") return;
+    const t = this.#t;
+    if(t - this.lastBeat >= BEAT_MS){ this.lastBeat = t; this.game.musicBeat(); }
+    if(!this.#queueReady) return;
+    if(!this.isOpen){ if(this.pb.now.playing && t - this.closedAt > 3000) this.open(); return; }   /* a play that came in just as it closed */
+    if(!this.ready) return;
+    const now = this.pb.now;
+    if(now.rev !== this.seenRev || this.mode !== "song" || this.songId !== now.videoId || t < this.settleUntil) return;
+    const S = STATE(), state = this.player.getPlayerState?.(), cur = this.player.getCurrentTime?.() ?? 0;
+    const duration = Math.round(this.player.getDuration?.() ?? 0);
+    const report = patch => { if(t - this.lastSync < SYNC_GAP_MS) return; this.lastSync = t; this.#send("sync", { rev:now.rev, ...patch }); };
+    this.pausedTicks = state === S.PAUSED ? this.pausedTicks + 1 : 0;
+    if(state === S.PLAYING){
+      if(!now.playing) report({ playing:true, pos:cur, duration });                                /* played from the video itself */
+      else if(Math.abs(cur - livePosition(this.pb, t)) > DRIFT_S) report({ pos:cur, duration });  /* buffering or an ad held it back, or a seek on the video */
+      else if(duration && duration !== now.duration) report({ duration });
+    }else if(state === S.PAUSED){
+      if(now.playing && this.pausedTicks >= 3) report({ playing:false, pos:cur });                /* paused on the video itself (a pause that lasts) */
+      else if(!now.playing && Math.abs(cur - (now.pos ?? 0)) > DRIFT_S) report({ pos:cur });      /* moved while paused */
+    }else if(now.playing && state !== S.BUFFERING && state !== S.ENDED){       /* asked to play, but cued / unstarted */
+      if(!this.started && t - this.askedAt > FIRST_TAP_MS) report({ playing:false });   /* waiting for that first tap on the video: nothing's playing, say so */
+      else if(t - this.retryAt > 2500){ this.retryAt = t; this.player.playVideo(); }
+    }
+  }
+
+  /** Songs a label won't let play outside YouTube are skipped (by the speaker), not fatal. */
+  #onPlayerError(code){
+    if(this.mode !== "song" || !this.#isSpeaker) return;    /* reading a playlist only needs its list; a remote only shows the song */
+    const { skip, message } = describePlayerError(code);
+    const count = songCount(this.pb), videoId = this.songId;
+    if(skip && count > 1 && ++this.errorsInARow < Math.min(count, 10)){
+      if(Date.now() - this.lastNotice > 6000){ this.lastNotice = Date.now(); this.toast.show(message); }
+      setTimeout(() => this.#send("ended", { videoId }), 400);
+      return;
+    }
+    this.errorsInARow = 0;
+    this.problem = ["Can't play this", message];
+    this.#paint();
+  }
+
+  /* ---------------- buttons ---------------- */
+
+  #togglePlay(){
+    if(this.#playing) return this.#send("pause");
+    if(this.#elsewhere) return this.#send("play");
+    this.#playHere();
+  }
+
+  /** The mini bar's play: on a remote it just plays (on the speaker); here it opens the player and plays. */
+  #playFromMini(){
+    if(this.#playing) return this.#send("pause");
+    if(this.#queueReady && this.#elsewhere) return this.#send("play");
+    this.open();
+    this.#playHere();
+  }
+
+  /** A song in the list. */
+  #pick(index){ this.#elsewhere ? this.#send("play", { index }) : this.#playHere({ index }); }
+
+  /** Play, with the sound on this device (it becomes the speaker). */
+  #playHere(arg = {}){
+    if(!this.isOpen) this.open();
+    if(!this.#queueReady){ this.wantPlay = true; return; }       /* once the songs are read */
+    const t = this.#t;
+    /* inside the tap: a browser that allows it starts the video right away */
+    if(arg.index == null && this.ready && this.mode === "song" && this.songId === this.pb.now.videoId){ this.claimedAt = t; this.player.playVideo(); }
+    this.#send("play", { ...arg, here:true });
+    this.#asked(t);
+  }
+
+  /** Play here: the sound moves to this device (playing or paused, as it was). */
+  #takeOver(){
+    this.#showPop(false);
+    if(!this.isOpen) this.open();
+    const t = this.#t;
+    if(this.pb?.now?.playing){
+      if(this.ready && this.mode === "song" && this.songId === this.pb.now.videoId){ this.claimedAt = t; this.player.playVideo(); }
+      this.#asked(t);
+    }
+    this.#send("takeOver");
+  }
+
+  /* ---------------- reading a playlist's songs ---------------- */
+
+  /**
+   * The table's playlist changed (or this device is the first to open it):
+   * a player opened on the playlist lists its songs, and they become the
+   * shared queue. Any device with the bar open can do it; the speaker
+   * waits a moment for another one, so it keeps its player.
+   */
+  #readSongs(){
+    const key = `${this.listId}|${this.setAt}`;
+    if(this.readKey === key) return;
+    this.readKey = key;
+    clearTimeout(this.readTimer);
+    const wait = this.#isSpeaker && this.ready && this.readNow !== this.listId ? READ_WAIT_MS : 0;
+    this.readTimer = setTimeout(() => this.#startReading(key), wait);
+  }
+
+  async #startReading(key){
+    if(this.readKey !== key || this.#queueReady) return;         /* another device read them meanwhile */
+    if(!this.isOpen){ this.readKey = null; return; }             /* read when it next opens */
+    /* YouTube's loadPlaylist / cuePlaylist keep the old songs once a player has had a playlist: a fresh player */
+    await this.#resetPlayer();
+    if(this.readKey !== key || this.#queueReady){ this.#refresh(); return; }    /* (a player for the song, then) */
+    this.mode = "list";
+    const player = await this.#ensurePlayer({ playerVars:{ listType:"playlist", list:this.listId } });
+    if(!player || this.readKey !== key) return;
+    const since = Date.now();
+    clearInterval(this.readPoll);
+    /* YouTube sends no event when a new player's playlist arrives, so look for it */
+    this.readPoll = setInterval(() => {
+      if(this.readKey !== key || this.#queueReady){ clearInterval(this.readPoll); return; }
+      const songs = this.player?.getPlaylist?.() ?? [];
+      if(songs.length){
+        clearInterval(this.readPoll);
+        this.#send("load", { listId:this.listId, setAt:this.setAt, songs });
+      }else if(Date.now() - since > 10000){
+        clearInterval(this.readPoll);
+        this.problem = ["Couldn't open this playlist", "Make sure it's public or unlisted, or paste another link."];
+        this.#paint();
+      }
+    }, 400);
+  }
+
+  /* ---------------- the player ---------------- */
+
+  #ensurePlayer({ videoId = null, playerVars = {} } = {}){
+    if(this.playerReady) return this.playerReady;
+    this.playerReady = loadYouTubeApi().then(YT => new Promise(resolve => {
+      this.player = new YT.Player(this.host, {
+        width:"100%", height:"100%",
+        ...(videoId ? { videoId } : {}),
+        playerVars:{ playsinline:1, rel:0, origin:location.origin, ...playerVars },
+        events:{
+          onReady:() => { this.ready = true; resolve(this.player); this.#refresh(); },
+          onStateChange:e => this.#onPlayerState(e.data),
+          onError:e => this.#onPlayerError(e.data),
+        },
+      });
+    })).catch(err => {
+      console.error(err);
+      this.playerReady = null;
+      this.problem = ["YouTube didn't load", "Check the connection, then open music again."];
+      this.#paint();
+      return null;
+    });
+    return this.playerReady;
+  }
+
+  /** Throw the player away; the next #ensurePlayer() makes a fresh one. */
+  async #resetPlayer(){
+    await this.playerReady;
+    clearInterval(this.readPoll);
+    this.player?.destroy?.();
+    Object.assign(this, { player:null, playerReady:null, ready:false, mode:null, songId:null, seenRev:null, started:false });
+    this.host = h("div");
+    this.video.replaceChildren(this.host);
+    this.#keepAwake();
+  }
+
+  /** Keep the phone awake while music plays here — a locked phone stops it. */
+  async #keepAwake(){
+    const want = this.isOpen && this.#localActive() && document.visibilityState === "visible";
+    try{
+      if(want && !this.wakeLock && navigator.wakeLock){
+        this.wakeLock = await navigator.wakeLock.request("screen");
+        this.wakeLock.addEventListener("release", () => { this.wakeLock = null; });
+      }else if(!want && this.wakeLock){
+        await this.wakeLock.release();
+        this.wakeLock = null;
+      }
+    }catch{ this.wakeLock = null; }
   }
 
   /* ---------------- structure ---------------- */
@@ -238,18 +569,34 @@ export class MusicBar {
 
     this.title = h("p", { class:"music-title" });
     this.artist = h("p", { class:"music-artist" });
-    this.notice = h("button", { type:"button", class:"music-notice", hidden:true, onClick:() => this.#switchTo(this.pendingListId, { play:true }) },
-      "New playlist — tap to switch");
+    /* on a remote: where the sound is — tap it for "Play here" */
+    this.whereText = h("span", { class:"where-text" });
+    const whereIcon = h("span", { class:"where-icon", "aria-hidden":"true" });
+    whereIcon.innerHTML = SVG.speaker;   /* static, trusted markup */
+    this.whereBtn = h("button", { type:"button", class:"music-where", hidden:true, onClick:() => this.#showPop(true) }, whereIcon, this.whereText);
+
+    /* the time, the same on every device; drag to move it for everyone */
+    this.timeNow = h("span", { class:"music-time" }, "0:00");
+    this.timeEnd = h("span", { class:"music-time" }, "–:––");
+    this.seek = h("input", {
+      type:"range", class:"music-seek", min:"0", max:"1", step:"1", value:"0", "aria-label":"Time in the song",
+      onInput:() => { this.seeking = true; this.#paintTime(); },
+      onChange:() => { this.seeking = false; this.#send("seek", Number(this.seek.value)); },
+      onBlur:() => { this.seeking = false; },
+    });
+    this.progress = h("div", { class:"music-progress" }, this.timeNow, this.seek, this.timeEnd);
+
     this.playBtn = iconButton("Play", SVG.play, () => this.#togglePlay(), "music-btn is-play");
-    this.prevBtn = iconButton("Previous song", SVG.prev, () => this.player?.previousVideo());
-    this.nextBtn = iconButton("Next song", SVG.next, () => this.player?.nextVideo());
-    this.shuffleBtn = iconButton("Shuffle", SVG.shuffle, () => this.#toggleShuffle());
+    this.prevBtn = iconButton("Previous song", SVG.prev, () => this.#send("skip", -1));
+    this.nextBtn = iconButton("Next song", SVG.next, () => this.#send("skip", 1));
+    this.shuffleBtn = iconButton("Shuffle", SVG.shuffle, () => this.#send("shuffle", this.pb?.queue?.shuffle !== true));
     this.listBtn = iconButton("Songs", SVG.list, () => this.#showSongs(this.songs.hidden));
-    this.popBtn = iconButton("Playlist link and YouTube Music app", SVG.link, () => this.#showPop(this.pop.hidden));
+    this.popBtn = iconButton("Playlist, where it plays, and the YouTube Music app", SVG.link, () => this.#showPop(this.pop.hidden));
     const closeBtn = iconButton("Close music (pauses it)", SVG.close, () => this.close());
 
     this.side = h("div", { class:"music-side" },
-      h("div", { class:"music-now" }, this.title, this.artist, this.notice),
+      h("div", { class:"music-now" }, this.title, this.artist, this.whereBtn),
+      this.progress,
       h("div", { class:"music-controls" }, this.prevBtn, this.playBtn, this.nextBtn),
       h("div", { class:"music-extras" }, this.shuffleBtn, this.listBtn, this.popBtn, closeBtn));
 
@@ -271,7 +618,12 @@ export class MusicBar {
       h("header", { class:"songs-head" }, h("h2", {}, "Songs"), iconButton("Close songs", SVG.close, () => this.#showSongs(false), "icon-btn")),
       this.songList);
 
-    /* playlist pop-up: only when its button is tapped */
+    /* playlist pop-up: only when its button (or "On Sam's phone") is tapped */
+    this.hereText = h("p", { class:"music-hint" });
+    this.hereBtn = h("button", { type:"button", class:"btn here-btn", onClick:() => this.#takeOver() });
+    this.hereBtn.innerHTML = SVG.speaker;   /* static, trusted markup */
+    this.hereBtn.append(`Play here, on this ${this.kind}`);
+    this.hereBox = h("div", { class:"pop-here" }, h("p", { class:"pop-title" }, "Where the music plays"), this.hereText, this.hereBtn);
     const changeForm = this.#linkForm("Change");
     this.changeInput = changeForm.input;
     this.appLink = h("a", { class:"btn music-app-btn", target:"_blank", rel:"noopener",
@@ -282,27 +634,32 @@ export class MusicBar {
     this.pop = h("section", { class:"music-sheet music-pop", "aria-label":"Playlist", hidden:true },
       h("header", { class:"songs-head" }, h("h2", {}, "Playlist"), iconButton("Close", SVG.close, () => this.#showPop(false), "icon-btn")),
       h("div", { class:"pop-body" },
+        this.hereBox,
         h("label", { class:"field-label" }, "Change the playlist for everyone"),
         changeForm.form,
         h("div", { class:"pop-premium" },
           h("p", { class:"pop-title" }, "Have YouTube Premium?"),
           this.appLink,
           h("p", { class:"music-hint" },
-            "Premium keeps the app playing in the background with no ads, so this bar closes and the map gets the whole screen. Screen mirroring still sends the music to the TV."),
+            "Premium keeps the app playing in the background with no ads, so this bar closes and the map gets the whole screen. Screen mirroring still sends the music to the TV. (The app plays on its own — the other phones can't control it.)"),
           h("p", { class:"music-hint" },
             "To skip ads in this player instead, ",
             h("a", { href:SIGN_IN_URL, target:"_blank", rel:"noopener" }, "sign in to YouTube"),
             " in this browser. That works on Android; on iPhone, Safari usually hides the sign-in from players on other sites."))));
 
-    /* closed: a thin bar along the bottom — tap it (or ⌃) for the player, ▶ opens it and plays */
+    /* closed: a thin bar along the bottom — tap it (or ⌃) for the player; ▶ plays, ⏭ skips */
     this.miniArt = h("span", { class:"mini-art", "aria-hidden":"true" });
     this.miniTitle = h("span", { class:"mini-title" });
     this.miniArtist = h("span", { class:"mini-artist" });
+    this.miniLine = h("span", { class:"mini-progress", "aria-hidden":"true" });
     this.miniPlay = iconButton("Play", SVG.play, () => this.#playFromMini(), "music-btn mini-play");
+    this.miniNext = iconButton("Next song", SVG.next, () => this.#send("skip", 1), "music-btn mini-next");
     this.mini = h("section", { class:"music-mini", "aria-label":"Music" },
+      this.miniLine,
       h("button", { type:"button", class:"mini-main", "aria-label":"Open the music player", onClick:() => this.open() },
         this.miniArt, h("span", { class:"mini-text" }, this.miniTitle, this.miniArtist)),
       this.miniPlay,
+      this.miniNext,
       iconButton("Open the music player", SVG.up, () => this.open(), "music-btn mini-open"));
 
     this.observer = new IntersectionObserver(entries => {
@@ -313,7 +670,7 @@ export class MusicBar {
     this.#paintMini();
   }
 
-  /** A paste-a-link form (setup and the songs sheet each have one). */
+  /** A paste-a-link form (setup and the playlist pop-up each have one). */
   #linkForm(submitLabel){
     const input = h("input", {
       type:"url", inputmode:"url", placeholder:"Paste a playlist link", autocomplete:"off",
@@ -321,236 +678,15 @@ export class MusicBar {
     });
     const form = h("form", { class:"seed-row music-link", onSubmit:async e => {
       e.preventDefault();
+      this.readNow = parsePlaylist(input.value).listId ?? null;   /* this device reads its songs, straight away */
       const id = await this.game.setPlaylist(input.value);
       if(!id) return;                      /* the toast explains what's wrong */
       input.value = "";
       input.blur();
       this.#showPop(false);
-      this.#switchTo(id, { play:this.#musicOn() });
       this.toast.show("Playlist saved for everyone.");
     } }, input, h("button", { type:"submit", class:"btn" }, submitLabel));
     return { form, input };
-  }
-
-  /* ---------------- player ---------------- */
-
-  #ensurePlayer(){
-    if(this.playerReady) return this.playerReady;
-    this.title.textContent = "Loading playlist…";
-    /* picking up where you left off: YouTube's index counts from 1 */
-    const at = this.startAt;
-    this.startAt = null;
-    this.playerReady = loadYouTubeApi().then(YT => new Promise(resolve => {
-      this.player = new YT.Player(this.host, {
-        width:"100%", height:"100%",
-        playerVars:{ listType:"playlist", list:this.listId, playsinline:1, rel:0, origin:location.origin,
-          ...(at ? { index:at.index + 1, start:Math.floor(at.t) } : {}) },
-        events:{
-          onReady:() => { this.player.setLoop(true); resolve(this.player); this.#paint(); this.#checkLoaded(); },
-          onStateChange:e => this.#onPlayerState(e.data),
-          onError:e => this.#onPlayerError(e.data),
-        },
-      });
-    })).catch(err => {
-      console.error(err);
-      this.playerReady = null;
-      this.#setNow("YouTube didn't load", "Check the connection, then open music again.");
-    });
-    return this.playerReady;
-  }
-
-  /**
-   * YouTube sends no event when a new player's playlist arrives, so look
-   * for it: then show the songs (the desktop column lists them right away).
-   * If it never shows up (private, deleted, typo), say so.
-   */
-  #checkLoaded(){
-    clearInterval(this.loadPoll);
-    const since = Date.now();
-    this.loadPoll = setInterval(() => {
-      if((this.player?.getPlaylist?.() ?? []).length){
-        clearInterval(this.loadPoll);
-        this.#paint();
-        if(!this.songs.hidden) this.#renderSongs();
-      }else if(Date.now() - since > 8000){
-        clearInterval(this.loadPoll);
-        this.#setNow("Couldn't open this playlist", "Make sure it's public or unlisted, or paste another link.");
-      }
-    }, 400);
-  }
-
-  /** Load another playlist; keep playing if it was. */
-  async #switchTo(listId, { play = false } = {}){
-    if(!listId) return;
-    if(listId === this.listId){ this.pendingListId = null; this.#paint(); return; }
-    this.pendingListId = null;
-    this.listId = listId;
-    this.startAt = null;
-    this.cued = null;
-    this.renderedIds = "";
-    if(this.player){
-      /* YouTube's loadPlaylist / cuePlaylist keep the old songs once a playlist is
-         loaded (only the link changes), so start a fresh player for the new one */
-      await this.playerReady;
-      if(this.listId !== listId) return;     /* switched again meanwhile */
-      await this.#resetPlayer();
-    }
-    this.#paint();
-    await this.#startPlayer(play);
-  }
-
-  /** Throw the player away; the next #ensurePlayer() makes a fresh one. */
-  async #resetPlayer(){
-    await this.playerReady;
-    clearTimeout(this.pauseTimer);
-    clearInterval(this.saveTimer);
-    clearInterval(this.loadPoll);
-    this.player?.destroy?.();
-    Object.assign(this, { player:null, playerReady:null, playing:false, started:false, shuffleApplied:false, order:[], now:null });
-    this.renderedIds = "";
-    this.host = h("div");
-    this.video.replaceChildren(this.host);
-    this.#keepAwake();
-  }
-
-  /**
-   * Make the player if the bar is open. With play, keep the music going: a
-   * fresh player ignores play until its playlist has loaded, so
-   * #onPlayerState asks again once it's cued (a few tries — a phone that
-   * wants a tap on the video won't be nagged forever).
-   */
-  async #startPlayer(play){
-    if(!this.isOpen) return;
-    const listId = this.listId;
-    this.resumeTries = play ? 3 : 0;
-    clearTimeout(this.resumeTimer);
-    /* a phone that wants a tap on the video: give up, so the bar doesn't think music is on */
-    if(play) this.resumeTimer = setTimeout(() => { this.resumeTries = 0; if(!this.playing) this.wantsMusic = false; }, 10000);
-    const player = await this.#ensurePlayer();
-    if(this.resumeTries > 0 && player && this.listId === listId){ this.resumeTries--; player.playVideo(); }
-  }
-
-  #togglePlay(){
-    if(!this.player) return;
-    if(this.playing){ this.player.pauseVideo(); return; }
-    this.player.playVideo();
-    this.#hintFirstTap();
-  }
-
-  /** The mini bar's play: open the player and play. */
-  #playFromMini(){
-    this.open();
-    this.wantsMusic = true;
-    this.#startPlayer(true);
-    this.#hintFirstTap();
-  }
-
-  /** A phone that hasn't played yet ignores our play button — point at the video. */
-  #hintFirstTap(){
-    if(!this.started) setTimeout(() => {
-      if(!this.started) this.toast.show("Tap the video to start — phones need the first tap on the player itself.", { ms:4000 });
-    }, 1500);
-  }
-
-  #toggleShuffle(){
-    this.shuffle = !this.shuffle;
-    this.storage.set("musicShuffle", this.shuffle);
-    this.player?.setShuffle?.(this.shuffle);
-    this.renderedIds = "";
-    this.#paint();
-    if(!this.songs.hidden) this.#renderSongs();
-  }
-
-  #onPlayerState(state){
-    const S = globalThis.YT.PlayerState;
-    /* a player told where to start buffers before anyone presses play: that's not playing */
-    this.playing = state === S.PLAYING || (state === S.BUFFERING && this.wantsMusic);
-    clearTimeout(this.pauseTimer);
-    if(state === S.PLAYING){
-      this.wantsMusic = true;
-      this.playedHere = true;
-      this.#save();
-      clearInterval(this.saveTimer);
-      this.saveTimer = setInterval(() => this.#save(), 5000);
-    }
-    /* YouTube also reports PAUSED for a moment when it changes songs (Next, a song
-       ending): only a pause that lasts means someone paused the music */
-    else if(state === S.PAUSED) this.pauseTimer = setTimeout(() => {
-      if(this.player?.getPlayerState?.() !== S.PAUSED) return;
-      this.wantsMusic = false;
-      clearInterval(this.saveTimer);
-      this.#save();
-    }, 1000);
-    if(state === S.PLAYING){ this.errorsInARow = 0; this.started = true; this.resumeTries = 0; }
-    if((state === S.CUED || state === S.PLAYING) && !this.shuffleApplied){
-      this.shuffleApplied = true;
-      this.order = this.player.getPlaylist?.() ?? [];       /* before shuffling */
-      if(this.shuffle) this.player.setShuffle(true);
-    }
-    if(this.resumeTries > 0 && (state === S.CUED || state === S.UNSTARTED)){ this.resumeTries--; this.player.playVideo(); }
-    this.#keepAwake();
-    this.#paint();
-    if(!this.songs.hidden) this.#renderSongs();
-  }
-
-  /** Where this player is in the music right now, to pick up on any device. */
-  #spot(){
-    const p = this.player, videoId = this.#currentId();
-    if(!p?.getCurrentTime || !videoId || !this.listId) return null;
-    return {
-      listId:this.listId, videoId, index:Math.max(0, this.order.indexOf(videoId)), count:this.order.length,
-      t:Math.floor(p.getCurrentTime() ?? 0), duration:Math.floor(p.getDuration?.() ?? 0),
-      playing:this.isOpen && this.wantsMusic, open:this.isOpen, shuffle:this.shuffle,
-    };
-  }
-
-  #save(){
-    if(!this.playedHere) return;
-    const spot = this.#spot();
-    if(spot) this.game.saveListening(spot);
-  }
-
-  /** Is music on here — playing, or between songs? (Paused right now counts as off.) */
-  #musicOn(){
-    return this.wantsMusic && this.player?.getPlayerState?.() !== globalThis.YT?.PlayerState?.PAUSED;
-  }
-
-  /** Songs a label won't let play outside YouTube are skipped, not fatal. */
-  #onPlayerError(code){
-    const { skip, message } = describePlayerError(code);
-    const count = (this.player?.getPlaylist?.() ?? []).length;
-    if(skip && count > 1 && ++this.errorsInARow < Math.min(count, 10)){
-      if(Date.now() - this.lastNotice > 6000){ this.lastNotice = Date.now(); this.toast.show(message); }
-      setTimeout(() => this.player?.nextVideo(), 400);
-      return;
-    }
-    this.errorsInARow = 0;
-    this.#setNow("Can't play this", message);
-  }
-
-  /** Keep the phone awake while music plays — a locked phone stops it. */
-  async #keepAwake(){
-    const want = this.playing && this.isOpen && document.visibilityState === "visible";
-    try{
-      if(want && !this.wakeLock && navigator.wakeLock){
-        this.wakeLock = await navigator.wakeLock.request("screen");
-        this.wakeLock.addEventListener("release", () => { this.wakeLock = null; });
-      }else if(!want && this.wakeLock){
-        await this.wakeLock.release();
-        this.wakeLock = null;
-      }
-    }catch{ this.wakeLock = null; }
-  }
-
-  /* ---------------- shared state ---------------- */
-
-  #onState(state){
-    const id = state?.music?.listId ?? null;
-    if(id === this.listId || id === this.pendingListId){ this.#paint(); return; }
-    if(!id){ this.player?.stopVideo?.(); this.listId = null; this.#paint(); return; }
-    /* someone else changed the playlist: don't cut off the song playing here */
-    if(this.#musicOn()){ this.pendingListId = id; this.#paint(); return; }
-    this.#switchTo(id);
   }
 
   /* ---------------- paint ---------------- */
@@ -579,69 +715,108 @@ export class MusicBar {
 
   #paint(){
     const setup = !this.listId;
-    this.#paintMini();
     this.el.dataset.state = setup ? "setup" : "player";
     this.video.hidden = setup;
     this.side.hidden = setup;
     this.setup.hidden = !setup;
+    this.#paintNow();
     if(setup) return;
 
-    const ready = !!this.player?.getPlaylist;
+    const ready = this.#queueReady, playing = this.#playing, label = playing ? "Pause" : "Play";
     for(const b of [this.playBtn, this.prevBtn, this.nextBtn, this.shuffleBtn]) b.disabled = !ready;
-    this.playBtn.innerHTML = this.playing ? SVG.pause : SVG.play;
-    this.playBtn.setAttribute("aria-label", this.playing ? "Pause" : "Play");
-    this.playBtn.title = this.playing ? "Pause" : "Play";
-    this.shuffleBtn.setAttribute("aria-pressed", String(this.shuffle));
-    this.notice.hidden = !this.pendingListId;
+    this.playBtn.innerHTML = playing ? SVG.pause : SVG.play;
+    this.playBtn.setAttribute("aria-label", label);
+    this.playBtn.title = label;
+    this.shuffleBtn.setAttribute("aria-pressed", String(this.pb?.queue?.shuffle === true));
+    const elsewhere = ready && this.#elsewhere;
+    this.whereBtn.hidden = !elsewhere;
+    this.el.toggleAttribute("data-elsewhere", elsewhere);
+    if(elsewhere){
+      const where = this.#where();
+      this.whereText.textContent = `On ${where}`;
+      this.whereBtn.setAttribute("aria-label", `Playing on ${where} — tap to play it here instead`);
+    }
+    this.#paintHere();
     this.appLink.href = playlistUrl(this.listId);
-    if(ready) this.#paintNow();
+    this.#paintTime();
+    if(!this.songs.hidden) this.#renderSongs();
   }
 
-  async #paintNow(){
-    const data = this.player.getVideoData?.() ?? {};
-    const id = data.video_id || (this.player.getPlaylist?.() ?? [])[this.player.getPlaylistIndex?.()];
-    const hint = this.started ? null : "Tap the video to start";
-    if(!id){ this.#setNow("Ready to play", hint ?? ""); return; }
-    if(data.title){ this.now = { id, title:data.title, author:data.author ?? "" }; this.#setNow(data.title, hint ?? data.author ?? ""); }
-    else if(this.now?.id !== id) this.now = { id, title:"", author:"" };
-    const info = await songInfo(id);
-    if(info && this.#currentId() === id){
-      this.now = { id, title:info.title, author:info.author };
-      this.#setNow(info.title, (this.started ? null : hint) ?? info.author);
+  /** The table's song: its title and artist (from oEmbed), or what's wrong. */
+  #paintNow(){
+    if(!this.listId) return this.#setNow("", "");
+    if(this.problem) return this.#setNow(...this.problem);
+    const ready = this.#queueReady, id = ready ? this.pb.now.videoId : null;
+    if(!id) return this.#setNow("Loading playlist…", "");
+    if(this.now?.id !== id){
+      const fallback = `Song ${(this.pb.now.index ?? 0) + 1}`;
+      this.now = { id, title:"", author:"" };
+      songInfo(id).then(info => {
+        if(this.now?.id !== id) return;
+        this.now = { id, title:info?.title ?? fallback, author:info?.author ?? "" };
+        this.#paintNow();
+      });
     }
-  }
-
-  /** The song picked up from another device, shown on the mini bar until the player exists. */
-  async #cue(videoId){
-    this.cued = videoId ? { id:videoId, title:"", author:"" } : null;
-    this.#paintMini();
-    const info = videoId ? await songInfo(videoId) : null;
-    if(info && this.cued?.id === videoId){ this.cued = { id:videoId, title:info.title, author:info.author }; this.#paintMini(); }
-  }
-
-  #paintMini(){
-    const setup = !this.listId;
-    this.mini.dataset.state = setup ? "setup" : "player";
-    this.miniPlay.hidden = setup;
-    const song = setup ? null : (this.player ? this.now : this.cued) ?? null;
-    const art = song?.id ? thumbnailUrl(song.id) : null;
-    if(this.miniArt.dataset.src !== (art ?? "")){
-      this.miniArt.dataset.src = art ?? "";
-      if(art) this.miniArt.replaceChildren(h("img", { src:art, alt:"", width:44, height:44 }));
-      else this.miniArt.innerHTML = SVG.note;   /* static, trusted markup */
-    }
-    this.miniTitle.textContent = setup ? "Music for the table" : song?.title || (this.player ? this.title.textContent : "Your playlist");
-    this.miniArtist.textContent = setup ? "Tap to add a YouTube playlist" : song?.title ? song.author : "Tap play to start";
-  }
-
-  #currentId(){
-    return this.player?.getVideoData?.()?.video_id || (this.player?.getPlaylist?.() ?? [])[this.player?.getPlaylistIndex?.()];
+    const hint = this.#isSpeaker && !this.started && this.pb.now.playing ? "Tap the video to start" : null;
+    this.#setNow(this.now.title || "…", hint ?? this.now.author);
   }
 
   #setNow(title, artist){
     this.title.textContent = title;
     this.artist.textContent = artist;
     this.#paintMini();
+  }
+
+  #paintMini(){
+    const setup = !this.listId, ready = this.#queueReady;
+    this.mini.dataset.state = setup ? "setup" : "player";
+    this.miniPlay.hidden = setup;
+    this.miniNext.hidden = setup;
+    this.miniNext.disabled = !ready;
+    const song = ready ? this.now : null;
+    const art = song?.id ? thumbnailUrl(song.id) : null;
+    if(this.miniArt.dataset.src !== (art ?? "")){
+      this.miniArt.dataset.src = art ?? "";
+      if(art) this.miniArt.replaceChildren(h("img", { src:art, alt:"", width:44, height:44 }));
+      else this.miniArt.innerHTML = SVG.note;   /* static, trusted markup */
+    }
+    const where = ready && this.#elsewhere ? `On ${this.#where()}` : "";
+    this.miniTitle.textContent = setup ? "Music for the table" : song?.title || (ready ? "…" : "Your playlist");
+    this.miniArtist.textContent = setup ? "Tap to add a YouTube playlist"
+      : [song?.title ? song.author : (ready ? "" : "Tap play to start"), where].filter(Boolean).join(" · ");
+    const playing = this.#playing, label = playing ? "Pause" : "Play";
+    this.miniPlay.innerHTML = playing ? SVG.pause : SVG.play;
+    this.miniPlay.setAttribute("aria-label", label);
+    this.miniPlay.title = label;
+  }
+
+  /** The time: the slider, the clock either side of it, and the line along the top of the mini bar. */
+  #paintTime(){
+    const ready = this.#queueReady, now = this.pb?.now;
+    const pos = ready ? livePosition(this.pb, this.#t) : 0;
+    let dur = ready ? now.duration ?? 0 : 0;
+    if(!dur && ready && this.ready && this.mode === "song" && this.songId === now.videoId) dur = Math.round(this.player.getDuration?.() ?? 0);
+    const shown = this.seeking ? Number(this.seek.value) : Math.min(pos, dur || pos);
+    if(!this.seeking){ this.seek.max = String(dur || 1); this.seek.value = String(dur ? shown : 0); }
+    this.seek.disabled = !dur;
+    this.seek.style.setProperty("--fill", `${dur ? Math.min(100, shown / dur * 100) : 0}%`);
+    this.timeNow.textContent = clock(shown);
+    this.timeEnd.textContent = dur ? clock(dur) : "–:––";
+    this.miniLine.style.transform = `scaleX(${dur ? Math.min(1, pos / dur) : 0})`;
+  }
+
+  /** The playlist pop-up's "Where the music plays". */
+  #paintHere(){
+    const ready = this.#queueReady, kind = this.kind;
+    this.hereBox.hidden = !ready;
+    if(!ready) return;
+    const elsewhere = this.#elsewhere;
+    this.hereBtn.hidden = !elsewhere;
+    this.hereText.textContent = elsewhere
+      ? `On ${this.#where()}. Every phone's buttons control it there — or move the sound to this ${kind}.`
+      : this.#isSpeaker && speakerOnline(this.pb, this.#t)
+        ? `On this ${kind}. Everyone's play, skip and time slider control it here.`
+        : `Nowhere yet. Press play and it plays on this ${kind}; every other device becomes a remote for it.`;
   }
 
   /* ---------------- songs sheet ---------------- */
@@ -658,17 +833,20 @@ export class MusicBar {
     if(show) this.#showSongs(false);
     this.pop.hidden = !show;
     this.popBtn.setAttribute("aria-pressed", String(show));
+    if(show) this.#paintHere();
   }
 
+  /** The songs in play order (shuffled or not — the same on every device); tap one to play it. */
   #renderSongs(){
-    const ids = this.player?.getPlaylist?.() ?? [];
-    const current = this.player?.getPlaylistIndex?.() ?? -1;
+    const ready = this.#queueReady;
+    const ids = ready ? this.pb.queue.order : [];
+    const current = ready ? this.pb.now.index : -1;
     const key = ids.join(",");
     if(key !== this.renderedIds){
       this.renderedIds = key;
       this.observer.disconnect();
       this.songList.replaceChildren(...ids.map((id, i) => {
-        const row = h("button", { type:"button", class:"song", role:"listitem", "data-id":id, onClick:() => this.player.playVideoAt(i) },
+        const row = h("button", { type:"button", class:"song", role:"listitem", "data-id":id, onClick:() => this.#pick(i) },
           h("img", { src:thumbnailUrl(id), alt:"", width:64, height:36, loading:"lazy" }),
           h("span", { class:"song-text" }, h("span", { class:"song-title" }, "…"), h("small", {})));
         this.observer.observe(row);

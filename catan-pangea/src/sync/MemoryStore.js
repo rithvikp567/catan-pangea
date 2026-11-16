@@ -11,6 +11,7 @@
  *   transact(path, fn)  -> Promise<{committed, value}>
  *                          fn(current) returns the new value, or undefined to abort
  *   onStatus(cb)        -> unsubscribe   cb("live" | "offline" | "device")
+ *   onClockOffset(cb)   -> unsubscribe   cb(ms): server clock − this device's clock (0 here)
  *
  * Like the RTDB, nulls are never stored and empty objects disappear.
  *
@@ -109,6 +110,8 @@ export class MemoryStore {
   }
 
   onStatus(cb){ cb(this.status); return () => {}; }
+
+  onClockOffset(cb){ cb(0); return () => {}; }
 
   /** Notify subscribers whose value changed (batched per microtask). */
   changed(){

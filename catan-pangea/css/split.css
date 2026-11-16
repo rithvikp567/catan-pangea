@@ -8,7 +8,8 @@
    (The safe-area insets and touch-sized grip are kept: tablets count as
    desktop at 900 × 560 and up.)
    The music half is the YouTube player at 16:9 (never under 200 px tall),
-   its controls in a row, then the songs; nothing is ever drawn over it.
+   its controls in a row and the time under them, then the songs; nothing
+   is ever drawn over it.
    ========================================================================== */
 body[data-view="split"] .app{ display:none; }
 
@@ -44,11 +45,12 @@ body[data-view="split"][data-axis="y"] .music{
    at least 200 × 200 whatever happens (YouTube's minimum — it letterboxes) */
 body[data-view="split"] .music-video{
   flex:none; align-self:center; aspect-ratio:16 / 9; height:auto; min-height:200px; min-width:200px;
-  width:min(100%, max(356px, calc((100cqh - 170px) * 16 / 9)));
+  width:min(100%, max(356px, calc((100cqh - 210px) * 16 / 9)));
 }
 /* the song and the controls in one row under the player — slightly smaller
    buttons on a narrow half (a phone), so the songs keep their room */
-body[data-view="split"] .music-side{ flex:none; flex-flow:row nowrap; align-items:center; gap:16px; }
+body[data-view="split"] .music-side{ flex:none; flex-flow:row wrap; align-items:center; gap:4px 16px; }
+body[data-view="split"] .music-progress{ order:5; flex:1 0 100%; }     /* the time: a line of its own under the row */
 body[data-view="split"] .music-now{ flex:1 1 0; min-width:0; }
 body[data-view="split"] .music-title{ -webkit-line-clamp:1; }
 body[data-view="split"] .music-controls{ gap:8px; }

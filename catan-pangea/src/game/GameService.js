@@ -8,9 +8,10 @@
  *   session               { meta, board, settings, seats/{s0…}, counters }  — the one active game
  *   wins/{season}/{entryId} { profileId, delta, source, sessionId?, at }  — the wins ledger
  *   music                 { listId, setAt, setBy }  — the table's YouTube playlist
- *   listening/{profileId} { listId, videoId, index, count, t, duration, playing, open, shuffle, at, deviceId }
- *                         — where each player is in the music, picked up when they log in on another device
- *                           (not part of GameState: it changes every few seconds while music plays)
+ *   playback              { queue, now, beat }  — the table's music as one shared playback: the song,
+ *                           the order, playing or paused, the time, and which device plays the sound
+ *                           (see music/playback.js; watched on its own, not part of GameState — it
+ *                           changes with every tap on the music and every few seconds while it plays)
  *
  * Transactions abort (return undefined) when their node is missing. The
  * RTDB may call a transaction with null when nothing is cached, so the app
@@ -19,6 +20,7 @@
  */
 import { GameState } from "./GameState.js";
 import { parsePlaylist } from "../music/playlist.js";
+import { COMMANDS as PLAYBACK } from "../music/playback.js";
 import {
   MAX_VP, COUNTERS, clampVP, stepCounter, nextRobber, collectRobber, newSession, carrySeats, validateName,
 } from "./rules.js";
@@ -84,7 +86,7 @@ export class GameService {
   /** Admin: delete a profile, free its seat and drop its wins. */
   async removeProfile(profileId){
     const state = await this.state();
-    const patch = { [`profiles/${profileId}`]: null, [`listening/${profileId}`]: null };
+    const patch = { [`profiles/${profileId}`]: null, [`listening/${profileId}`]: null };   /* (listening: per-profile music spots, before 2.7.0) */
     const seat = state.session && Object.entries(state.session.seats ?? {}).find(([, s]) => s.profileId === profileId);
     if(seat){ patch[`session/seats/${seat[0]}/profileId`] = null; patch[`session/seats/${seat[0]}/color`] = null; }
     for(const [season, entries] of Object.entries(state.wins)){
@@ -224,14 +226,26 @@ export class GameService {
     return res.listId;
   }
 
-  /** Save where a player is in the music (song, time, playing…), stamped with when and which device. */
-  async saveListening(profileId, spot){
-    if(!profileId || !spot?.videoId) return;
-    await this.store.set(this.#p("listening", profileId), { ...spot, at:this.now(), deviceId:this.deviceId });
+  /**
+   * The shared playback, now and on every change (null until a playlist's songs are read).
+   * @returns {() => void} unsubscribe
+   */
+  watchPlayback(cb){ return this.store.subscribe(this.#p("playback"), cb); }
+
+  /**
+   * Run a playback command (music/playback.js COMMANDS) as a transaction.
+   * @param {string} command  load | play | pause | skip | ended | seek | shuffle | takeOver | release | sync
+   * @param {{ name?:string|null, kind?:string|null }} [who]  shown as "On Sam's phone" while this device plays the sound
+   * @returns {Promise<boolean>} whether it changed anything
+   */
+  async controlMusic(command, arg, who = {}){
+    const fn = PLAYBACK[command];
+    if(!fn) throw new GameError("bad-command", `Unknown music command: ${command}`);
+    const ctx = { t:this.now(), deviceId:this.deviceId, name:who.name ?? null, kind:who.kind ?? null, random:this.random };
+    const res = await this.store.transact(this.#p("playback"), cur => fn(cur, arg, ctx));
+    return res.committed;
   }
 
-  /** Where a player last was in the music, on any device (or null). */
-  async listening(profileId){
-    return profileId ? (await this.store.get(this.#p("listening", profileId))) ?? null : null;
-  }
+  /** The speaker's "still here" (see BEAT_MS). */
+  async musicBeat(){ await this.store.set(this.#p("playback", "beat"), this.now()); }
 }

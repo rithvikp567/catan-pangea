@@ -18,12 +18,21 @@ export class GameController {
     this.state = null;
     this.status = "connecting";
     this.listeners = new Set();
+    this.playback = undefined;       /* the shared music (null: none yet; undefined: not loaded) */
+    this.playbackListeners = new Set();
+    this.clockOffset = 0;            /* server clock − this device's clock */
   }
 
   /** Attach to a store and start listening. Resolves with the first state. */
   connect(store){
-    this.service = new GameService(store, { deviceId:this.identity.deviceId });
+    this.service = new GameService(store, { deviceId:this.identity.deviceId, now:() => this.now() });
     store.onStatus(status => { this.status = status; this.#emit(); });
+    store.onClockOffset?.(ms => { this.clockOffset = ms; });
+    /* kept open for the app's life, like watch(): music commands are transactions */
+    this.service.watchPlayback(pb => {
+      this.playback = pb ?? null;
+      for(const fn of this.playbackListeners) fn(this.playback);
+    });
     return new Promise(resolve => {
       let first = true;
       this.service.watch(state => {
@@ -35,6 +44,11 @@ export class GameController {
   }
 
   get ready(){ return !!this.state; }
+
+  /** The time on the server's clock (ms) — every device's music clock agrees on it. */
+  now(){ return Date.now() + this.clockOffset; }
+
+  get deviceId(){ return this.identity.deviceId; }
 
   /** @param {(state, game:GameController) => void} fn */
   onChange(fn){ this.listeners.add(fn); return () => this.listeners.delete(fn); }
@@ -107,13 +121,24 @@ export class GameController {
   /** @returns {Promise<string|undefined>} the playlist id, or undefined if the link was rejected */
   setPlaylist(link){ return this.#run(() => this.service.setPlaylist(link, this.me?.id ?? null)); }
 
-  /** Where a player last was in the music (null if never, or unreachable). */
-  listening(profileId = this.me?.id){
-    return this.service && profileId ? this.service.listening(profileId).catch(() => null) : Promise.resolve(null);
+  /** @param {(playback:object|null) => void} fn  the shared music, now (once loaded) and on every change */
+  onPlayback(fn){
+    this.playbackListeners.add(fn);
+    if(this.playback !== undefined) fn(this.playback);
+    return () => this.playbackListeners.delete(fn);
   }
-  /** Save where I am in the music — in the background, never a toast. */
-  saveListening(spot){
-    const me = this.me;
-    if(me && this.service) this.service.saveListening(me.id, spot).catch(() => {});
+
+  /**
+   * A music command (music/playback.js) — play, pause, skip, seek… from any
+   * device; the device playing the sound follows. Failures toast.
+   * @param {{ kind?:string }} [who]  this device's kind ("phone", "tablet", "computer")
+   * @returns {Promise<boolean>} whether it changed anything
+   */
+  controlMusic(command, arg, { kind = null } = {}){
+    if(!this.service) return Promise.resolve(false);
+    return this.#run(() => this.service.controlMusic(command, arg, { name:this.me?.name ?? null, kind })).then(Boolean);
   }
+
+  /** The speaker's "still here" — in the background, never a toast. */
+  musicBeat(){ this.service?.musicBeat().catch(() => {}); }
 }

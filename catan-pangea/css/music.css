@@ -60,17 +60,47 @@ body[data-music="open"] dialog.about::backdrop{ background:transparent; }
 .music-video iframe, .music-video > div{ display:block; width:100%; height:100%; border:0; }
 
 .music-side{ display:flex; flex-direction:column; gap:6px; min-width:0; }
-.music-now{ flex:1; min-height:0; }
+.music-now{ flex:1; min-height:0; overflow:hidden; }
 .music-title{
   margin:0; font-size:14px; font-weight:650; line-height:1.3;
   display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
 }
 .music-artist{ margin:2px 0 0; font-size:12.5px; color:var(--ink-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.music-notice{
-  margin-top:6px; padding:4px 10px; border:0; border-radius:999px; cursor:pointer;
-  background:color-mix(in srgb, var(--primary) 14%, transparent); color:var(--ink);
-  font-size:12px; font-weight:650;
+/* a remote: "On Sam's phone" — where the sound is (tap: the pop-up, with Play here) */
+.music[data-elsewhere] .music-title{ -webkit-line-clamp:1; }
+.music-where{
+  display:flex; align-items:center; gap:5px; max-width:100%; margin-top:5px; padding:2px 9px 2px 6px;
+  border:0; border-radius:999px; background:var(--surface-2); color:var(--ink-2);
+  font:inherit; font-size:12px; font-weight:600; line-height:1.4; text-align:left; cursor:pointer;
 }
+.music-where .where-icon{ flex:none; display:grid; color:var(--ink); }
+.music-where svg{ width:14px; height:14px; }
+.where-text{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* the time — the same on every device; drag it and it moves for everyone */
+.music-progress{ display:flex; align-items:center; gap:6px; min-width:0; }
+.music-time{ flex:none; min-width:3.6ch; font-size:11px; color:var(--ink-3); font-variant-numeric:tabular-nums; }
+.music-time:last-child{ text-align:right; }
+.music-seek{
+  --fill:0%;
+  flex:1 1 auto; min-width:0; height:22px; margin:0; padding:0;
+  -webkit-appearance:none; appearance:none; background:transparent; cursor:pointer; touch-action:pan-y;
+}
+.music-seek::-webkit-slider-runnable-track{
+  height:4px; border-radius:999px;
+  background:linear-gradient(to right, var(--primary) var(--fill), var(--line) var(--fill));
+}
+.music-seek::-webkit-slider-thumb{
+  -webkit-appearance:none; appearance:none; width:12px; height:12px; margin-top:-4px;
+  border:0; border-radius:50%; background:var(--primary);
+}
+.music-seek::-moz-range-track{ height:4px; border-radius:999px; background:var(--line); }
+.music-seek::-moz-range-progress{ height:4px; border-radius:999px; background:var(--primary); }
+.music-seek::-moz-range-thumb{ width:12px; height:12px; border:0; border-radius:50%; background:var(--primary); }
+.music-seek:disabled{ cursor:default; }
+.music-seek:disabled::-webkit-slider-thumb{ visibility:hidden; }
+.music-seek:disabled::-moz-range-thumb{ visibility:hidden; }
+.music-seek:focus-visible{ outline:2px solid var(--focus); outline-offset:2px; border-radius:6px; }
 .music-controls{ display:flex; align-items:center; justify-content:space-between; }
 .music-extras{ display:flex; align-items:center; justify-content:space-between; }
 .music-btn{
@@ -124,11 +154,15 @@ body[data-music="open"] dialog.about::backdrop{ background:transparent; }
   .music-extras{ grid-column:2 / 4; grid-row:2; align-self:center; }
   .music-extras .music-btn{ width:32px; height:32px; }
   .music-extras .music-btn svg{ width:18px; height:18px; }
+  .music-progress{ grid-column:1 / -1; grid-row:3; }
+  .music[data-elsewhere] .music-artist{ display:none; }
+  .music-where{ margin-top:3px; padding:1px 8px 1px 5px; font-size:11.5px; }
   .music[data-state="setup"]{ grid-template-columns:244px; grid-template-rows:none; }
 }
 
 /* ---------- the mini bar (the player closed): a thin strip along the bottom, every device ---------- */
 .music-mini{
+  /* (and the song's progress along its top edge) */
   position:fixed; z-index:75; left:0; right:0; bottom:0;
   display:flex; align-items:center; gap:6px;
   padding:6px max(8px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
@@ -150,7 +184,14 @@ body[data-music="open"] dialog.about::backdrop{ background:transparent; }
 .mini-artist{ font-size:12px; color:var(--ink-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .music-mini .mini-play{ width:38px; height:38px; background:var(--primary); color:var(--primary-ink); }
 .music-mini .mini-play svg{ width:18px; height:18px; }
+.music-mini .mini-next{ width:36px; height:36px; }
+.music-mini .mini-next svg{ width:20px; height:20px; }
 .music-mini .mini-open{ width:36px; height:36px; color:var(--ink-2); }
+.mini-progress{
+  position:absolute; left:0; right:0; top:-1px; height:2px; pointer-events:none;
+  background:var(--primary); transform-origin:left center; transform:scaleX(0); transition:transform .5s linear;
+}
+.music-mini[data-state="setup"] .mini-progress{ display:none; }
 .music-mini .mini-open svg{ width:20px; height:20px; }
 @media (hover:hover){ .mini-main:hover .mini-title{ text-decoration:underline; text-underline-offset:2px; } }
 /* desktop: the same strip, a little roomier */
@@ -185,6 +226,8 @@ body[data-music="open"] dialog.about::backdrop{ background:transparent; }
 
 /* playlist pop-up: change the link; Premium → the YouTube Music app */
 .pop-body{ display:flex; flex-direction:column; gap:8px; padding:4px 18px 16px; }
+.pop-here{ display:flex; flex-direction:column; gap:8px; margin-bottom:6px; padding-bottom:14px; border-bottom:1px solid var(--line); }
+.here-btn{ min-height:44px; }
 .pop-premium{ display:flex; flex-direction:column; gap:8px; margin-top:8px; padding-top:14px; border-top:1px solid var(--line); }
 .pop-title{ margin:0; font-size:14px; font-weight:650; }
 .music-app-btn{ min-height:44px; text-decoration:none; }

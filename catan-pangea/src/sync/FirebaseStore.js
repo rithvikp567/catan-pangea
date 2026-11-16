@@ -51,4 +51,9 @@ export class FirebaseStore {
   onStatus(cb){
     return this.rtdb.onValue(this.#ref(".info/connected"), snap => cb(snap.val() ? "live" : "offline"));
   }
+
+  /* how far this device's clock is from the server's (the shared music clock uses it) */
+  onClockOffset(cb){
+    return this.rtdb.onValue(this.#ref(".info/serverTimeOffset"), snap => cb(Number(snap.val()) || 0));
+  }
 }

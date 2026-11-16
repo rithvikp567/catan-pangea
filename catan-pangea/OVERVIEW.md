@@ -138,6 +138,14 @@ song by tapping the video. With YouTube Premium, 🔗 → **Play in the
 YouTube Music app** plays it from the app instead — in the background, no
 ads — and the bar closes so the map gets the whole screen.
 
+**Everyone shares one player.** Every phone shows the same song, order
+(shuffled or not), play / pause and time, and anyone's buttons — play,
+pause, next, previous, shuffle, a song in the list, the time slider —
+change it for everyone. The sound comes from one device only: whichever
+pressed play first, normally the phone cast to the TV; on the others the
+video stays still with **On Sam's phone** under it and the buttons work as
+a remote. **On Sam's phone → Play here** moves the sound to your phone.
+
 ## Install it as an app
 
 Pangaea installs straight from the browser — no app store — and then opens
