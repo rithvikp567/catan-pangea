@@ -1,10 +1,12 @@
 /* ==========================================================================
    Winter (src/ui/WinterEffect.js): 8-bit snow and frost as WALKER fills.
-   Over the map and every screen, under the music bar (never over the
-   YouTube player) and the toasts. Never takes a tap.
+   Over the whole window — the map, every screen, the music bar and the
+   mini bar — with a hole cut exactly where the YouTube player is (a
+   clip-path set by WinterEffect: nothing may cover the player). Under the
+   drag handles and the toasts. Never takes a tap.
    ========================================================================== */
 .winter{
-  position:fixed; z-index:72; inset:0; bottom:var(--music-h, 0px); right:var(--music-w, 0px);
+  position:fixed; z-index:76; inset:0;
   pointer-events:none; opacity:1; transition:opacity .6s ease, background-color .6s ease;
 }
 /* the word started over: everything melts away slowly */

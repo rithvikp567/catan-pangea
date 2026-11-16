@@ -13,7 +13,7 @@
    ========================================================================== */
 body[data-view="split"] .app{ display:none; }
 
-/* ---------- the tracker half: one column, centred ---------- */
+/* ---------- the tracker half: one column, centred both ways ---------- */
 body[data-view="split"] .screen[data-screen="tracker"]{
   container-type:size;           /* the seat rows share the half's height, not the window's */
 }
@@ -23,7 +23,10 @@ body[data-view="split"][data-axis="x"] .screen[data-screen="tracker"]{
 body[data-view="split"][data-axis="y"] .screen[data-screen="tracker"]{
   top:0; left:0; right:0; bottom:auto; height:var(--half); padding-bottom:0;
 }
-body[data-view="split"] .screen[data-screen="tracker"] .screen-inner{ max-width:640px; }
+body[data-view="split"] .screen[data-screen="tracker"] .screen-inner{
+  max-width:640px;
+  min-height:100%; display:flex; flex-direction:column; justify-content:center;   /* in the middle of its half when shorter */
+}
 body[data-view="split"] .tracker-grid{ grid-template-columns:minmax(0,1fr); grid-template-rows:none; }
 body[data-view="split"] .tracker-grid > :first-child{ grid-row:auto; }
 

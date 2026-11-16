@@ -4,7 +4,9 @@
  * Every device shows the same song, the same order (shuffled or not), the
  * same play / pause and the same time. One device plays the sound — the
  * *speaker*, normally the phone cast to the TV — and every other device is
- * a remote whose buttons drive it. "Play here" moves the sound.
+ * a remote whose buttons drive it. The sound stays on the speaker whatever
+ * anyone changes; only "Play here" (takeOver) moves it. The one exception
+ * is the very first play, when there's no speaker yet.
  *
  * Stored at /v1/playback and only ever changed by the commands below, each
  * run inside a store transaction, so taps from several phones at once
@@ -31,7 +33,8 @@
 
 /** The speaker writes `beat` this often while its page is open… */
 export const BEAT_MS = 20_000;
-/** …and a speaker silent for this long has gone (closed, locked, offline). */
+/** …and a speaker silent for this long isn't responding (closed, locked, offline):
+ *  its clock stops and nothing shows as playing — but it stays the speaker until someone's Play here. */
 export const SPEAKER_TIMEOUT_MS = 70_000;
 
 export const songCount = pb => pb?.queue?.order?.length ?? 0;
@@ -86,13 +89,14 @@ export function load(pb, { listId, setAt = null, songs }, ctx){
 }
 
 /**
- * Play (index: that song). Played from a remote, the speaker plays it;
- * with `here`, or when no speaker is there, this device becomes the speaker.
+ * Play (index: that song). From a remote, the speaker plays it — even one
+ * that isn't responding (it picks up when it's back). This device becomes
+ * the speaker only with `here`, or when there's no speaker at all yet.
  */
 export function play(pb, { index = null, here = false } = {}, ctx){
   const n = songCount(pb);
   if(!n) return undefined;
-  const take = here || !speakerOnline(pb, ctx.t);
+  const take = here || !pb.now?.speaker;
   const patch = { playing:true };
   if(Number.isInteger(index) && index >= 0 && index < n && index !== pb.now?.index) Object.assign(patch, song(pb, index));
   if(take) Object.assign(patch, speakerHere(ctx));
@@ -140,12 +144,6 @@ export function takeOver(pb, _arg, ctx){
   return { ...stamp(pb, speakerHere(ctx), ctx), beat:ctx.t };
 }
 
-/** The speaker leaves (page closed): the music pauses where it is. */
-export function release(pb, _arg, ctx){
-  if(pb?.now?.speaker !== ctx.deviceId) return undefined;
-  return stamp(pb, { playing:false, speaker:null, speakerName:null, speakerKind:null }, ctx);
-}
-
 /**
  * The speaker reports what its player is really doing — buffering or an ad
  * put it behind, someone used the video's own controls, or a phone never
@@ -163,4 +161,4 @@ export function sync(pb, { rev, pos, playing, duration } = {}, ctx){
 }
 
 /** Every command, by name (GameService.controlMusic runs them in a transaction). */
-export const COMMANDS = Object.freeze({ load, play, pause, skip, ended, seek, shuffle:setShuffle, takeOver, release, sync });
+export const COMMANDS = Object.freeze({ load, play, pause, skip, ended, seek, shuffle:setShuffle, takeOver, sync });

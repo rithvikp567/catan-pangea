@@ -142,7 +142,8 @@ ads — and the bar closes so the map gets the whole screen.
 (shuffled or not), play / pause and time, and anyone's buttons — play,
 pause, next, previous, shuffle, a song in the list, the time slider —
 change it for everyone. The sound comes from one device only: whichever
-pressed play first, normally the phone cast to the TV; on the others the
+pressed play first, normally the phone cast to the TV, and it stays there
+whatever anyone changes; on the others the
 video stays still with **On Sam's phone** under it and the buttons work as
 a remote. **On Sam's phone → Play here** moves the sound to your phone.
 

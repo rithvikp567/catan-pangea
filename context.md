@@ -175,8 +175,11 @@ on the tracker): everything works, but nothing is shared between phones.
     edges (deeper in the corners, icicles along the top) and a faint cold
     tint. Going back down thins the snow and melts the frost; back to 0 it
     all fades out over ~3 s. How strong it gets is one knob: `STRENGTH` at
-    the top of `WinterEffect.js` (snow, frost depth, frost opacity, tint). Drawn under the music bar (never over the
-    YouTube player), never takes a tap. Reduced motion: frost only.
+    the top of `WinterEffect.js` (snow, frost depth, frost opacity, tint). Drawn over the **whole window** —
+    the frost frames every edge, the music bar and the mini bar included —
+    with a hole cut exactly where the YouTube player is (`keepClear`, a
+    clip-path: nothing may cover the player). Never takes a tap. Reduced
+    motion: frost only.
 - **Logging in on another device:** pick your profile on the welcome
   screen. If you're seated in the current game you go straight to the
   tracker ("Welcome back, … — you're Red."); the music is the table's, so
@@ -211,13 +214,15 @@ on the tracker): everything works, but nothing is shared between phones.
   titles come from YouTube's oEmbed endpoint — no API key), **Playlist**
   (🔗) and Close. Songs and Playlist open as sheets above the bar, one at a
   time, and stay hidden otherwise.
-- **Playlist** pop-up: change the link for everyone, and **Play in the
-  YouTube Music app** — for YouTube Premium: the app keeps playing in the
-  background with no ads, so the bar pauses and closes and the map gets the
-  whole screen (mirroring still carries the sound). It also links to
-  YouTube sign-in: Premium removes ads *in this player* only when the embed
-  can see you're signed in — works on Android Chrome; iPhone Safari's
-  cross-site tracking protection usually hides the sign-in.
+- **Playlist** pop-up: *Where the music plays* (with **Play here** on a
+  remote), change the link for everyone, and **Play in the YouTube Music
+  app** under *Have YouTube Premium?* — the app plays in the background
+  with no ads, so the bar pauses and closes and the map gets the whole
+  screen (the other phones can't control the app). The pop-up keeps that
+  button short — no description (2.8.0). It also links to YouTube sign-in:
+  Premium removes ads *in this player* only when the embed can see you're
+  signed in — works on Android Chrome; iPhone Safari's cross-site tracking
+  protection usually hides the sign-in.
 - **Docked on every screen:** a bar along the bottom in portrait, a column
   on the right in phone landscape (the best way to cast to a 16:9 TV: the
   200 × 200 player with previous / play / next stacked beside it and the
@@ -239,8 +244,10 @@ on the tracker): everything works, but nothing is shared between phones.
   previous, next, shuffle, song in the list or slider changes it for
   everyone, as a transaction.
   - **One device plays the sound — the *speaker*** — normally the phone
-    cast to the TV: whoever presses play while no speaker is around
-    becomes it. Every other device is a **remote**: its player shows the
+    cast to the TV: the device that pressed play first (when there was no
+    speaker yet). **It stays the speaker whatever anyone changes** — play,
+    pause, skip, a song, a new playlist all play there; only **Play here**
+    moves it. Every other device is a **remote**: its player shows the
     song, still (a remote's player never plays — no autoplay, no data),
     with **On Sam's phone** under the song; its buttons drive the
     speaker. Tapping that line opens the 🔗 pop-up's *Where the music
@@ -255,12 +262,15 @@ on the tracker): everything works, but nothing is shared between phones.
     someone used the video's own controls (seek, pause, play), the song's
     length. A song ending (or one YouTube won't play here) moves everyone
     on — once, however many times it's reported.
-  - The speaker writes a **beat** every 20 s while its page is open; a
-    speaker silent for 70 s (closed, locked, offline) has gone — the clock
-    stops where it was, nothing shows as playing, and the next play takes
-    the sound. Closing the page releases it (the music pauses). Closing
-    the player on the speaker pauses it for everyone; a remote's play then
-    opens the speaker's player again and plays.
+  - The speaker writes a **beat** every 20 s while its page is open —
+    hidden too (a computer keeps playing in a background tab). A speaker
+    silent for 70 s (closed, locked, offline) **isn't responding**: the
+    clock stops where it was, nothing shows as playing, and remotes read
+    *On Sam's phone · not responding* — but it's still the speaker (plays
+    pressed meanwhile wait for it; a reloaded speaker is still it) until
+    someone taps Play here. Closing the player on the speaker pauses it for
+    everyone; a remote's play then opens the speaker's player again and
+    plays.
   - Time is the **server's clock** (Firebase `.info/serverTimeOffset`,
     `GameController.now()`), so the slider reads the same on every phone:
     position = `pos + (now − at)` while playing.
@@ -324,6 +334,11 @@ on the tracker): everything works, but nothing is shared between phones.
   `SONGS_FROM` — and the list moves in under the player, `column`). The
   map and the settings column sit to the right, and the map stays usable
   while the tracker is open (the **Tracker** button opens and closes it).
+- **Centred vertically:** every screen on desktop — the tracker in its
+  pane (column or music & tracker view), season wins, admin — sits in the
+  middle of its space when it's shorter, and scrolls from the top when it
+  isn't (`.screen-inner`: `min-height:100%`, a centred flex column). The
+  compact music pane centres its player and controls too.
 - **Drag to resize**, with three handles: the column's width, the split
   between tracker and music, and the settings column's width (also arrow
   keys when focused, Shift for bigger steps; double-click resets). Sizes are
@@ -352,8 +367,9 @@ on the tracker): everything works, but nothing is shared between phones.
   a container query on `.music`), then the song list filling the rest.
   The playlist pop-up and toasts open over the tracker half; the victory
   screen covers just the tracker half.
-- **The tracker half** stays one column, centred (max 640 px), whatever its
-  width — the table prefers its vertical phone layout everywhere.
+- **The tracker half** stays one column, centred both ways (max 640 px
+  wide, in the middle of its half's height), whatever its width — the
+  table prefers its vertical phone layout everywhere.
 - **The bar between them** drags (mouse or touch; arrow keys when focused,
   Shift for bigger steps; double-click resets to half and half) and always
   shows a grip, since phones can't hover. The music half never gets smaller
@@ -756,6 +772,12 @@ your run created afterwards — never `DELETE /v1` once real data exists.
   too (manifest `fullscreen`); Esc / F11 leaves it. The browser's install
   dialog only opens from a real tap (`InstallHelper.install` catches it
   otherwise).
+- **Winter is above the music bar (z-index 76) but never over the
+  player:** `WinterEffect.keepClear(music.video)` cuts a clip-path hole
+  (`polygon(evenodd, …)`, 1 px larger than the player) every frame while
+  it snows and every 250 ms otherwise, so it follows rotation, docks and
+  drag handles. Anything else that must never be covered: pass it to
+  `keepClear` too.
 - **YouTube player quirks we rely on:** `playerVars.start` /
   `startSeconds` are whole seconds; a player told where to start may
   buffer (state 3) before anyone presses play, so the speaker only judges
@@ -801,6 +823,17 @@ your run created afterwards — never `DELETE /v1` once real data exists.
 ## 10. Changelog
 
 Keep newest first. Every feature PR adds an entry and updates the sections above.
+
+- **2.8.0 — The music stays put; frost all round; centred on desktop.**
+  The sound now stays on the device playing it whatever anyone changes —
+  only **Play here** moves it (before, a play from a remote took the sound
+  once the speaker had been quiet for 70 s, and closing the speaker's page
+  let it go). A quiet speaker reads *not responding* on the remotes, and
+  the speaker's beat no longer stops in a background tab. The pop-up's
+  Premium description is gone. Winter's frost frames the whole window —
+  the music bar and mini bar too — with a hole cut exactly round the
+  YouTube player. On desktop the tracker (and season wins, admin) sits in
+  the middle of its space instead of at the top.
 
 - **2.7.0 — One shared player for the table.** The music is now live on
   every device: the same song, the same order (shuffled or not), playing or
