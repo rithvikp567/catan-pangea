@@ -149,7 +149,8 @@ on the tracker): everything works, but nothing is shared between phones.
     tap cycles 1→2→3) and **Collect: −N** (subtracts it from karma). Under
     it, **− W A L K E R +**: each + lights the next letter (icy glow), and
     the lit letters shake harder and faster with every letter
-    (`--amp` / `--rot` / `--dur` set by `TrackerScreen`). + on the full
+    (`--amp` / `--rot` / `--dur`, from `JITTER` at the top of
+    `TrackerScreen.js` — full word: ~2.7 px, 2°, every 0.2 s). + on the full
     word starts over at 0; − stops at 0; holding + doesn't spin it round.
   - **Winter** (`WinterEffect`, app-wide, every phone): as WALKER fills,
     8-bit pixel snow falls — specks, crosses, flakes, crystals and sparkles
@@ -195,8 +196,9 @@ on the tracker): everything works, but nothing is shared between phones.
   can see you're signed in — works on Android Chrome; iPhone Safari's
   cross-site tracking protection usually hides the sign-in.
 - **Docked on every screen:** a bar along the bottom in portrait, a column
-  on the right in phone landscape (the best way to cast to a 16:9 TV), and
-  the left column on desktop (see Desktop). The
+  on the right in phone landscape (the best way to cast to a 16:9 TV), the
+  left column on desktop (see Desktop), or half the screen in the music &
+  tracker view (see below). The
   map and every screen shrink to make room — `MusicBar` measures itself
   into `--music-h` / `--music-w` and `css/music.css` applies them. In
   portrait Safari the tracker scrolls about 90 px while the bar is open.
@@ -220,13 +222,16 @@ on the tracker): everything works, but nothing is shared between phones.
 
 ### Installable app
 
-- **Install from the browser, no app store.** Android / desktop Chrome and
+- **Install from the browser, no app store.** Android Chrome and
   Edge: the phone icon at the top of the map (and **Install** on the
   welcome screen's *Get the app* card) opens the browser's own install
   dialog. iPhone / iPad: there is no install dialog — the icon and the
   card explain *Share → Add to Home Screen* (with *Open as Web App* on).
   Both disappear once it's running as the installed app; the card can be
-  closed for good.
+  closed for good. **Desktop computers never see them** (a mouse or
+  trackpad as the main pointer — `InstallHelper.computer`, so a narrow
+  desktop window still counts and an iPad doesn't); the browser's own
+  install icon in the address bar still works there.
 - **Full screen.** `manifest.webmanifest` asks for `fullscreen`: on
   Android no browser bars and no system bars; iPhone treats it as
   standalone (no Safari bars; the clock and battery stay, tinted with the
@@ -246,23 +251,61 @@ on the tracker): everything works, but nothing is shared between phones.
 
 ### Desktop (≥ 900 × 560)
 
-- A **left column** holds the tracker and the music: music alone fills it
-  (a big 16:9 player, its controls, then the whole song list); with the
-  tracker open the column splits — **tracker on top, music below**
-  (compact: the 200 × 200 player beside its controls, switching to the big
-  player once the music has room). The map and the settings column sit to
-  the right, and the map stays usable while the tracker is open (the
-  **Tracker** button opens and closes it).
+- A **left column** holds the tracker and the music. The music is the
+  200 × 200 player with its controls beside it (YouTube's minimum size, so
+  the song list gets the room): alone it fills the column with the whole
+  song list underneath; with the tracker open the column splits —
+  **tracker on top, music below** (`compact`: the songs open as a sheet
+  beside the column, until the music is dragged to ≥ 380 px tall —
+  `SONGS_FROM` — and the list moves in under the player, `column`). The
+  map and the settings column sit to the right, and the map stays usable
+  while the tracker is open (the **Tracker** button opens and closes it).
 - **Drag to resize**, with three handles: the column's width, the split
   between tracker and music, and the settings column's width (also arrow
   keys when focused, Shift for bigger steps; double-click resets). Sizes are
   remembered per device and fitted to smaller windows. Limits keep the map
-  ≥ 420 px wide, the big player ≥ 200 px tall, and the column ≤ 759 px —
+  ≥ 420 px wide, the column ≥ 380 px (the player and its controls side by
+  side) and ≤ 759 px —
   just short of the tracker's two-column layout (its `@container` at
   760 px), so the docked tracker always stays one column (`MAX_LEFT`).
 - `DesktopLayout` decides and measures (body `data-desk` / `data-left`,
   `--left-w` / `--split` / `--music-top` / `--panel-w` / `--top-h`);
   `css/desktop.css` lays it out. Phones never get any of it.
+
+### Music & tracker view (every device)
+
+- **Hide the map.** The split-screen icon in the map's top bar (every
+  device) hides the map, the settings and the dock, and gives the screen to
+  the **tracker and the music, half each** — opening either one if it was
+  closed. Side by side when the screen is wider than tall (desktop, a
+  sideways phone), **tracker on top and music below** on a phone held
+  upright (or a portrait desktop window).
+- **The music half** (`wide` dock): the YouTube player at 16:9 across the
+  half (capped so the songs keep ~170 px; never under 200 px tall — on a
+  narrow half it letterboxes rather than shrink), the song and the controls
+  in one row under it (slightly smaller buttons on a half under 560 px —
+  a container query on `.music`), then the song list filling the rest.
+  The playlist pop-up and toasts open over the tracker half; the victory
+  screen covers just the tracker half.
+- **The tracker half** stays one column, centred (max 640 px), whatever its
+  width — the table prefers its vertical phone layout everywhere.
+- **The bar between them** drags (mouse or touch; arrow keys when focused,
+  Shift for bigger steps; double-click resets to half and half) and always
+  shows a grip, since phones can't hover. The music half never gets smaller
+  than its player needs (400 px wide side by side, 320 px tall stacked);
+  the tracker's minimum (300 / 200 px) gives way first on a small screen.
+  Side by side and stacked each keep their own share (`halves` /
+  `halvesY` in the saved layout), so turning a phone keeps both.
+- **Ending it:** the tracker's back arrow ("Back to the map": on desktop the
+  tracker and music stay docked beside the map; on a phone it's the map),
+  the back gesture, or closing the music. The view itself is remembered per
+  device (`splitView`), so a reload on the tracker comes back to it; Enter
+  doesn't make a new map while it's up.
+- `DesktopLayout` runs it too (`enterSplit` / `showMap` / `splitActive`):
+  body `data-view="split"`, `data-axis` (`x` / `y`) and `--half` (the
+  tracker's share in px); `css/split.css` lays it out. While it's up the
+  desktop attributes are removed, so `desktop.css` and `split.css` never
+  apply at once.
 
 ---
 
@@ -366,6 +409,7 @@ catan-pangea/                       ← deployed as-is to GitHub Pages
   css/music.css                     music bar + how everything else makes room for it
   css/winter.css                    the WALKER snow / frost overlay
   css/desktop.css                   desktop left column (tracker + music), drag handles
+  css/split.css                     music & tracker view (map hidden, two halves), every device
   src/main.js                       entry point → new App(document).start()
   src/engine/                       MAP ENGINE — pure, DOM-free (browser, Node, or a worker)
     hex.js                          axial coords, integer vertex lattice, distances, pixels
@@ -415,7 +459,7 @@ catan-pangea/                       ← deployed as-is to GitHub Pages
     VictoryOverlay.js               victory / defeat screen
     MusicBar.js                     docked YouTube player (IFrame API), songs sheet, playlist link, resume across devices
     WinterEffect.js                 8-bit snow + frost that build up as WALKER fills
-    DesktopLayout.js                desktop left column + the three drag handles
+    DesktopLayout.js                desktop left column + its drag handles; the music & tracker view (every device)
     screens/Screen.js               base class for full-screen views
     screens/JoinScreen.js, TrackerScreen.js, WinsScreen.js, AdminScreen.js, widgets.js
 tests/                              node:test (engine, store, game service)
@@ -639,6 +683,12 @@ your run created afterwards — never `DELETE /v1` once real data exists.
   `build()`.
 - **Grid items honour `z-index`** without `position`: the desktop
   settings column (z-index 30) sits above anything fixed below 31.
+- **Screens get `deps.layout` after they're built** (`App` creates
+  `DesktopLayout` after the screens, then sets it on the shared `deps`
+  object), so read `this.deps.layout` when it's needed, never in `build()`.
+- **Leaving the music & tracker view without a route change** (closing the
+  music, the desktop back arrow) must call `router.refresh()`: the map's
+  `inert` is only recomputed when a route is applied.
 - **"Was music playing?" is `wantsMusic`, not the player state.** YouTube
   reports PAUSED → UNSTARTED → BUFFERING whenever it changes songs (Next, a
   song ending), so the state alone says "stopped" in the gap. `wantsMusic`
@@ -650,6 +700,18 @@ your run created afterwards — never `DELETE /v1` once real data exists.
 ## 10. Changelog
 
 Keep newest first. Every feature PR adds an entry and updates the sections above.
+
+- **2.5.0 — Music & tracker view; smaller desktop player.** A split-screen
+  icon in the top bar (every device) hides the map and splits the screen
+  between the tracker and the music — side by side, or tracker over music
+  on an upright phone — with a bar to drag between them, the video across
+  its half and the song list under it; back brings the map back. On
+  desktop the music column's player is now 200 × 200 with its controls
+  beside it, so the song list shows about twice as many songs. The WALKER
+  letters shake about half as hard. Phones: the top bar's icons shrink a
+  little instead of wrapping onto a second row (six fit on a 360 px phone
+  and in the landscape rail). Desktop computers no longer get the install
+  button or the *Get the app* card (phones and tablets still do).
 
 - **2.4.0 — Install as an app.** Web app manifest (full screen), app icons,
   and a service worker: Pangaea installs from the browser — Android's

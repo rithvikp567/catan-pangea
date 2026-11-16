@@ -15,6 +15,8 @@
  * Portrait: a bar along the bottom. Phone landscape: a column on the
  * right. While open it measures itself into --music-h / --music-w on
  * <html>, and css/music.css moves the map and the screens out of its way.
+ * DesktopLayout can dock it elsewhere (setDock): desktop's left column,
+ * or the music half of the music & tracker view (any device).
  * The playlist link is shared (GameState.music); playback is per phone —
  * only the phone that's casting needs to play.
  *
@@ -129,20 +131,25 @@ export class MusicBar {
 
   /**
    * Where the bar lives: "bar" — along the bottom / right side (phones);
-   * desktop's left column — "column" (big player, song list under it) or
-   * "compact" (the 200 × 200 player beside its controls, under the tracker).
+   * on desktop, the left column — "compact" (the 200 × 200 player beside
+   * its controls; songs in a sheet) or "column" (the same, with the song
+   * list under it) — or "wide", the music half of the music & tracker view
+   * (a full-width 16:9 player, the controls in a row, then the songs).
    */
   setDock(mode){
     if(mode === this.dock) return;
     this.dock = mode;
     this.el.dataset.dock = mode;
-    /* in the column the song list sits inside the bar; elsewhere it's a sheet of its own */
+    /* the column and wide docks list the songs inside the bar; elsewhere it's a sheet of its own */
     if(mode === "bar"){ if(this.songs.parentElement !== document.body) document.body.prepend(this.songs); }
     else if(this.songs.parentElement !== this.el) this.el.append(this.songs);
-    this.listBtn.hidden = mode === "column";
+    this.listBtn.hidden = this.#songsInside;
     this.#showSongs(false);
     this.#measure();
   }
+
+  /** Does this dock list the songs inside the bar (always shown)? */
+  get #songsInside(){ return this.dock === "column" || this.dock === "wide"; }
 
   open(){
     this.el.hidden = false;
@@ -152,7 +159,7 @@ export class MusicBar {
     this.#paintOpeners();
     this.#paint();
     if(this.listId) this.#ensurePlayer();
-    if(this.dock === "column") this.#showSongs(true);
+    if(this.#songsInside) this.#showSongs(true);
     for(const fn of this.toggleListeners) fn(true);
   }
 
@@ -565,7 +572,7 @@ export class MusicBar {
   /* ---------------- songs sheet ---------------- */
 
   #showSongs(show){
-    if(this.dock === "column") show = true;          /* the column always has room for the list */
+    if(this.#songsInside) show = true;               /* these docks always have room for the list */
     if(show) this.#showPop(false);
     this.songs.hidden = !show;
     this.listBtn.setAttribute("aria-pressed", String(show));

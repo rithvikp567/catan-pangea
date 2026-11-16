@@ -20,6 +20,7 @@
   <link rel="stylesheet" href="css/music.css">
   <link rel="stylesheet" href="css/winter.css">
   <link rel="stylesheet" href="css/desktop.css">
+  <link rel="stylesheet" href="css/split.css">
   <script type="module" src="src/main.js"></script>
 </head>
 <body>
@@ -33,6 +34,9 @@
       <div class="tools">
         <button class="icon-btn" id="installBtn" type="button" aria-label="Install the app" title="Install the app — full screen, no browser bars" hidden>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M12 7.5v7M9 11.5l3 3 3-3"/></svg>
+        </button>
+        <button class="icon-btn" id="splitBtn" type="button" aria-label="Hide the map: tracker and music" title="Hide the map — tracker and music, half and half">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M12 4.5v15M6 9.5h3M6 12.5h3M6 15.5h2"/><path d="M15.2 10v5l3.8-2.5z" fill="currentColor" stroke-width="1.2"/></svg>
         </button>
         <button class="icon-btn" id="musicBtn" type="button" aria-label="Music" title="Music" aria-pressed="false">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17.5V6l10-2v11.5"/><circle cx="6.5" cy="17.5" r="2.5"/><circle cx="16.5" cy="15.5" r="2.5"/></svg>
@@ -133,7 +137,8 @@ v1 = 3A − S + 3 − 3L      (the generator fills lakes, so L = 0)</pre>
 
       <h3>Music</h3>
       <p>Tap <b>♪</b> to open the music bar: your YouTube or YouTube Music playlist (public or unlisted) with previous / play / next, shuffle and the song list. It stays docked under the map and the tracker — on the right when the phone is sideways — so the phone you cast to the TV shows the board and plays the music. Paste the link once and every phone has it; change it with the <b>🔗</b> button. On a phone, start the first song by tapping the video; after that the buttons work. Closing the bar pauses the music.</p>
-      <p>On a computer, the music and the tracker share a column on the left of the map — drag the edges to resize the column, the split between them, and the settings on the right.</p>
+      <p>On a computer, the music and the tracker share a column on the left of the map — the video sits beside its controls with the song list underneath. Drag the edges to resize the column, the split between them, and the settings on the right.</p>
+      <p>Want the tracker and the music without the map? The <b>split-screen</b> icon at the top hides the map: the tracker gets one half and the music the other, with the video across its half and the song list under it — side by side on a computer or a sideways phone, tracker on top on a phone held upright. Drag the bar between them to resize; the back arrow brings the map back.</p>
       <p>Have YouTube Premium? Under <b>🔗</b>, <b>Play in the YouTube Music app</b> hands the playlist to the app, which keeps playing in the background with no ads — the bar closes and the map gets the whole screen, and screen mirroring still sends the music to the TV.</p>
 
       <h3>Install it as an app</h3>

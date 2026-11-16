@@ -1,0 +1,115 @@
+/* ==========================================================================
+   The music & tracker view, on every device (src/ui/DesktopLayout.js sets
+   body[data-view="split"], body[data-axis] and --half — the tracker's
+   share in px). The map is hidden; the tracker and the music share the
+   screen with a bar on the line between them to drag:
+     axis x (wider than tall: desktop, phone landscape) — side by side,
+     axis y (a phone held upright) — the tracker on top, the music below.
+   The music half is the YouTube player at 16:9 (never under 200 px tall),
+   its controls in a row, then the songs; nothing is ever drawn over it.
+   ========================================================================== */
+body[data-view="split"] .app{ display:none; }
+
+/* ---------- the tracker half: one column, centred ---------- */
+body[data-view="split"] .screen[data-screen="tracker"]{
+  container-type:size;           /* the seat rows share the half's height, not the window's */
+}
+body[data-view="split"][data-axis="x"] .screen[data-screen="tracker"]{
+  top:0; bottom:0; left:0; right:auto; width:var(--half); padding-right:0;
+}
+body[data-view="split"][data-axis="y"] .screen[data-screen="tracker"]{
+  top:0; left:0; right:0; bottom:auto; height:var(--half); padding-bottom:0;
+}
+body[data-view="split"] .screen[data-screen="tracker"] .screen-inner{ max-width:640px; }
+body[data-view="split"] .tracker-grid{ grid-template-columns:minmax(0,1fr); grid-template-rows:none; }
+body[data-view="split"] .tracker-grid > :first-child{ grid-row:auto; }
+body[data-view="split"] .screen[data-screen="tracker"] .vp-row{
+  min-height:clamp(42px, calc((100cqh - var(--tracker-chrome)) / var(--seats, 4)), 54px);
+}
+
+/* ---------- the music half ---------- */
+body[data-view="split"] .music{
+  display:flex; flex-direction:column; gap:12px; overflow:hidden; overscroll-behavior:auto;
+  width:auto; border:0; box-shadow:none;
+  container-type:size;           /* the player sizes itself to leave the songs some room */
+}
+body[data-view="split"][data-axis="x"] .music{
+  top:0; bottom:0; right:0; left:var(--half); border-left:1px solid var(--line);
+  padding:calc(16px + env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) 20px;
+}
+body[data-view="split"][data-axis="y"] .music{
+  top:var(--half); bottom:0; left:0; right:0; border-top:1px solid var(--line);
+  padding:12px max(12px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+}
+/* 16:9 across the half, but never so tall that the songs lose all their room;
+   at least 200 × 200 whatever happens (YouTube's minimum — it letterboxes) */
+body[data-view="split"] .music-video{
+  flex:none; align-self:center; aspect-ratio:16 / 9; height:auto; min-height:200px; min-width:200px;
+  width:min(100%, max(356px, calc((100cqh - 170px) * 16 / 9)));
+}
+/* the song and the controls in one row under the player — slightly smaller
+   buttons on a narrow half (a phone), so the songs keep their room */
+body[data-view="split"] .music-side{ flex:none; flex-flow:row nowrap; align-items:center; gap:16px; }
+body[data-view="split"] .music-now{ flex:1 1 0; min-width:0; }
+body[data-view="split"] .music-title{ -webkit-line-clamp:1; }
+body[data-view="split"] .music-controls{ gap:8px; }
+body[data-view="split"] .music-extras{ gap:4px; }
+@container (max-width:560px){
+  body[data-view="split"] .music-side{ gap:10px; }
+  body[data-view="split"] .music-controls,
+  body[data-view="split"] .music-extras{ gap:0; }
+  body[data-view="split"] .music-btn{ width:38px; height:38px; }
+  body[data-view="split"] .music-btn.is-play{ width:46px; height:46px; }
+  body[data-view="split"] .music-extras .music-btn{ width:34px; height:34px; }
+}
+
+/* the song list fills the rest */
+body[data-view="split"] .music > .music-songs{
+  position:static; flex:1 1 auto; min-height:0; height:auto; width:auto; margin:0 -8px;
+  border:0; border-top:1px solid var(--line); border-radius:0; box-shadow:none; background:transparent;
+}
+body[data-view="split"] .music .songs-head{ padding:10px 8px 4px; }
+body[data-view="split"] .music .songs-head .icon-btn{ display:none; }
+
+/* first run (paste a playlist link): just the form */
+body[data-view="split"] .music[data-state="setup"]{ justify-content:flex-start; }
+body[data-view="split"] .music[data-state="setup"] > .music-songs{ display:none; }
+
+/* ---------- over the tracker half only, never the music ---------- */
+/* the playlist pop-up */
+body[data-view="split"] .music-pop{
+  position:fixed; z-index:74; top:auto; border:1px solid var(--line); border-radius:16px;
+}
+body[data-view="split"][data-axis="x"] .music-pop{
+  left:auto; right:calc(100% - var(--half) + 16px); bottom:calc(16px + env(safe-area-inset-bottom));
+  width:min(420px, calc(var(--half) - 32px)); max-height:calc(100% - 32px);
+}
+body[data-view="split"][data-axis="y"] .music-pop{
+  left:12px; right:12px; width:auto; bottom:calc(100% - var(--half) + 12px);
+  max-height:calc(var(--half) - 24px - env(safe-area-inset-top));
+}
+/* toasts */
+body[data-view="split"][data-axis="x"] .toast{
+  left:calc(var(--half) / 2); bottom:calc(24px + env(safe-area-inset-bottom)); max-width:min(420px, calc(var(--half) - 32px));
+}
+body[data-view="split"][data-axis="y"] .toast{ left:50%; bottom:calc(100% - var(--half) + 16px); }
+/* victory / defeat */
+body[data-view="split"][data-axis="x"] .victory{ inset:0 auto 0 0; width:var(--half); }
+body[data-view="split"][data-axis="y"] .victory{ inset:0 0 auto 0; height:var(--half); place-items:normal; overflow-y:auto; }
+body[data-view="split"][data-axis="y"] .victory-card{ margin:auto; }   /* centred, and scrolls when taller than the half */
+
+/* ---------- the bar between the halves (always shows a grip: phones can't hover) ---------- */
+body[data-view="split"] .splitter[data-split="halves"]{ display:block; }
+body[data-view="split"][data-axis="x"] .splitter[data-split="halves"]{
+  top:0; bottom:0; left:calc(var(--half) - 6px); width:12px; cursor:col-resize;
+}
+body[data-view="split"][data-axis="y"] .splitter[data-split="halves"]{
+  left:0; right:0; top:calc(var(--half) - 10px); height:20px; cursor:row-resize;
+}
+body[data-view="split"] .splitter[data-split="halves"]::before{
+  content:""; position:absolute; border-radius:999px; background:var(--ink-3); opacity:.5;
+}
+body[data-view="split"][data-axis="x"] .splitter[data-split="halves"]::before{ left:4px; top:calc(50% - 22px); width:4px; height:44px; }
+body[data-view="split"][data-axis="x"] .splitter[data-split="halves"]::after{ left:5px; width:2px; top:0; bottom:0; }
+body[data-view="split"][data-axis="y"] .splitter[data-split="halves"]::before{ top:8px; left:calc(50% - 22px); height:4px; width:44px; }
+body[data-view="split"][data-axis="y"] .splitter[data-split="halves"]::after{ top:9px; height:2px; left:0; right:0; bottom:auto; width:auto; }
