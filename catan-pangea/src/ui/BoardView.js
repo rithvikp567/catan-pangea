@@ -7,17 +7,24 @@
  * references in the markup), so the SVG can be serialised straight to an
  * image that matches the screen.
  *
- * A new map can be drawn animated (`animate`): the tiles fly in from off
- * screen, the middle first, building the island out; then the number
- * tokens fly in face down (grey), flip over and land face up with a pop;
- * then the ports pop in. It's all Web Animations on the drawn elements —
- * nothing in the markup changes, so the image export is unaffected (the
- * tokens' grey backs are removed once they've turned over). With a Sound,
- * each landing makes its sound, lined up with the animation.
+ * A new map can be built in (`build`): the tiles fly in from off screen,
+ * the middle first, building the island out; then the number tokens fly in
+ * face down (grey), flip over and land face up with a pop; then the ports
+ * pop in. It's all Web Animations on the drawn elements — nothing in the
+ * markup changes, so the image export is unaffected (the tokens' grey backs
+ * are removed once they've turned over). With a Sound, each landing makes
+ * its sound, lined up with the animation.
+ *
+ * The build is the same on every device: its order, spins and pitches come
+ * from a seeded random (`build.seed`), and it runs from a shared moment
+ * (`build.start`), so a device that heard about the map late starts part
+ * way through, in step with the others. A device not showing the map can
+ * play just the sounds (`motion:false`).
  */
 import { unhk, hexVerts, vertexToPixel, hexToPixel } from "../engine/hex.js";
 import { PIPS, RES_LABEL } from "../engine/catalog.js";
 import { s } from "./dom.js";
+import { mulberry32, hashSeed, shuffle } from "../engine/random.js";
 import { TERRAIN_COLOR, RESOURCE_COLOR } from "./palette.js";
 
 const R = 44;                 /* hex radius in viewBox units */
@@ -28,8 +35,6 @@ const PORT_R = R * 0.27;
 const TILE_MS = 520, TOKEN_MS = 420, FLIP_MS = 90, FACE_MS = 170, PORT_MS = 320;
 const TOKEN_BACK = "#A39F96", TOKEN_BACK_RING = "#8A867E";
 
-const rand = (lo, hi) => lo + Math.random() * (hi - lo);
-
 const hexPoints = k => {
   const [q, r] = unhk(k);
   return hexVerts(q, r).map(v => vertexToPixel(v, R).map(n => n.toFixed(2)).join(",")).join(" ");
@@ -39,19 +44,25 @@ export class BoardView {
   /** @param {SVGSVGElement} svg */
   constructor(svg){
     this.svg = svg;
+    this.running = [];         /* the build's animations */
+    this.silence = null;       /* stops the build's sounds still to come */
   }
 
   /**
+   * @typedef {object} Build      a new map building itself in
+   * @property {number} start     when it starts (performance.now() time; may be past)
+   * @property {boolean} motion   animate it (the map is on screen here)
+   * @property {import("./Sound.js").Sound|null} sound   …and play its sounds
+   * @property {string} seed      the same on every device → the same build
+   *
    * @param {import("../engine/Board.js").Board} board
    * @param {ReturnType<import("./palette.js").readBoardPalette>} pal
-   * @param {object} [opts]
-   * @param {boolean} [opts.animate]   build it in (a new map)
-   * @param {import("./Sound.js").Sound|null} [opts.sound]  …with sounds
+   * @param {{ build?:Build|null }} [opts]
    */
-  render(board, pal, { animate = false, sound = null } = {}){
+  render(board, pal, { build = null } = {}){
     const svg = this.svg;
-    for(const a of this.running ?? []) a.cancel();
-    this.running = [];
+    this.#stop();
+    const animate = !!build?.motion;
     svg.replaceChildren();
     svg.setAttribute("font-family", pal.font);
     this.bounds = { minX:Infinity, minY:Infinity, maxX:-Infinity, maxY:-Infinity };
@@ -66,16 +77,35 @@ export class BoardView {
 
     svg.append(water, land, ports, tokens);
     this.#fit();
-    if(animate) this.#build({ water, land, tokens, ports }, sound);
+    if(build) this.#build({ water, land, tokens, ports }, build);
+  }
+
+  /** Stop a build under way: its animations and the sounds still to come. */
+  #stop(){
+    for(const a of this.running) a.cancel();
+    this.running = [];
+    this.silence?.();
+    this.silence = null;
   }
 
   /**
    * The build: tiles fly in from off screen (from the side they sit on,
    * spinning, the middle of the island first), then each number token flies
-   * in face down, flips and lands with a pop, then the ports pop in.
+   * in face down, flips and lands with a pop, then the ports pop in. All the
+   * times are ms from `start`; everything random comes from `seed`, in the
+   * same order whether it animates here or not.
    */
-  #build({ water, land, tokens, ports }, sound){
-    const run = (el, frames, opts) => { const a = el.animate(frames, { fill:"backwards", ...opts }); this.running.push(a); return a; };
+  #build({ water, land, tokens, ports }, { start, motion, sound, seed }){
+    const rng = mulberry32(hashSeed(String(seed)));
+    const rand = (lo, hi) => lo + rng() * (hi - lo);
+    const shift = start - performance.now();          /* < 0: it started already (on the other devices) */
+    const cues = [];
+    const run = (el, frames, opts) => {
+      if(!motion) return null;
+      const a = el.animate(frames, { fill:"backwards", ...opts, delay:(opts.delay ?? 0) + shift });
+      this.running.push(a);
+      return a;
+    };
     const b = this.bounds, cx = (b.minX + b.maxX) / 2, cy = (b.minY + b.maxY) / 2;
     /* far enough to start outside the visible board, whatever the box's shape */
     const box = this.svg.getBoundingClientRect(), vb = this.svg.viewBox.baseVal;
@@ -101,12 +131,12 @@ export class BoardView {
         { transform:`translate(0px, 0px) rotate(0deg) scale(1.07)`, opacity:1, offset:.78 },
         { transform:"none", opacity:1 },
       ], { duration:TILE_MS, delay:at, easing:"cubic-bezier(.22,.75,.3,1)" });
-      sound?.tile((at + TILE_MS * 0.78) / 1000, rand(0.82, 1.18));
+      cues.push({ at:at + TILE_MS * 0.78, kind:"tile", pitch:rand(0.82, 1.18) });
     });
     const tilesDone = (tiles.length - 1) * tileGap + TILE_MS;
 
     /* number tokens: fly in face down, flip, land face up */
-    const toks = [...tokens.children].sort(() => Math.random() - 0.5);
+    const toks = shuffle(rng, [...tokens.children]);
     const tokGap = Math.max(40, Math.min(75, 1100 / Math.max(1, toks.length)));
     const tokStart = tilesDone + 60;
     toks.forEach((g, i) => {
@@ -120,15 +150,14 @@ export class BoardView {
       ], { duration:TOKEN_MS, delay:at, easing:"cubic-bezier(.3,.7,.35,1)" });
       if(back){
         run(back, [{ transform:"scaleX(1)" }, { transform:"scaleX(0)" }], { duration:FLIP_MS, delay:land, easing:"ease-in", fill:"both" })
-          .finished.then(() => back.remove(), () => {});          /* (gone, so it never shows in a saved image) */
+          ?.finished.then(() => back.remove(), () => {});         /* (gone, so it never shows in a saved image) */
       }
       run(face, [
         { transform:"scaleX(0)" },
         { transform:"scale(1.22, 1.22)", offset:.55 },
         { transform:"none" },
       ], { duration:FACE_MS, delay:land + FLIP_MS, easing:"ease-out" });
-      sound?.flip(land / 1000);
-      sound?.pop((land + FLIP_MS + FACE_MS * 0.5) / 1000, rand(0.9, 1.15));
+      cues.push({ at:land, kind:"flip" }, { at:land + FLIP_MS + FACE_MS * 0.5, kind:"pop", pitch:rand(0.9, 1.15) });
     });
     const toksDone = toks.length ? tokStart + (toks.length - 1) * tokGap + TOKEN_MS + FLIP_MS + FACE_MS : tilesDone;
 
@@ -140,8 +169,16 @@ export class BoardView {
         { transform:"scale(1.18)", opacity:1, offset:.65 },
         { transform:"none", opacity:1 },
       ], { duration:PORT_MS, delay:at, easing:"ease-out" });
-      sound?.portPop((at + PORT_MS * 0.4) / 1000);
+      cues.push({ at:at + PORT_MS * 0.4, kind:"port" });
     });
+
+    const total = (ports.children.length ? toksDone + 100 + (ports.children.length - 1) * 55 + PORT_MS : toksDone);
+    if(shift + total <= 0){                            /* all over already: just the finished board */
+      this.#stop();
+      for(const back of tokens.querySelectorAll(".tok-back")) back.remove();
+      return;
+    }
+    if(sound) this.silence = sound.play(cues, start);
   }
 
   /** Dim the current board while a new one is being generated. */

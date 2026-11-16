@@ -47,7 +47,7 @@ no browser bars, and it opens with no signal.
 | **Knights, per island** | Two shared counters, **Main island** and **Off island**, each 0 … 12 × players on its own. (A tiered version — mighty / strong / basic with a derived knight strength — was tried in 2.1.0 and reverted in 2.1.1 as too much for the table.) |
 | **Cities** | A shared counter, 0 … 4 × players (city pieces in the box). |
 | **Karma** | A shared ± number (homebrew; the app only tracks it). |
-| **Robber points** | A shared value, 1 … 3, starting at 1: **Abstain** makes it one more (up to 3); **Rob** subtracts it from karma and starts it over at 1. |
+| **Robber points** | A shared value, 1 … 3, starting at 1: **Abstain** adds 1 to karma and makes it one more (up to 3, where it stays); **Rob** subtracts it from karma and starts it over at 1. |
 | **Honor coin** | Each player has a coin: heads = honorable (start), tails = dishonorable. Only its owner can flip it; everyone sees it. |
 | **Walker** | The word **WALKER**, shared: one letter per 7 rolled with the barbarians (counted by hand with + / −). **+** on the full word starts it over at 0. As it fills, every phone snows (8-bit pixel snow, frost creeping in from the edges); back to 0, the winter fades away. |
 
@@ -120,18 +120,31 @@ on the tracker): everything works, but nothing is shared between phones.
 - Phone landscape: the board on the left, a slim rail on the right (188 px:
   brand, icons, board type, then Settings / Tracker / New map at 38 px) —
   sized to fit the ~300 px a browser leaves in landscape.
-- **New map builds itself in** (`BoardView`'s build animation, on every
-  device where the map is on screen): the tiles fly in from off screen,
-  spinning, the middle of the island first, each landing with a wooden
-  clack; then the number tokens fly in face down (grey, a small hex on the
-  back), flip over and land face up with a pop; then the ports pop in round
-  the coast (~4 s in all). It's Web Animations on the drawn SVG — the markup
-  never changes, so a saved image is unaffected (the grey backs are removed
-  once turned). Sounds (`ui/Sound.js`, made with Web Audio, no files) play
-  on the device that pressed New map and on the one playing the music (the
-  phone cast to the TV) — not on every phone at the table — and only once a
-  tap has allowed sound. A board restored at load just appears. *Reduce
-  motion*: no build, no sounds.
+- **New map builds itself in — on every device at once** (`BoardView`'s
+  build animation): the tiles fly in from off screen, spinning, the middle
+  of the island first, each landing with a wooden clack; then the number
+  tokens fly in face down (grey, a small hex on the back), flip over and
+  land face up with a pop; then the ports pop in round the coast (~4 s in
+  all). It's Web Animations on the drawn SVG — the markup never changes, so
+  a saved image is unaffected (the grey backs are removed once turned).
+  - **In step everywhere:** the device that pressed New map publishes, with
+    the map, when the build starts — `meta.buildAt`, on the server's clock,
+    0.8 s ahead (`BUILD_LEAD_MS` in `App`) so the map has reached everyone
+    by then — and every device runs the build from that moment: the same
+    order, spins and pitches (seeded from the map's seed + `buildAt`), the
+    sounds lined up with it. A device that hears late starts part way
+    through and skips the sounds gone by; one that comes back after it's all
+    over just shows the board. Measured locally with two windows: the
+    builds started within 7 ms of each other, the sounds within 1 ms.
+  - **Sounds** (`ui/Sound.js`, made with Web Audio, no files) play on
+    **every device with the app open** — the animation where the map is on
+    screen, just the sounds elsewhere (the tracker, season wins) — once a
+    tap there has allowed sound. A board restored at load just appears.
+    *Reduce motion*: no animation, the sounds still play.
+  - **The volume button** in the map's bottom right corner mutes the sound
+    effects on this device (the build and the welcome's fanfare; never the
+    music). Remembered per device (`soundOff`); turning them back on plays
+    one pop, so you know they work.
 - *Advanced* in Settings slides open and shut (its + turns into ×).
 - Save / share the board as a PNG (share sheet on phones, download on desktop).
 - Light / dark theme (follows the system until toggled).
@@ -195,8 +208,9 @@ on the tracker): everything works, but nothing is shared between phones.
     (0…4 × players).
   - Karma, robber & walker — one row: Karma (±99, the digits stay centred
     with the sign hanging left) and the Robber's two buttons: **Abstain**
-    (three pips show the robber's value; +1 up to 3, then it's disabled) and
-    **Rob −N** (karma −N, the robber back to 1). A value changed from any
+    (karma +1, and the robber one more — three pips show its value; at 3 it
+    stays 3, and Abstain still adds the karma) and **Rob −N** (karma −N, the
+    robber back to 1). A value changed from any
     phone pops for a moment. Under
     it, **− W A L K E R +**: each + lights the next letter (icy glow), and
     the lit letters shake harder and faster with every letter
@@ -390,10 +404,14 @@ on the tracker): everything works, but nothing is shared between phones.
   after 4 s on a bad connection, it uses the copy. The map generator works
   fully offline; tracker changes wait and sync when the connection is
   back (as before).
-- **Icon:** a 7-hex island in the terrain colours with an 8 token, on a
-  dark sea (`icons/`: 192, 512, maskable 512 with the island inside the
-  safe zone, and the 180 apple-touch-icon). PNGs are committed — no build
-  step.
+- **Icon:** a 7-hex island in the terrain colours with an 8 token, on
+  black (`icons/`: 192, 512, maskable 512 with the island inside the
+  safe zone, and the 180 apple-touch-icon; until 2.11.0 a dark teal sea).
+  PNGs are committed — no build step; `scripts/make-icons.mjs` re-renders
+  them from one SVG design with a headless Chromium browser. A phone keeps
+  the icon it was installed with: on iPhone, remove the app from the Home
+  Screen and add it again to get a new one (Android refreshes it by itself,
+  within a day or so).
 
 ### Desktop (≥ 900 × 560)
 
@@ -615,7 +633,7 @@ catan-pangea/                       ← deployed as-is to GitHub Pages
     imageExport.js, Toast.js, dom.js  PNG/share; toasts; h()/s() DOM builders
     VictoryOverlay.js               victory / defeat screen
     Splash.js                       the intro ("Settlers of Catan") and "Welcome, Lord …"
-    Sound.js                        sound effects made with Web Audio (tile clack, flip, pop, fanfare)
+    Sound.js                        sound effects made with Web Audio (tile clack, flip, pop, fanfare): timelines, mute, restarts after interruptions
     AccountLine.js                  "Sam · Sign out" in the top bar
     MusicBar.js                     docked YouTube player (IFrame API) following the shared playback: speaker / remote, songs sheet, playlist pop-up
     WinterEffect.js                 8-bit snow + frost that build up as WALKER fills
@@ -625,6 +643,7 @@ catan-pangea/                       ← deployed as-is to GitHub Pages
     screens/JoinScreen.js, TrackerScreen.js, WinsScreen.js, AdminScreen.js, widgets.js
 tests/                              node:test (engine, store, game service)
 scripts/serve.js                    zero-dependency dev server
+scripts/make-icons.mjs              re-renders icons/ from one SVG (headless Chromium; run by hand)
 database.rules.json                 Firebase RTDB rules (paste into the console)
 context.md                          this file
 ```
@@ -689,7 +708,8 @@ ui/  ──intent──▶  app/  ──▶  engine/        (map)
 v1/
   profiles/{profileId}:  { name, createdAt (ms), deviceId }
   session:                                   ← the ONE active game
-    meta:     { id, seed, players, createdAt, createdBy?, season }
+    meta:     { id, seed, players, createdAt, createdBy?, buildAt?, season }
+              (buildAt: ms, server clock — when a New map starts building in on every device; 2.11.0+)
     board:    BoardSnapshot  { v:1, generatorId, request, tiles:["q,r|terrain|num"], ports:["edge|hex|type|res"] }
     settings: Settings#toJSON()
     seats:    { s0:{ vp, honorable, profileId?, color? }, s1:…, … }   (keys "s0…" — numeric keys become arrays)
@@ -746,8 +766,9 @@ v1/
 - `store.test.js` — the store contract (`MemoryStore`).
 - `game.test.js` — the tracker as several devices on one shared store:
   profiles, seats/colors, VP + win record/revoke, coins, knights, karma,
-  robber (abstain up to 3, rob and reset), session rotation, admin, the
-  points recorded with a win and `winHistory` (the calendar).
+  robber (abstain: karma +1 and the robber up to 3; rob and reset),
+  session rotation (with `buildAt`), admin, the points recorded with a win
+  and `winHistory` (the calendar).
 - `music.test.js` — playlist links (YouTube, YouTube Music, share links,
   private lists), player error handling, the shared playlist, and the
   shared playback: the clock, who's the speaker (play from a remote, Play
@@ -927,20 +948,58 @@ your run created afterwards — never `DELETE /v1` once real data exists.
   by itself after 9 s (a CSS fail-safe). It and the welcome are laid out
   round the open music player like every overlay; during the intro the
   music is held back anyway.
-- **Sounds need a tap first**: browsers only let a page make sound after
-  a tap, so `Sound` starts its AudioContext on the first pointer / key
-  event and every call before that is silent (a reload's intro and
-  welcome have no fanfare; the New map tap makes the build's sounds play).
+- **Sounds need a tap first, and can stop behind the page's back.**
+  Browsers only let a page make sound after a tap, so `Sound` starts its
+  AudioContext on the first pointer / key event and every sound before that
+  is silent (a reload's intro and welcome have no fanfare). On an iPhone
+  the audio also stops for a dialog (New map's *Start a new game for
+  everyone?* confirm), a call, locking the phone or another app's sound —
+  the context goes *suspended* or *interrupted* and stays there. So `Sound`
+  restarts it on **every** tap (`pointerdown`, `pointerup`, `touchend`,
+  `click`, `keydown` — on iPhone only the last few count as a tap), right
+  after the confirm (`sound.wake()`), when the page is shown again, and
+  before a timeline plays (waiting up to 0.6 s, then skipping it). 2.10.0
+  only resumed a *suspended* context, never an *interrupted* one, which is
+  why the sounds could stop for good until a reload. **The iPhone's silent
+  switch mutes Web Audio** (YouTube's sound isn't affected) — the first
+  thing to check when a phone is quiet. Headless test runs can't hear:
+  spy on `Sound.prototype.play` (the cues, their start, the context's
+  state) and count the nodes it creates.
 - **The build animation and the image export**: everything moves by Web
   Animations (`fill:"backwards"`), never by attributes, so `saveBoardImage`
   serialises the finished board even mid-build; the tokens' grey backs are
-  removed when their flip ends. A new render cancels a running build.
+  removed when their flip ends. A new render cancels a running build and
+  the sounds it hasn't played yet (each timeline has its own gain node,
+  disconnected to stop it).
+- **One build, every device:** everything random in it comes from one
+  seeded generator (`build.seed` = map seed + `buildAt`) and is drawn in
+  the same order whether this device animates or only plays the sounds, so
+  the timeline is identical everywhere; the delays are shifted by
+  `start − now` (negative once it's under way — Web Animations take a
+  negative delay as "already this far in"). The tile order relies on the
+  restored board listing its tiles in the snapshot's order, which is the
+  order the generator made them in.
 
 ---
 
 ## 10. Changelog
 
 Keep newest first. Every feature PR adds an entry and updates the sections above.
+
+- **2.11.0 — New map in step on every phone; a mute button; Abstain earns
+  karma; a black icon.** A new map now builds itself in on every device at
+  the same moment, with its sounds on every phone that has the app open
+  (before, only the device that pressed it and the music's speaker), even
+  on the tracker: the presser publishes when the build starts
+  (`meta.buildAt`, server clock, 0.8 s ahead) and every device runs the
+  same seeded build from then. Fixed the sounds going quiet for good on a
+  phone: the audio is restarted on every tap, after New map's confirm and
+  when the page comes back (an iPhone leaves it *interrupted*). A volume
+  button in the map's bottom right corner mutes the sound effects on this
+  device. **Abstain** now also adds 1 to karma (and still raises the robber
+  to 3 at most — at 3 it stays pressable for the karma). The installed
+  app's icon is on black instead of the dark teal sea;
+  `scripts/make-icons.mjs` re-renders it.
 
 - **2.10.0 — Animations & sounds; calendar; Abstain / Rob.** New map builds
   itself in: tiles fly in from off screen with a clack each, then the

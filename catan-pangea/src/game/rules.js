@@ -49,8 +49,11 @@ export const stepCounter = (rule, value, delta, players) =>
   rule.wraps && delta > 0 && value >= rule.max(players)
     ? rule.min(players)
     : stepWithin(value, delta, rule.min(players), rule.max(players));
-/** Abstain: the robber is worth one more, up to 3. */
-export const abstainRobber = v => clamp((v ?? ROBBER_VALUES[0]) + 1, ROBBER_VALUES[0], ROBBER_VALUES.at(-1));
+/** Abstain: karma goes up by 1, and the robber is worth one more (up to 3 — it stays there). */
+export const abstainKarma = (karma, robber) => ({
+  karma:clamp((karma ?? 0) + 1, -KARMA_LIMIT, KARMA_LIMIT),
+  robber:clamp((robber ?? ROBBER_VALUES[0]) + 1, ROBBER_VALUES[0], ROBBER_VALUES.at(-1)),
+});
 /** Rob: karma goes down by the robber's value, and the robber starts over at 1. */
 export const robKarma = (karma, robber) => ({ karma:clamp(karma - robber, -KARMA_LIMIT, KARMA_LIMIT), robber:ROBBER_VALUES[0] });
 
@@ -78,13 +81,15 @@ export function validateName(raw, existingNames = []){
  * @param {object} p.settings   Settings#toJSON() the board was made with
  * @param {number} p.createdAt  ms
  * @param {string} [p.createdBy] profile id
+ * @param {number} [p.buildAt]   when the new map starts building itself in (ms, server clock)
  */
-export function newSession({ id, board, settings, createdAt, createdBy }){
+export function newSession({ id, board, settings, createdAt, createdBy, buildAt = null }){
   const players = board.request.players;
   const seats = {};
   for(let i = 0; i < players; i++) seats[seatKey(i)] = { vp:0, honorable:true };
   return {
-    meta:{ id, seed:board.request.seed, players, createdAt, createdBy:createdBy ?? null, season:seasonOf(createdAt) },
+    /* buildAt: when the new map starts building itself in on every device (server clock; New map only) */
+    meta:{ id, seed:board.request.seed, players, createdAt, createdBy:createdBy ?? null, buildAt:buildAt ?? null, season:seasonOf(createdAt) },
     board, settings, seats,
     counters:{ ...Object.fromEntries(Object.keys(COUNTERS).map(k => [k, 0])), robber:ROBBER_VALUES[0] },
   };

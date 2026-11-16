@@ -66,6 +66,10 @@
     <main class="stage" id="stage">
       <svg class="board" id="board" role="img" aria-label="Generated Catan map"></svg>
       <p class="stage-note" id="stageNote" aria-live="polite"></p>
+      <!-- the sound effects on / off on this device (Sound.setMuted; not the music) -->
+      <button class="icon-btn stage-mute" id="muteBtn" type="button" aria-pressed="false" aria-label="Sound effects on — mute" title="Sound effects on — tap to mute">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.2L12 5.5v13l-4.8-4H4z" fill="currentColor" fill-opacity=".14"/><path class="mute-on" d="M15.5 9.2a4 4 0 0 1 0 5.6M18 6.8a7.4 7.4 0 0 1 0 10.4"/><path class="mute-off" d="M16 9.5l5 5M21 9.5l-5 5"/></svg>
+      </button>
     </main>
 
     <aside class="panel" id="panel" aria-label="Map settings">
@@ -130,6 +134,8 @@ v1 = 3A − S + 3 − 3L      (the generator fills lakes, so L = 0)</pre>
       </ol>
       <p>Each candidate is penalised for a 6 or 8 touching another 6/8, identical numbers touching, same-terrain clumps, resource pips out of line with tile counts, 2:1 ports far from (or on top of) their resource, and — most of all — a simulated draft where the best and worst seats end up far apart.</p>
 
+      <p><b>New map builds itself in on every phone at once</b> — the tiles fly in, the numbers flip over, the ports pop on — with sound effects, in step on every phone that has the app open (the build shows where the map's on screen; the sounds play on the tracker too). The <b>volume button</b> in the map's bottom corner mutes the sound effects on your phone (not the music). No sound on an iPhone? Its silent switch mutes them — and any phone needs one tap in the app first.</p>
+
       <h3>Board types</h3>
       <div class="table-wrap"><table>
         <thead><tr><th>Type</th><th>Frame</th><th>Ports</th><th>Coastline floor</th></tr></thead>
@@ -140,7 +146,7 @@ v1 = 3A − S + 3 − 3L      (the generator fills lakes, so L = 0)</pre>
       </table></div>
 
       <h3>Game tracker</h3>
-      <p>Tap <b>Tracker</b> during the game. Everyone joins with their profile and a color nobody else has; the game is the map on screen, so <b>New map</b> starts a fresh game for everyone — you keep your seat and color, and season wins are kept. It tracks victory points (13 wins), each player's honor coin (flip your own), knights on the main island and off island, cities, karma, and the robber — <b>Abstain</b> makes the robber worth one more (up to 3), <b>Rob</b> takes its value off karma and starts it over at 1.</p>
+      <p>Tap <b>Tracker</b> during the game. Everyone joins with their profile and a color nobody else has; the game is the map on screen, so <b>New map</b> starts a fresh game for everyone — you keep your seat and color, and season wins are kept. It tracks victory points (13 wins), each player's honor coin (flip your own), knights on the main island and off island, cities, karma, and the robber — <b>Abstain</b> adds 1 to karma and makes the robber worth one more (up to 3), <b>Rob</b> takes its value off karma and starts it over at 1.</p>
       <p><b>WALKER</b> gets a letter each time a 7 is rolled with the barbarians — tap <b>+</b>. As the word fills, the letters shake harder and winter sets in on every phone: pixel snow and frost. <b>+</b> on the full word starts it over and the snow melts away.</p>
       <p>On another phone or computer, pick your profile on the welcome screen: if you're in the game you're straight back at the tracker. Your name and <b>Sign out</b> sit next to Pangaea at the top.</p>
       <p><b>Season wins</b> (the trophy at the top) shows the standings and, under them, a calendar: each day shows who won it — tap the day for everyone's points at that win. Swipe the calendar, or use the arrows under it, for other months. The music is out of the way while it's open (on the phone playing it, it pauses and plays on when you leave).</p>

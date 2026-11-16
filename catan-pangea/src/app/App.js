@@ -10,10 +10,13 @@
  * everyone; a session arriving from another phone is restored from its
  * snapshot, so every phone shows the identical map.
  *
- * A new map builds itself in (BoardView's animation) wherever the map is on
- * screen; its sounds play on the device that pressed New map and on the one
- * playing the music (the phone cast to the TV), not on every phone at the
- * table. Every page load opens with the intro (Splash); signing in ends
+ * A new map builds itself in (BoardView's animation) on every device at
+ * once: the device that pressed New map publishes, with the map, the moment
+ * the build starts (`meta.buildAt`, on the server's clock, BUILD_LEAD_MS
+ * ahead so the map has reached everyone by then), and every device runs the
+ * same build from that moment — the animation where the map is on screen,
+ * the sounds on every open device (unless it's muted: the volume button on
+ * the map). Every page load opens with the intro (Splash); signing in ends
  * with "Welcome, Lord …".
  */
 import { Annealer, AbortError, GENERATORS, randomSeedName, restoreBoard } from "../engine/index.js";
@@ -48,6 +51,8 @@ import { saveBoardImage } from "../ui/imageExport.js";
 
 /** How long to wait for the shared game before showing a local map. */
 const CONNECT_TIMEOUT_MS = 6000;
+/** A new map starts building this long after it's published, so it has reached every device by then. */
+const BUILD_LEAD_MS = 800;
 
 const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -69,7 +74,7 @@ export class App {
     this.shownSessionId = null;    /* the shared game whose board is on screen */
     this.seatedIn = null;          /* session id this device was last seated in */
 
-    this.sound = new Sound();
+    this.sound = new Sound({ storage:this.storage });
     this.splash = new Splash({ sound:this.sound });   /* the intro is on screen already (index.html) */
     this.toast = new Toast();
     this.install = new InstallHelper(this.storage);
@@ -196,8 +201,10 @@ export class App {
       });
       if(ctrl.signal.aborted) return true;
       this.board = board;
-      this.#render({ build:kind === "user", sound:true });       /* New map: it builds itself in, with sounds here */
-      if(this.game.ready) await this.game.publishBoard(board, this.settings.toJSON(), { onlyIfNone:kind === "boot" });
+      /* New map: it builds itself in here and on every other device, all starting at buildAt */
+      const buildAt = kind === "user" ? this.game.now() + BUILD_LEAD_MS : null;
+      this.#render({ buildAt });
+      if(this.game.ready) await this.game.publishBoard(board, this.settings.toJSON(), { onlyIfNone:kind === "boot", buildAt });
     }catch(err){
       if(err instanceof AbortError) return true;
       console.error(err);
@@ -211,7 +218,9 @@ export class App {
   /** Starting over wipes the tracker for everyone — ask first if a game is under way. */
   #confirmNewGame(){
     if(!this.game.state?.hasProgress) return true;
-    return window.confirm("Start a new game for everyone? Points, knights, cities and karma start over. Everyone keeps their seat and color, and season wins are kept.");
+    const ok = window.confirm("Start a new game for everyone? Points, knights, cities and karma start over. Everyone keeps their seat and color, and season wins are kept.");
+    this.sound.wake();             /* an iPhone stops the page's audio for a dialog: start it again, still inside the tap */
+    return ok;
   }
 
   #switchMode(mode){
@@ -256,7 +265,7 @@ export class App {
     this.winter.set(state.session ? state.counters.walker : 0);
   }
 
-  /** @param {boolean} [fresh]  a new game someone just started: it builds itself in (sounds only on the music's speaker) */
+  /** @param {boolean} [fresh]  a new game someone just started: it builds itself in, in step with the device that started it */
   #showSessionBoard(session, fresh = false){
     /* already on screen (we just published it) */
     if(this.board && this.board.seed === session.meta.seed && this.board.generatorId === session.board.generatorId){
@@ -267,7 +276,8 @@ export class App {
       if(this.inflight?.kind === "boot") this.inflight.ctrl.abort();   /* someone else got there first */
       this.board = board;
       if(session.settings) this.update(session.settings);
-      this.#render({ build:fresh, sound:this.music.isSpeaker });
+      /* (a game from before 2.11 has no buildAt: it builds from now) */
+      this.#render(fresh ? { buildAt:session.meta.buildAt ?? this.game.now() } : {});
     }catch(err){
       console.error(err);
       this.toast.show("Couldn't load the shared map.");
@@ -277,16 +287,27 @@ export class App {
   /* ---------- map view ---------- */
 
   /**
-   * @param {object} [p]
-   * @param {boolean} [p.build]  a new map: build it in — where the map's on screen
-   * @param {boolean} [p.sound]  …with its sounds on this device
+   * Draw the board. A new map (`buildAt`: when its build starts, server
+   * clock) builds itself in, from that moment — part way through if it
+   * started already: animated where the map is on screen, and its sounds
+   * on any device whose page is showing (muted: silently).
+   * @param {{ buildAt?:number|null }} [p]
    */
-  #render({ build = false, sound = false } = {}){
+  #render({ buildAt = null } = {}){
     if(!this.board) return;
     const route = this.router.route;
-    const onScreen = (!route || !!this.layout?.docks(route)) && !this.splash.showing && document.visibilityState === "visible";
-    const animate = build && onScreen && !reducedMotion();
-    this.boardView.render(this.board, readBoardPalette(), { animate, sound:animate && sound ? this.sound : null });
+    const showing = document.visibilityState === "visible";
+    let build = null;
+    if(buildAt != null && showing){
+      const onScreen = (!route || !!this.layout?.docks(route)) && !this.splash.showing;
+      build = {
+        start:performance.now() + (buildAt - this.game.now()),
+        motion:onScreen && !reducedMotion(),
+        sound:this.sound,
+        seed:`${this.board.seed}|${buildAt}`,
+      };
+    }
+    this.boardView.render(this.board, readBoardPalette(), { build });
     this.scoreCard.render(this.board);
     this.dom.note.textContent = this.board.lanes ? "Dashed ports can only be reached by ship." : "";
   }
@@ -336,6 +357,21 @@ export class App {
     $("themeBtn").addEventListener("click", () => this.theme.toggle());
     this.theme.onChange(() => { this.#render(); this.winter.refreshTheme(); });
     $("shareBtn").addEventListener("click", () => this.#saveImage());
+    /* the map's volume button: the sound effects on / off on this device (not the music) */
+    const muteBtn = $("muteBtn");
+    const syncMute = muted => {
+      muteBtn.setAttribute("aria-pressed", String(muted));
+      muteBtn.setAttribute("aria-label", muted ? "Sound effects off — turn on" : "Sound effects on — mute");
+      muteBtn.title = muted ? "Sound effects off (new map, welcome) — tap to turn on" : "Sound effects on (new map, welcome) — tap to mute";
+    };
+    this.sound.onMuted(syncMute);
+    syncMute(this.sound.muted);
+    muteBtn.addEventListener("click", () => {
+      const muted = !this.sound.muted;
+      this.sound.setMuted(muted);
+      if(!muted) this.sound.preview();          /* a pop: this is what it sounds like (and that it works) */
+      this.toast.show(muted ? "Sound effects off on this device." : "Sound effects on.");
+    });
 
     $("aboutBtn").addEventListener("click", () => this.dom.about.showModal());
     this.dom.about.querySelector("[data-close]").addEventListener("click", () => this.dom.about.close());
