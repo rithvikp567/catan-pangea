@@ -66,7 +66,7 @@ export class App {
     this.theme = new ThemeController(this.storage);
     this.boardView = new BoardView(this.dom.board);
     this.sheet = new Sheet($("panel"), $("scrim"), { opener:$("settingsBtn"), closer:$("sheetClose") });
-    this.scoreCard = new ScoreCard($("scoreCard"), $("scoreChip"), { onChipClick:() => this.sheet.open() });
+    this.scoreCard = new ScoreCard($("scoreCard"));
     this.panel = new SettingsPanel($("settings"), {
       settings:this.settings,
       onChange:patch => this.update(patch),
@@ -92,7 +92,7 @@ export class App {
     this.victory = new VictoryOverlay(deps);
     this.winter = new WinterEffect({ max:COUNTERS.walker.max(0) });
     this.layout = new DesktopLayout({ router:this.router, music:this.music, storage:this.storage,
-      trackerBtn:$("trackerBtn"), topbar:doc.querySelector(".topbar") });
+      trackerBtn:$("trackerBtn"), splitBtn:$("splitBtn"), topbar:doc.querySelector(".topbar") });
     deps.layout = this.layout;     /* the tracker's back button leaves the music & tracker view */
     this.game.onChange(state => this.#onGameState(state));
 
@@ -260,7 +260,7 @@ export class App {
     /* on desktop the tracker sits beside the map, so the button opens and closes it */
     $("trackerBtn").addEventListener("click", () => this.router.go(this.router.route === "tracker" ? "" : "tracker"));
     this.music.addOpener($("musicBtn"));
-    /* hide the map: the tracker and the music half and half (every device) */
+    /* hide the map: the tracker and the music half and half (desktop) */
     $("splitBtn").addEventListener("click", () => this.layout.enterSplit());
     /* install: shown until the app is installed (Android / desktop: the browser's dialog; iPhone: how-to) */
     const installBtn = $("installBtn");
@@ -268,6 +268,19 @@ export class App {
     this.install.onChange(syncInstall);
     syncInstall();
     installBtn.addEventListener("click", () => this.installApp());
+    /* full screen where the browser allows a page to (Android, iPad) */
+    const fsBtn = $("fullscreenBtn");
+    const syncFullscreen = () => {
+      const on = !!document.fullscreenElement;
+      fsBtn.hidden = !this.install.canFullscreen;
+      fsBtn.setAttribute("aria-pressed", String(on));
+      fsBtn.setAttribute("aria-label", on ? "Exit full screen" : "Full screen");
+      fsBtn.title = on ? "Exit full screen" : "Full screen — hide the browser bars";
+    };
+    document.addEventListener("fullscreenchange", syncFullscreen);
+    this.install.onChange(syncFullscreen);
+    syncFullscreen();
+    fsBtn.addEventListener("click", () => this.install.toggleFullscreen());
     $("themeBtn").addEventListener("click", () => this.theme.toggle());
     this.theme.onChange(() => { this.#render(); this.winter.refreshTheme(); });
     $("shareBtn").addEventListener("click", () => this.#saveImage());

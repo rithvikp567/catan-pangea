@@ -34,8 +34,15 @@ const JITTER = Object.freeze({
   dur:v => Math.max(0.2, 0.5 - 0.05 * v),
 });
 
+/** A seat row's smallest height (px): below this for every seat, the screen goes tight (screens.css). */
+const ROW_MIN = 42;
+
 export class TrackerScreen extends Screen {
-  constructor(deps){ super("tracker", "Tracker", deps); }
+  constructor(deps){
+    super("tracker", "Tracker", deps);
+    /* the music bar, the mini bar or the browser's own bars change the room: re-check */
+    new ResizeObserver(() => this.#fit()).observe(this.el);
+  }
 
   build(){
     this.layoutKey = null;
@@ -115,6 +122,7 @@ export class TrackerScreen extends Screen {
       ctl.setBounds(rule.min(state.players), rule.max(state.players));
       ctl.set(c[name]);
     }
+    this.#fit();
     this.robberValue.textContent = String(c.robber);
     this.robberBtn.setAttribute("aria-label", `Robber worth ${c.robber} ${c.robber === 1 ? "point" : "points"}. Tap to cycle 1, 2, 3.`);
     this.collectBtn.textContent = `Collect: −${c.robber}`;
@@ -142,6 +150,19 @@ export class TrackerScreen extends Screen {
     ctl.el.classList.add("walker");
     this.shared.set("walker", ctl);
     return ctl.el;
+  }
+
+  /**
+   * Roomy or tight (screens.css): tight when the screen is shorter than the
+   * roomy layout needs with every seat row at its smallest.
+   */
+  #fit(){
+    if(!this.visible) return;
+    const cs = getComputedStyle(this.el);
+    const room = this.el.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    const chrome = parseFloat(getComputedStyle(this.vpList).getPropertyValue("--tracker-chrome")) || 404;
+    const seats = this.vpControls?.size ?? 4;
+    this.el.dataset.fit = room < chrome + seats * ROW_MIN ? "tight" : "roomy";
   }
 
   #buildSeats(seats, mySeat){

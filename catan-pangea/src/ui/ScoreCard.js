@@ -1,28 +1,18 @@
 /**
- * The map score: a full card in the settings panel, and a compact chip
- * over the board on phones (tapping it opens the panel).
+ * The map score: a card in the settings panel (the board itself stays
+ * clear — on phones it's one tap away behind Settings).
  */
 import { h } from "./dom.js";
 
 const COPY_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/></svg>`;
 
 export class ScoreCard {
-  /**
-   * @param {HTMLElement} card
-   * @param {HTMLButtonElement} chip
-   * @param {object} p
-   * @param {() => void} p.onChipClick
-   */
-  constructor(card, chip, { onChipClick }){
+  /** @param {HTMLElement} card */
+  constructor(card){
     this.card = card;
-    this.chip = chip;
-    chip.addEventListener("click", onChipClick);
   }
 
   showPending(){
-    this.chip.hidden = false;
-    this.chip.dataset.key = "pending";
-    this.chip.replaceChildren(h("span", { class:"dot" }), h("span", { class:"lbl" }, "Generating…"));
     const verdict = this.card.querySelector(".verdict");
     if(verdict){ verdict.dataset.key = "pending"; verdict.textContent = "Generating…"; }
   }
@@ -31,15 +21,6 @@ export class ScoreCard {
   render(board){
     const { total, verdict, parts } = board.score;
     const rounded = Math.round(total);
-
-    this.chip.hidden = false;
-    this.chip.dataset.key = verdict.key;
-    this.chip.setAttribute("aria-label", `Map score ${rounded} of 100, ${verdict.label}. Open details.`);
-    this.chip.replaceChildren(
-      h("span", { class:"dot" }),
-      h("span", { class:"val" }, String(rounded)),
-      h("span", { class:"lbl" }, verdict.label),
-    );
 
     const copy = h("button", { type:"button", class:"icon-btn", "aria-label":"Copy seed", title:"Copy seed" });
     copy.innerHTML = COPY_ICON;   /* static, trusted markup */

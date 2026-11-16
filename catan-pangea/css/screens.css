@@ -149,7 +149,7 @@
 .tracker-grid{ display:grid; grid-template-columns:minmax(0,1fr); column-gap:12px; align-items:start; }
 /* wide screens: players on the left, the shared trackers stacked on the right.
    A container query, not a media query: the music column can take width away. */
-.screen[data-screen="tracker"]{ container-type:inline-size; }
+.screen[data-screen="tracker"]{ container-type:size; }   /* (size: the seat rows share its height too) */
 @media (min-width:760px){ .screen[data-screen="tracker"] .screen-inner{ max-width:880px; } }
 /* (DesktopLayout's MAX_LEFT keeps its left column just under this, so the docked tracker stays one column) */
 @container (min-width:760px){
@@ -160,11 +160,39 @@
 /* --tracker-chrome: everything on the screen except the seat rows (header,
    meta line, card titles and padding, the two shared cards), measured at
    phone width. Change it if you add or resize anything around the rows. */
-.vp-list{ --tracker-chrome:404px; }
+.vp-list{ --tracker-chrome:404px; --tracker-chrome-tight:252px; --chrome:var(--tracker-chrome); }
+.screen[data-fit="tight"] .vp-list{ --chrome:var(--tracker-chrome-tight); }
 .vp-row{
   display:grid; grid-template-columns:36px minmax(0,1fr) auto; align-items:center; gap:10px;
-  min-height:clamp(42px, calc((100dvh - var(--tracker-chrome) - env(safe-area-inset-top) - max(env(safe-area-inset-bottom), var(--music-h, 0px))) / var(--seats, 4)), 54px);
+  min-height:clamp(42px, calc((100cqh - var(--chrome)) / var(--seats, 4)), 54px);   /* 100cqh: the screen's height, inside the music bar and the notch */
 }
+
+/* tight: when the screen is too short for the layout above with 42 px rows
+   (a phone with the music open, a short browser view), TrackerScreen sets
+   data-fit="tight": the card titles step aside (the tiles name themselves;
+   screen readers still get them), the seed line moves below the cards and
+   the cards pack closer. --tracker-chrome-tight is everything but the rows then. */
+.screen[data-fit="tight"] .card-title{
+  position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap;
+}
+.screen[data-screen="tracker"][data-fit="tight"] .screen-body{ display:flex; flex-direction:column; }
+.screen[data-screen="tracker"][data-fit="tight"] .tracker-meta{ order:1; margin-top:10px; }
+.screen[data-screen="tracker"][data-fit="tight"] .screen-head{ padding:2px 0; }
+.screen[data-screen="tracker"][data-fit="tight"] .card{ padding:6px 10px 8px; margin-top:6px; }
+.screen[data-screen="tracker"][data-fit="tight"] .screen-inner{ padding-bottom:8px; }
+/* the two shared cards read as one */
+.screen[data-screen="tracker"][data-fit="tight"] .tracker-grid > .card:nth-child(2){
+  padding-bottom:4px; border-bottom:0; border-bottom-left-radius:0; border-bottom-right-radius:0;
+}
+.screen[data-screen="tracker"][data-fit="tight"] .tracker-grid > .card:nth-child(3){
+  margin-top:0; padding-top:4px; border-top:0; border-top-left-radius:0; border-top-right-radius:0;
+}
+.screen[data-fit="tight"] .tile{ gap:2px; }
+.screen[data-fit="tight"] .tile-label{ font-size:12px; }
+.screen[data-fit="tight"] :is(.tile .counter-btn, .tile .counter-value, .walker .counter-btn, .walker .counter-value, .robber-btn, .collect-btn){
+  height:36px; min-height:36px;
+}
+.screen[data-fit="tight"] .walker{ margin-top:6px; }
 .vp-row + .vp-row{ border-top:1px solid var(--line); }
 .vp-name{ display:flex; flex-direction:column; min-width:0; line-height:1.25; }
 .vp-name-line{ display:flex; align-items:baseline; min-width:0; font-weight:600; white-space:nowrap; }
