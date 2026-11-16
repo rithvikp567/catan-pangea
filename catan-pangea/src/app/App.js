@@ -114,8 +114,6 @@ export class App {
       return;
     }
     if(!first.session) await this.newGame({ kind:"boot" });
-    /* the music is cued where this player left it (on any device); play waits for a tap */
-    if(this.game.me) this.music.resumeFor(this.game.me.id);
     /* a player who isn't seated in the current game starts at the join screen */
     if(!this.router.route && !this.game.mySeat) this.router.go("join", { replace:true });
   }

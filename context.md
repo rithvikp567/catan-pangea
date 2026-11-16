@@ -21,7 +21,9 @@ hexagonal board. It does two jobs:
 
 Plus a **music bar** that plays the table's YouTube / YouTube Music
 playlist docked under the map and tracker, so the phone that's cast to the
-TV can show the board and play the music at the same time.
+TV can show the board and play the music at the same time — one shared
+player for the table: every phone shows the same song and controls it,
+and the sound comes from one device.
 
 It is used mostly **on phones at game night**, so the UI is mobile-first,
 and it **installs as an app** from the browser (no app store): full screen,
@@ -177,8 +179,8 @@ on the tracker): everything works, but nothing is shared between phones.
     YouTube player), never takes a tap. Reduced motion: frost only.
 - **Logging in on another device:** pick your profile on the welcome
   screen. If you're seated in the current game you go straight to the
-  tracker ("Welcome back, … — you're Red."), and the music picks up where
-  you were (see Music).
+  tracker ("Welcome back, … — you're Red."); the music is the table's, so
+  it's already there (see Music).
 - **Victory screen**: when a seated player hits 13 VP, they see *Victory*,
   other seated players see *Defeat* (spectators see "X wins"). **Continue**
   returns to the tracker with numbers intact. If that player drops below 13
@@ -197,11 +199,12 @@ on the tracker): everything works, but nothing is shared between phones.
 - **Closed, it's a mini bar** along the bottom of every screen (phones
   either way up, and desktop): the song's artwork, title and artist, a
   play button and ⌃. Tap it (or ⌃, or **♪**) and the player pops open;
-  its play opens the player and plays. Closing the player pauses the music
-  — YouTube's rules don't allow playing from a hidden player — so the mini
-  bar is the paused state, one tap from playing again. Before anything has
-  played it shows the song picked up from another device, or *Music for
-  the table* to add a playlist.
+  its play opens the player and plays (on a remote it just plays — on the
+  speaker — and ⏭ skips). Closing the player pauses the music — YouTube's
+  rules don't allow playing from a hidden player — so the mini bar is the
+  paused state, one tap from playing again. A 2 px line along its top edge
+  shows the song's progress; on a remote its second line adds *On Sam's
+  phone*. With no playlist yet it says *Music for the table*.
 - The **♪** button (map toolbar, tracker header) pops open the **music bar**:
   the YouTube player (200 × 200 on phones, 16:9 on wider screens) with
   Previous / Play–Pause / Next, Shuffle, **Songs** (tap any song to play it;
@@ -226,21 +229,53 @@ on the tracker): everything works, but nothing is shared between phones.
   `css/music.css` applies them.
 - **One shared playlist link** (`/v1/music`): paste a YouTube or YouTube
   Music playlist link once and every phone has it; anyone can change it
-  from the Songs sheet. **Playback is per phone** — only the phone that's
-  cast needs to play. If someone changes the link while this phone is
-  playing, it keeps playing and offers *New playlist — tap to switch*.
+  from the 🔗 pop-up, and it switches for everyone (re-pasting the same
+  link re-reads its songs — new ones show up — and the song playing
+  carries on).
+- **One shared playback** (`/v1/playback`, `src/music/playback.js`): every
+  device shows the same song, the same order (shuffled or not — the order
+  is stored, so it's the same everywhere), playing or paused, and the same
+  time, with a **time slider** under the song. Anyone's play, pause,
+  previous, next, shuffle, song in the list or slider changes it for
+  everyone, as a transaction.
+  - **One device plays the sound — the *speaker*** — normally the phone
+    cast to the TV: whoever presses play while no speaker is around
+    becomes it. Every other device is a **remote**: its player shows the
+    song, still (a remote's player never plays — no autoplay, no data),
+    with **On Sam's phone** under the song; its buttons drive the
+    speaker. Tapping that line opens the 🔗 pop-up's *Where the music
+    plays* with **Play here**, which moves the sound (playing or paused,
+    same spot). Someone tapping the video itself on a remote: it stops
+    there at once, the music starts on the speaker if it was paused, and a
+    toast says where it plays.
+  - The **speaker follows** each shared change it hasn't followed yet
+    (`now.rev`): loads / cues the song, plays / pauses, seeks when it's
+    more than 3 s off. It also **reports back** what its player really
+    does (`sync`, at most every 2.5 s): buffering or an ad held it back,
+    someone used the video's own controls (seek, pause, play), the song's
+    length. A song ending (or one YouTube won't play here) moves everyone
+    on — once, however many times it's reported.
+  - The speaker writes a **beat** every 20 s while its page is open; a
+    speaker silent for 70 s (closed, locked, offline) has gone — the clock
+    stops where it was, nothing shows as playing, and the next play takes
+    the sound. Closing the page releases it (the music pauses). Closing
+    the player on the speaker pauses it for everyone; a remote's play then
+    opens the speaker's player again and plays.
+  - Time is the **server's clock** (Firebase `.info/serverTimeOffset`,
+    `GameController.now()`), so the slider reads the same on every phone:
+    position = `pos + (now − at)` while playing.
+  - Shuffle on: a fresh random order with the song playing first; off:
+    the playlist's own order. The song carries on either way.
+  - A new playlist's songs are read by whichever device has the player
+    open (a player opened on the playlist lists them); the speaker waits
+    6 s for someone else to do it, so it keeps its player — a phone's
+    fresh player needs a tap on the video again.
 - Screen mirroring (AirPlay, Chromecast "cast screen") carries the sound to
   the TV with the picture. While music plays the screen is kept awake (Wake
   Lock): a locked phone stops web audio.
-- **Follows you between devices.** While music plays, where you are (song,
-  time, playing, bar open, shuffle) is saved to your profile every 5 s and
-  on pause, close and leaving the page (`/v1/listening/{profileId}`).
-  Logging in on another device opens the bar as it was and carries on from
-  about where it would be by now (it adds the time since the save when it
-  was playing). Opening the app again (a reload) cues the same song and
-  time but waits for a tap. Music already playing on this device is never
-  interrupted, and nothing is saved until music has played on a device, so
-  a phone that's just been opened never overwrites where you were.
+- **Every device is already in step**, so logging in on another device
+  needs nothing: the table's music is there (2.7.0 replaced the
+  per-profile "pick up where you were" of 2.4–2.6).
 
 ### Installable app
 
@@ -466,6 +501,7 @@ catan-pangea/                       ← deployed as-is to GitHub Pages
     GameState.js                    read-only view: seats, winners, taken colors, wins tally
     GameService.js                  every operation as store transactions
   src/music/playlist.js             pure: parsePlaylist (links → list id), player error meanings
+  src/music/playback.js             pure: the shared playback — clock, speaker, commands (play, skip, seek, shuffle…)
   src/sync/                         STORE ADAPTERS (same contract, see MemoryStore.js)
     MemoryStore.js                  reference impl + contract docs (tests)
     LocalStore.js                   "this device only": localStorage + BroadcastChannel
@@ -487,7 +523,7 @@ catan-pangea/                       ← deployed as-is to GitHub Pages
     ThemeController.js, palette.js  theme; board colors
     imageExport.js, Toast.js, dom.js  PNG/share; toasts; h()/s() DOM builders
     VictoryOverlay.js               victory / defeat screen
-    MusicBar.js                     docked YouTube player (IFrame API), songs sheet, playlist link, resume across devices
+    MusicBar.js                     docked YouTube player (IFrame API) following the shared playback: speaker / remote, songs sheet, playlist pop-up
     WinterEffect.js                 8-bit snow + frost that build up as WALKER fills
     DesktopLayout.js                desktop left column + its drag handles; the music & tracker view
     screens/Screen.js               base class for full-screen views
@@ -562,10 +598,13 @@ v1/
               (one key per COUNTERS entry; a missing key reads as 0, so older games keep working)
   wins/{season}/{entryId}: { profileId, delta (±1), source:"game"|"admin", sessionId?, at }
   music:                   { listId, setAt (ms), setBy? }   ← the table's playlist (YouTube list id)
-  listening/{profileId}:   { listId, videoId, index, count, t, duration, playing, open, shuffle, at, deviceId }
-                           ← where each player is in the music; read on login, not watched
-                             (it changes every few seconds while music plays); index = position
-                             in the playlist's own (unshuffled) order
+  playback:                                  ← the table's music, one shared playback (music/playback.js);
+                                               watched on its own, not part of GameState
+    queue:  { listId, setAt, songs:[videoId…] (the playlist's own order), order:[videoId…] (play order), shuffle }
+    now:    { index (into order), videoId, playing, pos (s), at (ms, server clock), duration?,
+              speaker? (deviceId), speakerName?, speakerKind? ("phone"|"tablet"|"computer"), rev, by (deviceId) }
+    beat:   ms                               ← the speaker's last "still here" (every 20 s; gone after 70 s)
+  listening/{profileId}:   (before 2.7.0: per-profile music spots; no longer written — removing a profile still clears it)
 ```
 - **Wins are a ledger.** A game win's entry id is `${sessionId}_${profileId}`
   (idempotent): written when VP goes <13 → 13, removed when 13 → <13. Admin
@@ -577,6 +616,10 @@ v1/
   limits applied inside it (VP 0–13, knights 0–12×N per island, cities 0–4×N, karma ±99, walker 0–6 wrapping, color
   uniqueness, seat availability), so simultaneous taps from several phones
   never lose updates or break a limit. Counter controls send **deltas**.
+  Music commands are transactions on `playback` too (next is relative, so
+  two taps skip two songs; a song's end is tied to its video id, so it
+  counts once; the speaker's `sync` only applies to the `rev` it followed,
+  so it never undoes a newer tap).
 - **RTDB caveat:** a transaction may first run with `null` if nothing is
   cached. Our transactions abort on a missing node, so the app keeps a
   `watch()` open for its whole life; transactions then start from the cache
@@ -603,14 +646,21 @@ v1/
   profiles, seats/colors, VP + win record/revoke, coins, knights, karma,
   robber, session rotation, admin.
 - `music.test.js` — playlist links (YouTube, YouTube Music, share links,
-  private lists), player error handling, the shared playlist, where each
-  player is in the music (saved per profile, dropped with the profile).
+  private lists), player error handling, the shared playlist, and the
+  shared playback: the clock, who's the speaker (play from a remote, Play
+  here, a speaker going quiet, leaving), next / previous / a song ending
+  (once), seek, shuffle (stored order, the song carries on), re-reading a
+  playlist, the speaker's reports, and two phones on one store.
 
 UI is verified by driving the real app in a headless Chromium browser via
 the DevTools protocol at phone sizes (two tabs with different `?device=`
 values for multiplayer, **always with `?store=local`** so the run doesn't
 write to the live game). Note: on the original dev machine Chrome's
-DevTools protocol is blocked by policy; headless **Brave** works.
+DevTools protocol is blocked by policy; headless **Brave** works. For the
+shared music, open each "phone" in a **window of its own**
+(`Target.createTarget` with `newWindow:true`): a background tab is hidden,
+and a hidden tab won't start a video. `YT.get(iframe.id)` gives the test
+each page's player (state, time, video id).
 
 If you ever need to check the real database end to end, the Realtime
 Database REST API is open under `/v1` (e.g. `curl
@@ -684,17 +734,20 @@ your run created afterwards — never `DELETE /v1` once real data exists.
   signed in to YouTube Premium in that browser. Songs whose owner blocks
   embedding are skipped (error 101/150) with a toast. Private lists (Liked
   music, Watch later) can't be embedded — the link check explains. Music
-  stops on reload, app switch or a locked phone.
-- **Switching playlists makes a new player.** YouTube's `loadPlaylist` /
-  `cuePlaylist` keep the old songs once a playlist is loaded (only the
-  link changes), so `MusicBar` destroys the player and creates a fresh one.
-  A fresh player ignores *play* until its playlist has loaded, so if music
-  was playing it's asked again on CUED / UNSTARTED (`resumeTries`, a few
-  tries for 10 s). A phone that insists on a tap shows *Tap the video*.
+  stops on reload, app switch or a locked phone *of the speaker* (its beat
+  stops too, so after 70 s anyone's play takes the sound).
+- **Reading a playlist makes a new player.** YouTube's `loadPlaylist` /
+  `cuePlaylist` keep the old songs once a player has had a playlist (only
+  the link changes), so `MusicBar` destroys the player and opens a fresh
+  one on the new playlist to read its songs (`#startReading`, polling
+  `getPlaylist()` — there's no event). A phone's fresh player needs a tap
+  on the video before it will play, which is why the speaker leaves the
+  reading to another device when it can (6 s), and why a phone that
+  insists on a tap shows *Tap the video to start*.
 - **The installed app on iPhone has its own storage**, separate from
   Safari's: a new device id and no profile selected. Players pick their
   profile once on the welcome screen (seated players go straight back to
-  the tracker, and the music picks up where they were). "One profile per
+  the tracker). "One profile per
   device" means the installed app could create a *second* profile — fine,
   but an admin can tidy up.
 - **Service worker:** network first for the app's own files, so there's
@@ -703,12 +756,11 @@ your run created afterwards — never `DELETE /v1` once real data exists.
   too (manifest `fullscreen`); Esc / F11 leaves it. The browser's install
   dialog only opens from a real tap (`InstallHelper.install` catches it
   otherwise).
-- **YouTube player quirks we rely on:** `playerVars.index` for a playlist
-  counts from **1** (`start` is seconds); a player told where to start
-  buffers (state 3) before anyone presses play, so BUFFERING only counts
-  as playing while music is wanted; and there is **no event** when a new
-  player's playlist arrives — `#checkLoaded` polls for it (the desktop
-  song list depends on that).
+- **YouTube player quirks we rely on:** `playerVars.start` /
+  `startSeconds` are whole seconds; a player told where to start may
+  buffer (state 3) before anyone presses play, so the speaker only judges
+  PLAYING / PAUSED, never BUFFERING; and there is **no event** when a new
+  player's playlist arrives — `#startReading` polls for it.
 - **`Screen.build()` runs inside the base constructor**, before a
   subclass's `#private` methods exist — call only public methods from
   `build()`.
@@ -725,17 +777,43 @@ your run created afterwards — never `DELETE /v1` once real data exists.
 - **Leaving the music & tracker view without a route change** (closing the
   music, the desktop back arrow) must call `router.refresh()`: the map's
   `inert` is only recomputed when a route is applied.
-- **"Was music playing?" is `wantsMusic`, not the player state.** YouTube
-  reports PAUSED → UNSTARTED → BUFFERING whenever it changes songs (Next, a
-  song ending), so the state alone says "stopped" in the gap. `wantsMusic`
-  turns on at PLAYING and off only on a pause that lasts 1 s (or Close);
-  `#musicOn()` also treats "paused right now" as off.
+- **"Is the music playing?" is the shared playback, not the player.**
+  `now.playing` is the table's intent; the speaker's player follows it and
+  reports back only what lasts (a pause held 1.5 s; drift over 3 s), and
+  never judges a player still settling (4 s after a load / cue, 3 s after
+  play or a seek) — YouTube reports PAUSED → UNSTARTED → BUFFERING
+  whenever it changes songs.
+- **A play that lands while a song is still being cued is ignored** by
+  YouTube. The speaker asks again when the player reports CUED
+  (`playTries`) and every 2.5 s while the shared playback says playing; a
+  phone that has never played (it needs its first tap on the video) gives
+  up after 8 s and reports *paused*, so nobody sees a playing bar with no
+  sound.
+- **Players play one song at a time** (`loadVideoById` / `cueVideoById`),
+  never YouTube's playlist mode — the order, next and the end of a song are
+  ours, so they're the same on every device. A player opens on the
+  playlist only to read its songs.
+- **`seekTo` on a cued video starts it** — to move a paused, cued song the
+  speaker cues it again at the new time instead.
 
 ---
 
 ## 10. Changelog
 
 Keep newest first. Every feature PR adds an entry and updates the sections above.
+
+- **2.7.0 — One shared player for the table.** The music is now live on
+  every device: the same song, the same order (shuffled or not), playing or
+  paused and the same time everywhere, and anyone's play, pause, next,
+  previous, shuffle, song pick or new time slider changes it for everyone
+  (`/v1/playback`, `music/playback.js`, every change a transaction). One
+  device plays the sound — whoever pressed play first, normally the phone
+  cast to the TV; the others are remotes showing *On Sam's phone*, and
+  **Play here** (tap that line) moves the sound. The speaker reports back
+  what its player really does (buffering, ads, the video's own controls),
+  writes a beat every 20 s, and a speaker gone 70 s stops the clock. The
+  mini bar gains ⏭ and a progress line. Time uses the server's clock.
+  Replaces 2.4's per-profile "pick up where you were" (`listening`).
 
 - **2.6.0 — Mini player, tidier phones.** Closed, the music is now a thin
   mini bar along the bottom of every screen (phones and desktop): artwork,
