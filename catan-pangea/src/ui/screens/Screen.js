@@ -57,11 +57,31 @@ export class Screen {
    *   map underneath never shows through mid-transition.
    */
   show({ swap = false } = {}){
+    this.#stopLeaving();
     this.el.dataset.enter = swap ? "swap" : "rise";
     this.el.hidden = false;
     this.render(this.game.state);
     this.heading.focus({ preventScroll:true });
   }
-  hide(){ this.el.hidden = true; }
-  get visible(){ return !this.el.hidden; }
+
+  /**
+   * @param {object} [p]
+   * @param {boolean} [p.animate]  back to the map: the screen slides away
+   *   (screens.css, data-leave) before it hides; to another screen it goes
+   *   at once (the next one is already opaque over it).
+   */
+  hide({ animate = false } = {}){
+    if(this.el.hidden || this.leaving) return;
+    if(!animate || matchMedia("(prefers-reduced-motion: reduce)").matches){ this.el.hidden = true; return; }
+    this.leaving = true;
+    this.el.dataset.leave = "";
+    this.leaveTimer = setTimeout(() => { this.#stopLeaving(); this.el.hidden = true; }, 200);
+  }
+  #stopLeaving(){
+    clearTimeout(this.leaveTimer);
+    this.leaving = false;
+    delete this.el.dataset.leave;
+  }
+  /** On screen (not on its way out). */
+  get visible(){ return !this.el.hidden && !this.leaving; }
 }

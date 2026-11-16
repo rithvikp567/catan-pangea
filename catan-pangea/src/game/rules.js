@@ -49,8 +49,10 @@ export const stepCounter = (rule, value, delta, players) =>
   rule.wraps && delta > 0 && value >= rule.max(players)
     ? rule.min(players)
     : stepWithin(value, delta, rule.min(players), rule.max(players));
-export const nextRobber = v => ROBBER_VALUES[(ROBBER_VALUES.indexOf(v) + 1) % ROBBER_VALUES.length] ?? ROBBER_VALUES[0];
-export const collectRobber = (karma, robber) => clamp(karma - robber, -KARMA_LIMIT, KARMA_LIMIT);
+/** Abstain: the robber is worth one more, up to 3. */
+export const abstainRobber = v => clamp((v ?? ROBBER_VALUES[0]) + 1, ROBBER_VALUES[0], ROBBER_VALUES.at(-1));
+/** Rob: karma goes down by the robber's value, and the robber starts over at 1. */
+export const robKarma = (karma, robber) => ({ karma:clamp(karma - robber, -KARMA_LIMIT, KARMA_LIMIT), robber:ROBBER_VALUES[0] });
 
 /** Wins are tallied per calendar year. */
 export const seasonOf = ms => new Date(ms).getFullYear();

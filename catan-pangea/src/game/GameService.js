@@ -6,7 +6,8 @@
  * Data layout (under `root`, default "v1"):
  *   profiles/{profileId}  { name, createdAt, deviceId }
  *   session               { meta, board, settings, seats/{s0…}, counters }  — the one active game
- *   wins/{season}/{entryId} { profileId, delta, source, sessionId?, at }  — the wins ledger
+ *   wins/{season}/{entryId} { profileId, delta, source, sessionId?, at, scores? }  — the wins ledger
+ *                           (scores: { profileId: { vp, color } } — everyone's points when a game was won)
  *   music                 { listId, setAt, setBy }  — the table's YouTube playlist
  *   playback              { queue, now, beat }  — the table's music as one shared playback: the song,
  *                           the order, playing or paused, the time, and which device plays the sound
@@ -22,7 +23,7 @@ import { GameState } from "./GameState.js";
 import { parsePlaylist } from "../music/playlist.js";
 import { COMMANDS as PLAYBACK } from "../music/playback.js";
 import {
-  MAX_VP, COUNTERS, clampVP, stepCounter, nextRobber, collectRobber, newSession, carrySeats, validateName,
+  MAX_VP, COUNTERS, clampVP, stepCounter, abstainRobber, robKarma, newSession, carrySeats, validateName,
 } from "./rules.js";
 
 export class GameError extends Error {
@@ -163,7 +164,12 @@ export class GameService {
     if(!res.committed || !profileId) return;
     const after = res.value.vp, winPath = this.#p("wins", meta.season, `${meta.id}_${profileId}`);
     if(before < MAX_VP && after >= MAX_VP){
-      await this.store.set(winPath, { profileId, delta:1, source:"game", sessionId:meta.id, at:this.now() });
+      /* everyone's points at the moment of the win (the calendar on the season wins screen shows them) */
+      const seats = (await this.store.get(this.#p("session", "seats"))) ?? {};
+      const scores = {};
+      for(const s of Object.values(seats)) if(s?.profileId) scores[s.profileId] = { vp:s.vp ?? 0, ...(s.color ? { color:s.color } : {}) };
+      scores[profileId] = { ...scores[profileId], vp:after };
+      await this.store.set(winPath, { profileId, delta:1, source:"game", sessionId:meta.id, at:this.now(), scores });
     }else if(before >= MAX_VP && after < MAX_VP){
       await this.store.remove(winPath);
     }
@@ -191,13 +197,18 @@ export class GameService {
     });
   }
 
-  async cycleRobber(){
-    await this.store.transact(this.#p("session", "counters"), c => c ? { ...c, robber:nextRobber(c.robber ?? 1) } : undefined);
+  /** Abstain: the robber is worth one more (up to 3). */
+  async abstainRobber(){
+    await this.store.transact(this.#p("session", "counters"), c => {
+      if(!c) return undefined;
+      const robber = abstainRobber(c.robber ?? 1);
+      return robber === (c.robber ?? 1) ? undefined : { ...c, robber };
+    });
   }
 
-  /** Collect: karma goes down by the robber's current value. */
-  async collectRobber(){
-    await this.store.transact(this.#p("session", "counters"), c => c ? { ...c, karma:collectRobber(c.karma ?? 0, c.robber ?? 1) } : undefined);
+  /** Rob: karma goes down by the robber's value, and the robber starts over at 1. */
+  async rob(){
+    await this.store.transact(this.#p("session", "counters"), c => c ? { ...c, ...robKarma(c.karma ?? 0, c.robber ?? 1) } : undefined);
   }
 
   /* ---------------- wins (admin) ---------------- */

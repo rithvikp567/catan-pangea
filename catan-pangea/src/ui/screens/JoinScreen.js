@@ -58,7 +58,7 @@ export class JoinScreen extends Screen {
     this.pillSlot = h("div", { class:"join-status" });
     this.body.append(this.profileStep, this.colorStep, this.installCard,
       h("footer", { class:"join-foot" },
-        h("nav", { class:"screen-links" }, link("Season wins", "wins"), link("Admin", "admin"), link("View map", "")),
+        h("nav", { class:"screen-links" }, link("Admin", "admin"), link("View map", "")),   /* (season wins: the top bar's trophy) */
         this.pillSlot));
   }
 
@@ -131,19 +131,26 @@ export class JoinScreen extends Screen {
   }
 
   /**
-   * Logging in. On any device: if you're already seated in this game you're
-   * straight back at the tracker (the music is the table's — it's already there).
+   * Logging in. On any device: if you're already seated in this game it's
+   * "Welcome, Lord …" and straight back to the tracker (the music is the
+   * table's — it's already there); otherwise pick a color first.
    */
   #pick(id){
     this.game.selectProfile(id);
     this.picked = null;
     const state = this.game.state, seat = state?.session ? state.seatOf(id) : null;
     if(seat){
-      this.deps.toast.show(`Welcome back, ${seat.profile.name} — you're ${colorById(seat.color)?.label ?? "seated"}.`);
-      this.router.go("tracker");
+      this.#welcome(seat.profile.name, seat.color, "tracker");
       return;
     }
     this.#setStep("color");
+  }
+
+  /** "Welcome, Lord Sam", then on to `route` once it covers the screen. */
+  #welcome(name, color, route){
+    const note = `You're ${colorById(color)?.label ?? "seated"}`;
+    if(this.deps.welcome) this.deps.welcome({ name, note }, { covered:() => this.router.go(route) });
+    else{ this.deps.toast.show(`Welcome, ${name} — ${note.toLowerCase()}.`); this.router.go(route); }
   }
 
   #setStep(step){
@@ -159,14 +166,14 @@ export class JoinScreen extends Screen {
   }
 
   async #join(){
-    const color = this.picked;
+    const color = this.picked, wasSeated = !!this.game.mySeat;
     this.joining = true;
     this.render(this.game.state);           /* remote updates keep it in this state too */
     try{
       await this.deps.ensureSession?.();    /* the map on screen becomes the game (waits for the first map) */
       if(await this.game.join(color)){
-        this.deps.toast.show(`You're in as ${colorById(color).label}.`);
-        this.router.go("");
+        if(wasSeated){ this.deps.toast.show(`You're ${colorById(color).label} now.`); this.router.go(""); }
+        else this.#welcome(this.game.me?.name ?? "", color, "");     /* just seated: the welcome, then the map */
       }
     }finally{
       this.joining = false;

@@ -47,7 +47,7 @@ no browser bars, and it opens with no signal.
 | **Knights, per island** | Two shared counters, **Main island** and **Off island**, each 0 … 12 × players on its own. (A tiered version — mighty / strong / basic with a derived knight strength — was tried in 2.1.0 and reverted in 2.1.1 as too much for the table.) |
 | **Cities** | A shared counter, 0 … 4 × players (city pieces in the box). |
 | **Karma** | A shared ± number (homebrew; the app only tracks it). |
-| **Robber points** | A shared value cycling 1 → 2 → 3; **Collect** subtracts it from karma. |
+| **Robber points** | A shared value, 1 … 3, starting at 1: **Abstain** makes it one more (up to 3); **Rob** subtracts it from karma and starts it over at 1. |
 | **Honor coin** | Each player has a coin: heads = honorable (start), tails = dishonorable. Only its owner can flip it; everyone sees it. |
 | **Walker** | The word **WALKER**, shared: one letter per 7 rolled with the barbarians (counted by hand with + / −). **+** on the full word starts it over at 0. As it fills, every phone snows (8-bit pixel snow, frost creeping in from the edges); back to 0, the winter fades away. |
 
@@ -120,24 +120,59 @@ on the tracker): everything works, but nothing is shared between phones.
 - Phone landscape: the board on the left, a slim rail on the right (188 px:
   brand, icons, board type, then Settings / Tracker / New map at 38 px) —
   sized to fit the ~300 px a browser leaves in landscape.
+- **New map builds itself in** (`BoardView`'s build animation, on every
+  device where the map is on screen): the tiles fly in from off screen,
+  spinning, the middle of the island first, each landing with a wooden
+  clack; then the number tokens fly in face down (grey, a small hex on the
+  back), flip over and land face up with a pop; then the ports pop in round
+  the coast (~4 s in all). It's Web Animations on the drawn SVG — the markup
+  never changes, so a saved image is unaffected (the grey backs are removed
+  once turned). Sounds (`ui/Sound.js`, made with Web Audio, no files) play
+  on the device that pressed New map and on the one playing the music (the
+  phone cast to the TV) — not on every phone at the table — and only once a
+  tap has allowed sound. A board restored at load just appears. *Reduce
+  motion*: no build, no sounds.
+- *Advanced* in Settings slides open and shut (its + turns into ×).
 - Save / share the board as a PNG (share sheet on phones, download on desktop).
 - Light / dark theme (follows the system until toggled).
 - "How it works" dialog explaining the math.
 
 ### Game tracker (multiplayer)
+- **The intro** (`ui/Splash.js`, markup in `index.html` so it's there from
+  the first frame): every page load opens on *Settlers of Catan* in the
+  middle of the screen — seven hexes fly together into an island, the 8
+  pops on, the words rise, a gold rule draws under them — for at least
+  2.6 s and until the game has loaded, then it fades into choosing an
+  account. Someone already signed in and seated goes straight on to the
+  welcome instead. A tap skips it. The music is held back while it's up.
+- **The welcome**: picking your account (seated already, or once you've
+  joined with a color) shows **Welcome, Lord Sam** — an 8-bit crown drops
+  in, "You're Blue" under the name, a little square-wave fanfare where sound
+  is allowed — then fades into the tracker (seated) or the map (just
+  joined). Changing color doesn't repeat it.
+- **Signed in**: the top bar shows **Sam · Sign out** next to *Pangaea*
+  (under it on a phone, where the icons need the row; `ui/AccountLine.js`).
+  Sign out only forgets the profile on this device — the seat stays — and
+  goes to choosing an account; nobody signed in reads **Sign in**.
 - **Welcome / join screen** (`#/join`): a centred welcome page — brand,
   "Who's playing?", the game in one line (board · players · seats taken),
   then every profile as a list. Create one (**one per device**, username
   only — the limit is enforced, not explained on screen); pick a profile →
   pick a **color** (colors taken in this game are disabled) → **Join
-  game**. Underneath: Season wins · Admin · View map, and the sync pill.
+  game**. Underneath: Admin · View map, and the sync pill (season wins are
+  the top bar's trophy only).
 - **Session = the map's seed.** The first device online publishes its map
   as the shared game; every phone shows that exact board. **New map**
   starts a new game for everyone (after a confirm if anything is in
   progress): points, coins and counters reset, **everyone seated keeps
   their seat and color** (if the new map has fewer seats, the players who
   don't fit pick again), **season wins are kept**.
-- **Tracker screen** (`#/tracker`, *Tracker* button in the dock):
+- **Tracker screen** (`#/tracker`, *Tracker* button in the dock): its header
+  is the back arrow, the title and the sync pill (music and season wins live
+  only in the top bar; who's signed in too — the meta line under the header
+  is just the seed, plus *Join as …* for someone not seated). It rises from
+  the bottom with its cards following one by one (on desktop it docks in
+  from the left), and slides away going back to the map.
   - **Fits one phone screen without scrolling.** The seat rows share the
     height the rest leaves (42–54 px each, from `100cqh` — the tracker is a
     size container, so the music bar, the mini bar and the browser's bars
@@ -159,8 +194,10 @@ on the tracker): everything works, but nothing is shared between phones.
     knights, Off island knights (each 0…12 × players) and Cities
     (0…4 × players).
   - Karma, robber & walker — one row: Karma (±99, the digits stay centred
-    with the sign hanging left), Robber (just the number, exactly centred;
-    tap cycles 1→2→3) and **Collect: −N** (subtracts it from karma). Under
+    with the sign hanging left) and the Robber's two buttons: **Abstain**
+    (three pips show the robber's value; +1 up to 3, then it's disabled) and
+    **Rob −N** (karma −N, the robber back to 1). A value changed from any
+    phone pops for a moment. Under
     it, **− W A L K E R +**: each + lights the next letter (icy glow), and
     the lit letters shake harder and faster with every letter
     (`--amp` / `--rot` / `--dur`, from `JITTER` at the top of
@@ -181,14 +218,15 @@ on the tracker): everything works, but nothing is shared between phones.
     clip-path: nothing may cover the player). Never takes a tap. Reduced
     motion: frost only.
 - **Logging in on another device:** pick your profile on the welcome
-  screen. If you're seated in the current game you go straight to the
-  tracker ("Welcome back, … — you're Red."); the music is the table's, so
-  it's already there (see Music).
+  screen. If you're seated in the current game it's *Welcome, Lord …* and
+  straight to the tracker; the music is the table's, so it's already there
+  (see Music).
 - **Victory screen**: when a seated player hits 13 VP, they see *Victory*,
   other seated players see *Defeat* (spectators see "X wins"). **Continue**
   returns to the tracker with numbers intact. If that player drops below 13
   and returns, it shows again.
-- **Season wins** (`#/wins`): wins per profile per calendar year. Reaching
+- **Season wins** (`#/wins`, the trophy in the top bar — the only way in;
+  it opens out of the trophy, its cards following): wins per profile per calendar year. Reaching
   13 records a win; dropping back below 13 removes it (so corrections fix
   the tally). Once anyone has won that season, first place wears an 8-bit
   **crown** (a glint sweeps across it, it glows, sparkles twinkle) and
@@ -200,6 +238,23 @@ on the tracker): everything works, but nothing is shared between phones.
   art pixels where it can, and stops under *reduce motion*. The list
   isn't redrawn while the standings are unchanged, so the animations
   aren't restarted by every tap in the tracker.
+  - **Calendar** under the standings, the same width: one month at a time
+    (Sunday first), each day showing who won that day (a chip in their
+    color then; two at most, then "+N"), today outlined. **Swipe** it
+    sideways or use **‹ ›** under it (from the first month with a win, or
+    this January, to this month); moving into another year moves the
+    standings to that season, and picking a season moves the calendar to
+    its last month. **Tap a day** for a pop-up with everyone's points at
+    each win that day (winner first, VP, their color, the time) — it fades
+    in and out; ×, a tap outside it or Esc closes it. Points are recorded
+    with each game win since 2.10.0 (`scores` in the ledger); older wins
+    and wins an admin added say so instead. From `GameState.winHistory()`.
+  - **The music is put away** while it's open — the player and the mini bar
+    (`MusicBar.setAway("wins")`). A hidden player mustn't play, so on the
+    device playing the sound the music pauses for everyone and plays on
+    when you leave (unless someone paused it meanwhile); someone else
+    pressing play meanwhile brings that device's player back on the
+    season wins screen, since it has to show to play.
 - **Admin** (`#/admin`, password `password` — not security, a shared
   management account): remove profiles (frees their seat, deletes their
   wins, lets their device create a new profile) and add/remove wins.
@@ -209,15 +264,23 @@ on the tracker): everything works, but nothing is shared between phones.
 ### Music (YouTube playlist)
 
 - **Closed, it's a mini bar** along the bottom of every screen (phones
-  either way up, and desktop): the song's artwork, title and artist, a
-  play button and ⌃. Tap it (or ⌃, or **♪**) and the player pops open;
+  either way up, and desktop): the artwork and **Songs** (the song list,
+  as a sheet above the bar) on the left, the title and artist **centred**
+  in the middle under a small grip, and **⏮ ▶ ⏭** on the right (on a wide
+  screen the song sits in the exact middle of the bar). **Swipe the song**
+  sideways for the next (left) or previous (right) song — it follows the
+  finger, slides off, and the new one slides in from the other side —
+  or up for the player. Tap it (or **♪**) and the player pops open;
   its play opens the player and plays (on a remote it just plays — on the
   speaker — and ⏭ skips). Closing the player pauses the music — YouTube's
   rules don't allow playing from a hidden player — so the mini bar is the
   paused state, one tap from playing again. A 2 px line along its top edge
   shows the song's progress; on a remote its second line adds *On Sam's
   phone*. With no playlist yet it says *Music for the table*.
-- The **♪** button (map toolbar, tracker header) pops open the **music bar**:
+- The **♪** button (the top bar — its only place, beside the season wins'
+  trophy) pops open the **music bar**, which slides in (up from the bottom;
+  from the right in phone landscape, from the left on desktop) as the mini
+  bar slides back in when it closes:
   the YouTube player (200 × 200 on phones, 16:9 on wider screens) with
   Previous / Play–Pause / Next, Shuffle, **Songs** (tap any song to play it;
   titles come from YouTube's oEmbed endpoint — no API key), **Playlist**
@@ -391,6 +454,9 @@ on the tracker): everything works, but nothing is shared between phones.
   music. The view itself is remembered per
   device (`splitView`), so a reload on the tracker comes back to it; Enter
   doesn't make a new map while it's up.
+- **Animated:** going in, the tracker half and the music half slide in from
+  their sides (from above / below when stacked); coming out, the map fades
+  back in (`data-view-anim` on body for a moment, `split.css`).
 - `DesktopLayout` runs it too (`enterSplit` / `showMap` / `splitActive`):
   body `data-view="split"`, `data-axis` (`x` / `y`) and `--half` (the
   tracker's share in px); `css/split.css` lays it out. While it's up the
@@ -548,6 +614,9 @@ catan-pangea/                       ← deployed as-is to GitHub Pages
     ThemeController.js, palette.js  theme; board colors
     imageExport.js, Toast.js, dom.js  PNG/share; toasts; h()/s() DOM builders
     VictoryOverlay.js               victory / defeat screen
+    Splash.js                       the intro ("Settlers of Catan") and "Welcome, Lord …"
+    Sound.js                        sound effects made with Web Audio (tile clack, flip, pop, fanfare)
+    AccountLine.js                  "Sam · Sign out" in the top bar
     MusicBar.js                     docked YouTube player (IFrame API) following the shared playback: speaker / remote, songs sheet, playlist pop-up
     WinterEffect.js                 8-bit snow + frost that build up as WALKER fills
     badges.js                       8-bit season badges: the crown (first place) and the turd (everyone else)
@@ -578,10 +647,14 @@ ui/  ──intent──▶  app/  ──▶  engine/        (map)
 - `Screen` has two layouts: `"page"` (sticky header: back, title, actions)
   and `"centered"` (no header, content in the middle of the screen; the
   subclass places `this.heading` — used by the welcome screen).
-- **Transitions:** map → screen rises over the map (`data-enter="rise"`);
-  screen → screen keeps the backdrop opaque and only fades the content in
-  (`data-enter="swap"`, set by `Router`). Never fade a whole screen in over
-  another one — the map would flash through for a frame.
+- **Transitions:** map → screen rises over the map (`data-enter="rise"`;
+  the tracker from below, the season wins out of the trophy, the desktop
+  tracker from the left, cards one after another); screen → screen keeps
+  the backdrop opaque and only fades the content in (`data-enter="swap"`,
+  set by `Router`); screen → map slides the screen away (`data-leave`, then
+  hidden — `Screen.visible` is already false meanwhile). Never fade a whole
+  screen in over another one — the map would flash through for a frame.
+  Everything that moves stops under *reduce motion*.
 - Native `<select>`s go through `selectField()` (`screens/widgets.js`): the
   browser arrow is hidden and a centred chevron drawn instead.
 - DOM is built with `h()` / `s()` from `ui/dom.js`. `innerHTML` is used only
@@ -622,7 +695,8 @@ v1/
     seats:    { s0:{ vp, honorable, profileId?, color? }, s1:…, … }   (keys "s0…" — numeric keys become arrays)
     counters: { knightsMain, knightsOff, cities, karma, walker (0…6), robber }
               (one key per COUNTERS entry; a missing key reads as 0, so older games keep working)
-  wins/{season}/{entryId}: { profileId, delta (±1), source:"game"|"admin", sessionId?, at }
+  wins/{season}/{entryId}: { profileId, delta (±1), source:"game"|"admin", sessionId?, at,
+                             scores?: { [profileId]: { vp, color? } } }   ← everyone seated, at a game win (2.10.0+)
   music:                   { listId, setAt (ms), setBy? }   ← the table's playlist (YouTube list id)
   playback:                                  ← the table's music, one shared playback (music/playback.js);
                                                watched on its own, not part of GameState
@@ -633,7 +707,9 @@ v1/
   listening/{profileId}:   (before 2.7.0: per-profile music spots; no longer written — removing a profile still clears it)
 ```
 - **Wins are a ledger.** A game win's entry id is `${sessionId}_${profileId}`
-  (idempotent): written when VP goes <13 → 13, removed when 13 → <13. Admin
+  (idempotent): written when VP goes <13 → 13 — with every seated player's
+  VP and color at that moment (`scores`, for the calendar's pop-up) —
+  removed when 13 → <13. Admin
   edits add `adj_…` entries with delta ±1. A profile's season total = Σ
   delta (never shown below 0). Season = the year the game started.
 - Nulls are never stored (RTDB semantics); `prune()` in `MemoryStore`
@@ -670,7 +746,8 @@ v1/
 - `store.test.js` — the store contract (`MemoryStore`).
 - `game.test.js` — the tracker as several devices on one shared store:
   profiles, seats/colors, VP + win record/revoke, coins, knights, karma,
-  robber, session rotation, admin.
+  robber (abstain up to 3, rob and reset), session rotation, admin, the
+  points recorded with a win and `winHistory` (the calendar).
 - `music.test.js` — playlist links (YouTube, YouTube Music, share links,
   private lists), player error handling, the shared playlist, and the
   shared playback: the clock, who's the speaker (play from a remote, Play
@@ -839,12 +916,50 @@ your run created afterwards — never `DELETE /v1` once real data exists.
   playlist only to read its songs.
 - **`seekTo` on a cued video starts it** — to move a paused, cued song the
   speaker cues it again at the new time instead.
+- **Putting the music away** (`MusicBar.setAway(reason, on)`, reasons
+  `"wins"` and `"splash"`): body `data-music-away` hides the bar, the mini
+  bar and its sheets (`music.css`), `--music-h` / `--music-w` read 0, and
+  `DesktopLayout` drops the music column. Nothing creates, cues or plays a
+  player while it's away (`#refresh`, `#tick`, `#startReading` all check).
+  It never hides a playing player: the speaker pauses first.
+- **The intro is in `index.html`** (so nothing flashes before the JS
+  runs); `Splash` takes it over and marks it `data-js`. Without JS it fades
+  by itself after 9 s (a CSS fail-safe). It and the welcome are laid out
+  round the open music player like every overlay; during the intro the
+  music is held back anyway.
+- **Sounds need a tap first**: browsers only let a page make sound after
+  a tap, so `Sound` starts its AudioContext on the first pointer / key
+  event and every call before that is silent (a reload's intro and
+  welcome have no fanfare; the New map tap makes the build's sounds play).
+- **The build animation and the image export**: everything moves by Web
+  Animations (`fill:"backwards"`), never by attributes, so `saveBoardImage`
+  serialises the finished board even mid-build; the tokens' grey backs are
+  removed when their flip ends. A new render cancels a running build.
 
 ---
 
 ## 10. Changelog
 
 Keep newest first. Every feature PR adds an entry and updates the sections above.
+
+- **2.10.0 — Animations & sounds; calendar; Abstain / Rob.** New map builds
+  itself in: tiles fly in from off screen with a clack each, then the
+  number tokens fly in face down, flip and land with a pop, then the ports
+  pop in (sounds on the device that pressed it and on the music's speaker;
+  Web Audio, no files). Every load opens on a *Settlers of Catan* intro
+  that fades into choosing an account, and signing in ends with *Welcome,
+  Lord Sam*. The top bar shows *Sam · Sign out* next to Pangaea, and season
+  wins (trophy) and music (♪) live only there — gone from the tracker
+  header and the join screen. Season wins hides the music (pausing it on
+  the device playing it, and playing on afterwards) and gets a month
+  calendar under the standings — swipe or ‹ › for other months, each day
+  shows its winner, tap for everyone's points at that win (recorded with
+  each win from now on). The mini bar centres the song, adds ⏮ and the
+  song list, and swipes sideways to change the song. Animated: the music
+  bar and mini bar sliding in, the split view, Settings → Advanced, the
+  tracker and season wins coming and going. The robber's tap-to-cycle and
+  Collect became **Abstain** (+1, up to 3) and **Rob** (karma −N, back to
+  1).
 
 - **2.9.0 — Season wins: a crown for first, turds for the rest.** In the
   standings, first place gets an 8-bit gold crown that glints, glows and

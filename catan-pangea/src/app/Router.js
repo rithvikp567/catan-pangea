@@ -52,7 +52,7 @@ export class Router {
     const swap = [...this.screens.values()].some(s => s.visible);
     for(const [name, screen] of this.screens){
       if(name === route){ if(!screen.visible) screen.show({ swap }); }
-      else if(screen.visible) screen.hide();
+      else if(screen.visible) screen.hide({ animate:!route });     /* back to the map: it slides away */
     }
     this.mapEl.inert = !!route && !this.docked(route);
     document.body.dataset.route = route || "map";

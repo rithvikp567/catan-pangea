@@ -117,3 +117,17 @@ body[data-view="split"][data-axis="x"] .splitter[data-split="halves"]::before{ l
 body[data-view="split"][data-axis="x"] .splitter[data-split="halves"]::after{ left:5px; width:2px; top:0; bottom:0; }
 body[data-view="split"][data-axis="y"] .splitter[data-split="halves"]::before{ top:8px; left:calc(50% - 22px); height:4px; width:44px; }
 body[data-view="split"][data-axis="y"] .splitter[data-split="halves"]::after{ top:9px; height:2px; left:0; right:0; bottom:auto; width:auto; }
+
+/* ---------- coming and going (DesktopLayout sets data-view-anim for a moment) ----------
+   in: the tracker half and the music half slide in from their sides; out: the map comes back */
+body[data-view="split"][data-view-anim="split-in"] .screen[data-screen="tracker"]{ animation:half-in-a .4s cubic-bezier(.2,.85,.25,1); }
+body[data-view="split"][data-view-anim="split-in"] .music{ animation:half-in-b .4s cubic-bezier(.2,.85,.25,1); }
+body[data-view="split"][data-axis="y"][data-view-anim="split-in"] .screen[data-screen="tracker"]{ animation-name:half-in-top; }
+body[data-view="split"][data-axis="y"][data-view-anim="split-in"] .music{ animation-name:half-in-bottom; }
+body[data-view-anim="split-out"]:not([data-view="split"]) .app{ animation:map-back .4s cubic-bezier(.2,.85,.25,1); }
+@keyframes half-in-a{ from{ opacity:0; transform:translateX(-48px); } }
+@keyframes half-in-b{ from{ opacity:0; transform:translateX(48px); } }
+@keyframes half-in-top{ from{ opacity:0; transform:translateY(-36px); } }
+@keyframes half-in-bottom{ from{ opacity:0; transform:translateY(36px); } }
+@keyframes map-back{ from{ opacity:0; transform:scale(.97); } }
+@media (prefers-reduced-motion:reduce){ body[data-view-anim] :is(.app, .music, .screen){ animation:none !important; } }

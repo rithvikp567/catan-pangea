@@ -6,6 +6,14 @@
  * Colors are resolved to concrete values at draw time (no CSS var()
  * references in the markup), so the SVG can be serialised straight to an
  * image that matches the screen.
+ *
+ * A new map can be drawn animated (`animate`): the tiles fly in from off
+ * screen, the middle first, building the island out; then the number
+ * tokens fly in face down (grey), flip over and land face up with a pop;
+ * then the ports pop in. It's all Web Animations on the drawn elements —
+ * nothing in the markup changes, so the image export is unaffected (the
+ * tokens' grey backs are removed once they've turned over). With a Sound,
+ * each landing makes its sound, lined up with the animation.
  */
 import { unhk, hexVerts, vertexToPixel, hexToPixel } from "../engine/hex.js";
 import { PIPS, RES_LABEL } from "../engine/catalog.js";
@@ -15,6 +23,12 @@ import { TERRAIN_COLOR, RESOURCE_COLOR } from "./palette.js";
 const R = 44;                 /* hex radius in viewBox units */
 const TOKEN_R = R * 0.36;
 const PORT_R = R * 0.27;
+
+/* the build animation (ms) */
+const TILE_MS = 520, TOKEN_MS = 420, FLIP_MS = 90, FACE_MS = 170, PORT_MS = 320;
+const TOKEN_BACK = "#A39F96", TOKEN_BACK_RING = "#8A867E";
+
+const rand = (lo, hi) => lo + Math.random() * (hi - lo);
 
 const hexPoints = k => {
   const [q, r] = unhk(k);
@@ -27,9 +41,17 @@ export class BoardView {
     this.svg = svg;
   }
 
-  /** @param {import("../engine/Board.js").Board} board @param {ReturnType<import("./palette.js").readBoardPalette>} pal */
-  render(board, pal){
+  /**
+   * @param {import("../engine/Board.js").Board} board
+   * @param {ReturnType<import("./palette.js").readBoardPalette>} pal
+   * @param {object} [opts]
+   * @param {boolean} [opts.animate]   build it in (a new map)
+   * @param {import("./Sound.js").Sound|null} [opts.sound]  …with sounds
+   */
+  render(board, pal, { animate = false, sound = null } = {}){
     const svg = this.svg;
+    for(const a of this.running ?? []) a.cancel();
+    this.running = [];
     svg.replaceChildren();
     svg.setAttribute("font-family", pal.font);
     this.bounds = { minX:Infinity, minY:Infinity, maxX:-Infinity, maxY:-Infinity };
@@ -38,12 +60,88 @@ export class BoardView {
     for(const k of board.waterHexes) water.append(this.#hex(k, pal.sea, pal.gap));
     for(const t of board.tiles.values()){
       land.append(this.#hex(t.key, TERRAIN_COLOR[t.terrain], pal.gap));
-      if(t.num) tokens.append(this.#token(t, pal));
+      if(t.num) tokens.append(this.#token(t, pal, animate));
     }
     board.portSlots.forEach(slot => ports.append(this.#port(slot, board.isShipOnly(slot), pal)));
 
     svg.append(water, land, ports, tokens);
     this.#fit();
+    if(animate) this.#build({ water, land, tokens, ports }, sound);
+  }
+
+  /**
+   * The build: tiles fly in from off screen (from the side they sit on,
+   * spinning, the middle of the island first), then each number token flies
+   * in face down, flips and lands with a pop, then the ports pop in.
+   */
+  #build({ water, land, tokens, ports }, sound){
+    const run = (el, frames, opts) => { const a = el.animate(frames, { fill:"backwards", ...opts }); this.running.push(a); return a; };
+    const b = this.bounds, cx = (b.minX + b.maxX) / 2, cy = (b.minY + b.maxY) / 2;
+    /* far enough to start outside the visible board, whatever the box's shape */
+    const box = this.svg.getBoundingClientRect(), vb = this.svg.viewBox.baseVal;
+    const scale = Math.min(box.width / vb.width, box.height / vb.height) || 1;
+    const far = Math.hypot(box.width / scale, box.height / scale) * 0.62 + R * 2;
+    const from = (x, y) => {
+      let dx = x - cx, dy = y - cy, len = Math.hypot(dx, dy);
+      const a = (len < R ? rand(0, Math.PI * 2) : Math.atan2(dy, dx)) + rand(-0.45, 0.45);
+      return [Math.cos(a) * far, Math.sin(a) * far];
+    };
+
+    for(const w of water.children) run(w, [{ opacity:0 }, { opacity:1 }], { duration:500, easing:"ease-out" });
+
+    /* tiles: the middle first, so the island builds outward */
+    const tiles = [...land.children].map(el => ({ el, x:+el.dataset.x, y:+el.dataset.y }))
+      .map(t => ({ ...t, d:Math.hypot(t.x - cx, t.y - cy) + rand(0, R * 0.9) }))
+      .sort((p, q) => p.d - q.d);
+    const tileGap = Math.max(28, Math.min(55, 1000 / tiles.length));
+    tiles.forEach((t, i) => {
+      const [dx, dy] = from(t.x, t.y), spin = rand(-200, 200), at = i * tileGap;
+      run(t.el, [
+        { transform:`translate(${dx}px, ${dy}px) rotate(${spin}deg) scale(.5)`, opacity:0 },
+        { transform:`translate(0px, 0px) rotate(0deg) scale(1.07)`, opacity:1, offset:.78 },
+        { transform:"none", opacity:1 },
+      ], { duration:TILE_MS, delay:at, easing:"cubic-bezier(.22,.75,.3,1)" });
+      sound?.tile((at + TILE_MS * 0.78) / 1000, rand(0.82, 1.18));
+    });
+    const tilesDone = (tiles.length - 1) * tileGap + TILE_MS;
+
+    /* number tokens: fly in face down, flip, land face up */
+    const toks = [...tokens.children].sort(() => Math.random() - 0.5);
+    const tokGap = Math.max(40, Math.min(75, 1100 / Math.max(1, toks.length)));
+    const tokStart = tilesDone + 60;
+    toks.forEach((g, i) => {
+      const at = tokStart + i * tokGap, land = at + TOKEN_MS;
+      const back = g.querySelector(".tok-back"), face = g.querySelector(".tok-face");
+      const [dx, dy] = from(+g.dataset.x, +g.dataset.y);
+      run(g, [
+        { transform:`translate(${dx * .8}px, ${dy * .8}px) scale(1.6)`, opacity:0 },
+        { transform:"translate(0px, 0px) scale(1)", opacity:1, offset:.85 },
+        { transform:"none", opacity:1 },
+      ], { duration:TOKEN_MS, delay:at, easing:"cubic-bezier(.3,.7,.35,1)" });
+      if(back){
+        run(back, [{ transform:"scaleX(1)" }, { transform:"scaleX(0)" }], { duration:FLIP_MS, delay:land, easing:"ease-in", fill:"both" })
+          .finished.then(() => back.remove(), () => {});          /* (gone, so it never shows in a saved image) */
+      }
+      run(face, [
+        { transform:"scaleX(0)" },
+        { transform:"scale(1.22, 1.22)", offset:.55 },
+        { transform:"none" },
+      ], { duration:FACE_MS, delay:land + FLIP_MS, easing:"ease-out" });
+      sound?.flip(land / 1000);
+      sound?.pop((land + FLIP_MS + FACE_MS * 0.5) / 1000, rand(0.9, 1.15));
+    });
+    const toksDone = toks.length ? tokStart + (toks.length - 1) * tokGap + TOKEN_MS + FLIP_MS + FACE_MS : tilesDone;
+
+    /* ports pop in, round the coast */
+    [...ports.children].forEach((p, i) => {
+      const at = toksDone + 100 + i * 55;
+      run(p, [
+        { transform:"scale(0)", opacity:0 },
+        { transform:"scale(1.18)", opacity:1, offset:.65 },
+        { transform:"none", opacity:1 },
+      ], { duration:PORT_MS, delay:at, easing:"ease-out" });
+      sound?.portPop((at + PORT_MS * 0.4) / 1000);
+    });
   }
 
   /** Dim the current board while a new one is being generated. */
@@ -58,14 +156,18 @@ export class BoardView {
   #hex(k, fill, gap){
     const [q, r] = unhk(k);
     for(const v of hexVerts(q, r)) this.#grow(...vertexToPixel(v, R));
-    return s("polygon", { points:hexPoints(k), fill, stroke:gap, "stroke-width":3, "stroke-linejoin":"round" });
+    const [x, y] = hexToPixel(q, r, R);
+    return s("polygon", { points:hexPoints(k), fill, stroke:gap, "stroke-width":3, "stroke-linejoin":"round", "data-x":x.toFixed(1), "data-y":y.toFixed(1) });
   }
 
-  #token(tile, pal){
+  /** A number token; animated, it also gets a grey back (face down) on top of its face. */
+  #token(tile, pal, withBack = false){
     const [cx, cy] = hexToPixel(...unhk(tile.key), R);
     const red = tile.num === 6 || tile.num === 8;
     const ink = red ? pal.red : pal.tokenInk;
-    const g = s("g");
+    const tok = s("g", { class:"tok", "data-x":cx.toFixed(1), "data-y":cy.toFixed(1) });
+    const g = s("g", { class:"tok-face" });
+    tok.append(g);
     g.append(s("circle", { cx, cy, r:TOKEN_R, fill:pal.token }));
     const label = s("text", {
       x:cx, y:cy + R*0.09, "text-anchor":"middle", "font-size":R*0.42,
@@ -77,7 +179,15 @@ export class BoardView {
     for(let i = 0; i < n; i++){
       g.append(s("circle", { cx:cx + (i - (n-1)/2) * gap, cy:cy + R*0.2, r:1.4, fill:ink }));
     }
-    return g;
+    if(withBack){
+      const back = s("g", { class:"tok-back" });
+      back.append(
+        s("circle", { cx, cy, r:TOKEN_R, fill:TOKEN_BACK, stroke:TOKEN_BACK_RING, "stroke-width":1.6 }),
+        s("polygon", { points:hexVerts(0, 0).map(v => vertexToPixel(v, TOKEN_R * 0.34)).map(([x, y]) => `${(cx + x).toFixed(2)},${(cy + y).toFixed(2)}`).join(" "),
+          fill:"rgb(255 255 255 / .32)" }));
+      tok.append(back);
+    }
+    return tok;
   }
 
   #port(slot, shipOnly, pal){
@@ -88,7 +198,7 @@ export class BoardView {
     const len = Math.hypot(nx, ny) || 1; nx /= len; ny /= len;
     const px = mid[0] + nx * R * 0.55, py = mid[1] + ny * R * 0.55;
     const isTwo = slot.port.type === "two";
-    const g = s("g");
+    const g = s("g", { class:"port" });
 
     for(const end of [a, b]){
       g.append(s("line", { x1:end[0], y1:end[1], x2:px, y2:py, stroke:pal.port, "stroke-width":2, "stroke-linecap":"round" }));

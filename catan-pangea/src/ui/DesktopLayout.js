@@ -94,9 +94,11 @@ export class DesktopLayout {
     music.onToggle(open => {
       if(!open && this.splitOn){                           /* no music: the view ends */
         this.#setSplit(false);
+        this.#animate("split-out");
         this.router.refresh();                             /* the map is back: usable beside the tracker again */
       }else this.update();
     });
+    music.onAway(() => this.update());                   /* the season wins: no music column */
     this.update();
   }
 
@@ -110,7 +112,7 @@ export class DesktopLayout {
 
   /** The router moved: going to the map ends the music & tracker view. */
   routed(route){
-    if(route === "" && this.splitOn) this.#setSplit(false);
+    if(route === "" && this.splitOn){ this.#setSplit(false); this.#animate("split-out"); }
     this.update();
   }
 
@@ -119,6 +121,7 @@ export class DesktopLayout {
     if(!this.desktop) return;
     if(!this.music.isOpen) this.music.open();
     this.#setSplit(true);
+    this.#animate("split-in");
     if(this.router.route === "tracker") this.router.refresh();
     else this.router.go("tracker");
   }
@@ -126,7 +129,17 @@ export class DesktopLayout {
   /** Back to the map; the tracker and the music stay open beside it. */
   showMap(){
     this.#setSplit(false);
+    this.#animate("split-out");
     this.router.refresh();
+  }
+
+  /** The music & tracker view coming or going: css/split.css animates the halves in, or the map back. */
+  #animate(kind){
+    if(matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const body = document.body.dataset;
+    body.viewAnim = kind;
+    clearTimeout(this.animTimer);
+    this.animTimer = setTimeout(() => { if(body.viewAnim === kind) delete body.viewAnim; }, 700);
   }
 
   #setSplit(on){
@@ -152,7 +165,7 @@ export class DesktopLayout {
       this.trackerBtn?.setAttribute("aria-pressed", "false");
       return;
     }
-    const tracker = this.router.route === "tracker", music = this.music.isOpen;
+    const tracker = this.router.route === "tracker", music = this.music.isOpen && !this.music.isAway;
     const left = tracker && music ? "both" : tracker ? "tracker" : music ? "music" : "none";
     const vh = innerHeight - this.music.miniHeight, s = this.#clamped();   /* the mini bar along the bottom while the music is closed */
     const split = left === "both" ? vh - s.music : left === "tracker" ? vh : 0;

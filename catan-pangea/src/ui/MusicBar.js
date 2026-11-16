@@ -32,11 +32,17 @@
  *
  * Portrait: a bar along the bottom. Phone landscape: a column on the
  * right. Closed, it shrinks to a thin mini bar along the bottom (every
- * device, like a music app's) — the song, play, next and a way back to the
- * player. Open or closed it measures itself into --music-h / --music-w on
+ * device, like a music app's) — the artwork and the song list on the left,
+ * the song in the middle (tap: the player; swipe sideways: next / previous;
+ * swipe up: the player), previous / play / next on the right. Both slide in
+ * when they appear. Open or closed it measures itself into --music-h / --music-w on
  * <html>, and css/music.css moves the map and the screens out of its way.
  * DesktopLayout can dock it elsewhere (setDock): desktop's left column, or
  * the music half of the music & tracker view.
+ *
+ * It can also be put away for a while (setAway: the season wins screen, the
+ * intro): nothing of it shows, and since a hidden player mustn't play, the
+ * device playing the sound pauses it — and plays on when it's back.
  */
 import { h } from "./dom.js";
 import { describePlayerError, parsePlaylist, playlistUrl, thumbnailUrl } from "../music/playlist.js";
@@ -91,6 +97,9 @@ function songInfo(videoId){
   }
   return titles.get(videoId);
 }
+
+const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+const SWIPE_PX = 44;          /* a sideways swipe this far on the mini bar's song changes it */
 
 /** "phone", "tablet" or "computer" — for "On Sam's phone". */
 const deviceKind = () => matchMedia("(hover: hover) and (pointer: fine)").matches ? "computer"
@@ -152,6 +161,12 @@ export class MusicBar {
     this.renderedIds = "";
     this.seeking = false;        /* the time slider is being dragged */
     this.dock = "bar";           /* "bar" (phones), or desktop's left column: "column" (big player + songs) / "compact" */
+    this.away = new Set();       /* why the music is put away for now ("wins", "splash"); empty: it shows */
+    this.awayListeners = new Set();
+    this.awayAt = 0;
+    this.resumeAfterAway = false; /* it was playing here when put away: play on when it's back */
+    this.swipe = null;           /* the mini bar's song, swiped away: { dir, at } until the next song shows */
+    this.miniSongId = null;
 
     this.#build();
     game.onChange(state => this.#onState(state));
@@ -166,9 +181,13 @@ export class MusicBar {
   }
 
   get isOpen(){ return !this.el.hidden; }
+  /** Put away for now (the season wins screen, the intro): nothing of the music shows. */
+  get isAway(){ return this.away.size > 0; }
+  /** This device plays the table's sound (the speaker). */
+  get isSpeaker(){ return this.#isSpeaker; }
 
-  /** Height of the mini bar along the bottom (0 while the player is open). */
-  get miniHeight(){ return this.isOpen ? 0 : this.mini.offsetHeight; }
+  /** Height of the mini bar along the bottom (0 while the player is open, or the music is away). */
+  get miniHeight(){ return this.isOpen || this.isAway ? 0 : this.mini.offsetHeight; }
 
   /** A button elsewhere (map toolbar, tracker header) that opens / closes the bar. */
   addOpener(button){
@@ -181,6 +200,57 @@ export class MusicBar {
 
   /** Called after the bar opens or closes (the desktop layout makes room). */
   onToggle(fn){ this.toggleListeners.add(fn); }
+  /** Called when the music is put away or comes back. */
+  onAway(fn){ this.awayListeners.add(fn); }
+
+  /**
+   * Put the music away for a reason (or bring it back once no reason is
+   * left). A hidden player mustn't play (YouTube's rules), so on the device
+   * playing the sound the music pauses for everyone and plays on when it's
+   * back — unless someone paused it meanwhile. Someone else pressing play
+   * while it's away for the season wins brings it back (it has to show to
+   * play); the intro ("splash") just holds it for a moment.
+   */
+  setAway(reason, on){
+    const was = this.isAway;
+    if(on) this.away.add(reason); else this.away.delete(reason);
+    const now = this.isAway;
+    if(now === was) return;
+    if(now){
+      this.awayAt = this.#t;
+      this.#showSongs(false);
+      this.#showPop(false);
+      if(this.#isSpeaker && this.pb?.now?.playing && this.isOpen){ this.resumeAfterAway = true; this.#send("pause"); }
+      if(this.#localActive()){ this.quietUntil = this.#t + 2500; this.player.pauseVideo(); }
+    }
+    document.body.toggleAttribute("data-music-away", now);   /* css/music.css hides it all */
+    this.#syncBody();
+    this.#measure();
+    for(const fn of this.awayListeners) fn(now);
+    if(!now){
+      this.#enter(this.isOpen ? this.el : this.mini);
+      const resume = this.resumeAfterAway;
+      this.resumeAfterAway = false;
+      if(resume && this.isOpen && this.#isSpeaker && !this.pb?.now?.playing) this.#playHere();
+    }
+    this.#refresh();
+  }
+
+  /** body[data-music="open"]: the player shows (open, and not away). */
+  #syncBody(){
+    if(this.isOpen && !this.isAway) document.body.dataset.music = "open";
+    else delete document.body.dataset.music;
+  }
+
+  /** Slide in (css/music.css, .is-entering — which way depends on where it's docked). */
+  #enter(el){
+    if(el.hidden || this.isAway || reducedMotion()) return;
+    el.classList.remove("is-entering");
+    void el.offsetWidth;                     /* restart the animation */
+    el.classList.add("is-entering");
+    clearTimeout(el._enterTimer);
+    el._enterTimer = setTimeout(() => el.classList.remove("is-entering"), 600);
+  }
 
   /**
    * Where the bar lives: "bar" — along the bottom / right side (phones);
@@ -193,9 +263,7 @@ export class MusicBar {
     if(mode === this.dock) return;
     this.dock = mode;
     this.el.dataset.dock = mode;
-    /* the column and wide docks list the songs inside the bar; elsewhere it's a sheet of its own */
-    if(mode === "bar"){ if(this.songs.parentElement !== document.body) document.body.prepend(this.songs); }
-    else if(this.songs.parentElement !== this.el) this.el.append(this.songs);
+    this.#placeSongs();
     this.listBtn.hidden = this.#songsInside;
     this.#showSongs(false);
     this.#measure();
@@ -204,10 +272,22 @@ export class MusicBar {
   /** Does this dock list the songs inside the bar (always shown)? */
   get #songsInside(){ return this.dock === "column" || this.dock === "wide"; }
 
+  /** The column and wide docks list the songs inside the open bar; otherwise (and from the mini bar) it's a sheet of its own. */
+  #placeSongs(){
+    const inside = this.isOpen && this.#songsInside;
+    if(inside){ if(this.songs.parentElement !== this.el) this.el.append(this.songs); }
+    else if(this.songs.parentElement !== document.body) document.body.prepend(this.songs);
+    this.songs.toggleAttribute("data-mini", !this.isOpen);
+  }
+
   open(){
+    const was = this.isOpen;
+    this.#showSongs(false);
     this.el.hidden = false;
     this.mini.hidden = true;
-    document.body.dataset.music = "open";
+    this.#syncBody();
+    this.#placeSongs();
+    if(!was) this.#enter(this.el);
     this.storage.set("musicOpen", true);
     if(this.problem && !this.#queueReady){ this.problem = null; this.readKey = null; }   /* couldn't read the playlist: try again */
     this.#measure();
@@ -223,11 +303,14 @@ export class MusicBar {
     if(this.#isSpeaker && this.pb?.now?.playing) this.#send("pause");
     this.player?.pauseVideo?.();
     this.wantPlay = false;
+    const was = this.isOpen;
     this.#showSongs(false);
     this.#showPop(false);
     this.el.hidden = true;
     this.mini.hidden = false;
-    delete document.body.dataset.music;
+    this.#syncBody();
+    this.#placeSongs();
+    if(was) this.#enter(this.mini);
     this.storage.set("musicOpen", false);
     this.#measure();
     this.#paintOpeners();
@@ -283,6 +366,14 @@ export class MusicBar {
   /** Bring this device in line with the shared playback. */
   #refresh(){
     const ready = this.#queueReady;
+    if(this.isAway){
+      /* away for the season wins, and someone else pressed play: it has to show to play here */
+      const n = this.pb?.now;
+      if(ready && this.#isSpeaker && n?.playing && n.by !== this.game.deviceId && this.#t - this.awayAt > 1500
+        && this.away.size === 1 && this.away.has("wins")){ this.resumeAfterAway = false; this.setAway("wins", false); return; }
+      this.#paint();
+      return;
+    }
     if(ready && this.wantPlay){ this.wantPlay = false; this.#elsewhere ? this.#send("play") : this.#playHere(); }
     /* someone pressed play and the sound comes from here: the player shows (never from a hidden player) */
     if(ready && this.#isSpeaker && this.pb.now.playing && !this.isOpen && this.#t - this.closedAt > 3000){ this.open(); return; }
@@ -394,7 +485,7 @@ export class MusicBar {
     if(!this.#isSpeaker) return;
     const t = this.#t;
     if(t - this.lastBeat >= BEAT_MS){ this.lastBeat = t; this.game.musicBeat(); }
-    if(!this.#queueReady) return;
+    if(!this.#queueReady || this.isAway) return;
     if(!this.isOpen){ if(this.pb.now.playing && t - this.closedAt > 3000) this.open(); return; }   /* a play that came in just as it closed */
     if(!this.ready) return;
     const now = this.pb.now;
@@ -505,7 +596,7 @@ export class MusicBar {
 
   async #startReading(key){
     if(this.readKey !== key || this.#queueReady) return;         /* another device read them meanwhile */
-    if(!this.isOpen){ this.readKey = null; return; }             /* read when it next opens */
+    if(!this.isOpen || this.isAway){ this.readKey = null; return; }   /* read when it next opens / shows */
     /* YouTube's loadPlaylist / cuePlaylist keep the old songs once a player has had a playlist: a fresh player */
     await this.#resetPlayer();
     if(this.readKey !== key || this.#queueReady){ this.#refresh(); return; }    /* (a player for the song, then) */
@@ -664,20 +755,26 @@ export class MusicBar {
             h("a", { href:SIGN_IN_URL, target:"_blank", rel:"noopener" }, "sign in to YouTube"),
             " in this browser. That works on Android; on iPhone, Safari usually hides the sign-in from players on other sites."))));
 
-    /* closed: a thin bar along the bottom — tap it (or ⌃) for the player; ▶ plays, ⏭ skips */
+    /* closed: a thin bar along the bottom — the artwork and the song list on the left, the song in the
+       middle (tap or swipe up: the player; swipe sideways: next / previous), ⏮ ▶ ⏭ on the right */
     this.miniArt = h("span", { class:"mini-art", "aria-hidden":"true" });
     this.miniTitle = h("span", { class:"mini-title" });
     this.miniArtist = h("span", { class:"mini-artist" });
+    this.miniText = h("span", { class:"mini-text" }, this.miniTitle, this.miniArtist);
     this.miniLine = h("span", { class:"mini-progress", "aria-hidden":"true" });
+    this.miniSongs = iconButton("Songs", SVG.list, () => this.#showSongs(this.songs.hidden), "music-btn mini-songs");
+    this.miniPrev = iconButton("Previous song", SVG.prev, () => this.#send("skip", -1), "music-btn mini-prev");
     this.miniPlay = iconButton("Play", SVG.play, () => this.#playFromMini(), "music-btn mini-play");
     this.miniNext = iconButton("Next song", SVG.next, () => this.#send("skip", 1), "music-btn mini-next");
+    this.miniMain = h("button", { type:"button", class:"mini-main", "aria-label":"Open the music player",
+      onClick:e => { if(this.swiped){ e.preventDefault(); return; } this.open(); } },
+      h("span", { class:"mini-grip", "aria-hidden":"true" }), this.miniText);
+    this.#wireSwipe(this.miniMain);
     this.mini = h("section", { class:"music-mini", "aria-label":"Music" },
       this.miniLine,
-      h("button", { type:"button", class:"mini-main", "aria-label":"Open the music player", onClick:() => this.open() },
-        this.miniArt, h("span", { class:"mini-text" }, this.miniTitle, this.miniArtist)),
-      this.miniPlay,
-      this.miniNext,
-      iconButton("Open the music player", SVG.up, () => this.open(), "music-btn mini-open"));
+      h("div", { class:"mini-side mini-left" }, this.miniArt, this.miniSongs),
+      this.miniMain,
+      h("div", { class:"mini-side mini-right" }, this.miniPrev, this.miniPlay, this.miniNext));
 
     this.observer = new IntersectionObserver(entries => {
       for(const e of entries) if(e.isIntersecting){ this.observer.unobserve(e.target); this.#fillSong(e.target); }
@@ -685,6 +782,73 @@ export class MusicBar {
 
     document.body.append(this.songs, this.pop, this.el, this.mini);
     this.#paintMini();
+  }
+
+  /**
+   * The mini bar's song follows a finger: sideways far enough changes the
+   * song (left: next, right: previous, like a music app), up opens the
+   * player. A swipe isn't also a tap.
+   */
+  #wireSwipe(zone){
+    let g = null;
+    const text = this.miniText;
+    zone.addEventListener("pointerdown", e => {
+      if(e.button) return;
+      g = { id:e.pointerId, x:e.clientX, y:e.clientY, dir:null };
+      this.swiped = false;
+    });
+    zone.addEventListener("pointermove", e => {
+      if(!g || e.pointerId !== g.id) return;
+      const dx = e.clientX - g.x, dy = e.clientY - g.y;
+      if(!g.dir && Math.hypot(dx, dy) > 8){
+        g.dir = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+        try{ zone.setPointerCapture(e.pointerId); }catch{}
+      }
+      if(g.dir === "x" && this.#queueReady){
+        text.style.transition = "none";
+        text.style.transform = `translateX(${dx * .7}px)`;
+        text.style.opacity = String(Math.max(.25, 1 - Math.abs(dx) / 220));
+      }
+    });
+    const end = e => {
+      if(!g || e.pointerId !== g.id) return;
+      const dx = e.clientX - g.x, dy = e.clientY - g.y, dir = g.dir;
+      g = null;
+      if(!dir) return;
+      this.swiped = true;                       /* the click that follows isn't a tap */
+      setTimeout(() => { this.swiped = false; }, 0);
+      if(dir === "x" && Math.abs(dx) >= SWIPE_PX && this.#queueReady) this.#swipeSong(dx < 0 ? 1 : -1);
+      else if(dir === "y" && dy < -SWIPE_PX / 2){ this.#settleText(); this.open(); }
+      else this.#settleText();
+    };
+    zone.addEventListener("pointerup", end);
+    zone.addEventListener("pointercancel", () => { g = null; this.#settleText(); });
+  }
+
+  /** Swiped: the song slides off that way, and the next one slides in from the other side once it shows. */
+  #swipeSong(delta){
+    const text = this.miniText;
+    this.swipe = { dir:delta, at:Date.now() };
+    text.style.transition = reducedMotion() ? "none" : "transform .16s ease-in, opacity .16s ease-in";
+    text.style.transform = `translateX(${delta < 0 ? 70 : -70}%)`;
+    text.style.opacity = "0";
+    this.#send("skip", delta);
+    clearTimeout(this.swipeTimer);
+    this.swipeTimer = setTimeout(() => { if(this.swipe){ this.swipe = null; this.#settleText(); } }, 1500);   /* no new song showed */
+  }
+
+  /** The song back in the middle (from a swipe: in from the side it went off on the other side of). */
+  #settleText(from = 0){
+    const text = this.miniText;
+    if(from && !reducedMotion()){
+      text.style.transition = "none";
+      text.style.transform = `translateX(${from > 0 ? 70 : -70}%)`;
+      text.style.opacity = "0";
+      void text.offsetWidth;
+    }
+    text.style.transition = reducedMotion() ? "none" : "transform .24s cubic-bezier(.2,.9,.3,1.15), opacity .2s ease-out";
+    text.style.transform = "";
+    text.style.opacity = "";
   }
 
   /** A paste-a-link form (setup and the playlist pop-up each have one). */
@@ -711,6 +875,11 @@ export class MusicBar {
   /** Publish the bar's size; a column (taller than wide) takes width, a bottom bar height. */
   #measure(){
     const root = document.documentElement.style;
+    if(this.isAway){                                  /* nothing shows */
+      root.setProperty("--music-h", "0px");
+      root.setProperty("--music-w", "0px");
+      return;
+    }
     if(!this.isOpen){                                 /* the mini bar: always along the bottom */
       root.setProperty("--music-h", `${this.mini.offsetHeight}px`);
       root.setProperty("--music-w", "0px");
@@ -789,10 +958,15 @@ export class MusicBar {
   #paintMini(){
     const setup = !this.listId, ready = this.#queueReady;
     this.mini.dataset.state = setup ? "setup" : "player";
-    this.miniPlay.hidden = setup;
-    this.miniNext.hidden = setup;
-    this.miniNext.disabled = !ready;
+    for(const b of [this.miniPlay, this.miniNext, this.miniPrev, this.miniSongs]) b.hidden = setup;
+    for(const b of [this.miniNext, this.miniPrev]) b.disabled = !ready;
     const song = ready ? this.now : null;
+    /* a new song after a swipe slides in from the far side */
+    const shownId = song?.title ? song.id : null;
+    if(shownId && shownId !== this.miniSongId){
+      this.miniSongId = shownId;
+      if(this.swipe && Date.now() - this.swipe.at < 4000){ const dir = this.swipe.dir; this.swipe = null; clearTimeout(this.swipeTimer); this.#settleText(dir); }
+    }
     const art = song?.id ? thumbnailUrl(song.id) : null;
     if(this.miniArt.dataset.src !== (art ?? "")){
       this.miniArt.dataset.src = art ?? "";
@@ -843,15 +1017,21 @@ export class MusicBar {
   /* ---------------- songs sheet ---------------- */
 
   #showSongs(show){
-    if(this.#songsInside) show = true;               /* these docks always have room for the list */
+    if(this.isOpen && this.#songsInside) show = true;   /* these docks always have room for the list */
+    if(this.isAway) show = false;
     if(show) this.#showPop(false);
+    const appearing = show && this.songs.hidden;
     this.songs.hidden = !show;
+    if(appearing && !(this.isOpen && this.#songsInside)) this.#enter(this.songs);
     this.listBtn.setAttribute("aria-pressed", String(show));
+    this.miniSongs?.setAttribute("aria-pressed", String(show && !this.isOpen));
     if(show) this.#renderSongs();
   }
 
   #showPop(show){
     if(show) this.#showSongs(false);
+    if(this.isAway) show = false;
+    if(show && this.pop.hidden){ this.pop.hidden = false; this.#enter(this.pop); }
     this.pop.hidden = !show;
     this.popBtn.setAttribute("aria-pressed", String(show));
     if(show) this.#paintHere();

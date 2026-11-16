@@ -9,6 +9,12 @@
  * publishes its map as the session; "New map" replaces the session for
  * everyone; a session arriving from another phone is restored from its
  * snapshot, so every phone shows the identical map.
+ *
+ * A new map builds itself in (BoardView's animation) wherever the map is on
+ * screen; its sounds play on the device that pressed New map and on the one
+ * playing the music (the phone cast to the TV), not on every phone at the
+ * table. Every page load opens with the intro (Splash); signing in ends
+ * with "Welcome, Lord …".
  */
 import { Annealer, AbortError, GENERATORS, randomSeedName, restoreBoard } from "../engine/index.js";
 import { Settings } from "./Settings.js";
@@ -18,7 +24,7 @@ import { GameController } from "./GameController.js";
 import { Router } from "./Router.js";
 import { InstallHelper, IOS_STEPS } from "./InstallHelper.js";
 import { createStore } from "../sync/createStore.js";
-import { COUNTERS } from "../game/rules.js";
+import { COUNTERS, colorById } from "../game/rules.js";
 import { SegmentedControl } from "../ui/controls.js";
 import { BoardView } from "../ui/BoardView.js";
 import { ScoreCard } from "../ui/ScoreCard.js";
@@ -30,6 +36,9 @@ import { VictoryOverlay } from "../ui/VictoryOverlay.js";
 import { MusicBar } from "../ui/MusicBar.js";
 import { DesktopLayout } from "../ui/DesktopLayout.js";
 import { WinterEffect } from "../ui/WinterEffect.js";
+import { Sound } from "../ui/Sound.js";
+import { Splash } from "../ui/Splash.js";
+import { AccountLine } from "../ui/AccountLine.js";
 import { JoinScreen } from "../ui/screens/JoinScreen.js";
 import { TrackerScreen } from "../ui/screens/TrackerScreen.js";
 import { WinsScreen } from "../ui/screens/WinsScreen.js";
@@ -39,6 +48,8 @@ import { saveBoardImage } from "../ui/imageExport.js";
 
 /** How long to wait for the shared game before showing a local map. */
 const CONNECT_TIMEOUT_MS = 6000;
+
+const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 export class App {
   /** @param {Document} doc */
@@ -58,6 +69,8 @@ export class App {
     this.shownSessionId = null;    /* the shared game whose board is on screen */
     this.seatedIn = null;          /* session id this device was last seated in */
 
+    this.sound = new Sound();
+    this.splash = new Splash({ sound:this.sound });   /* the intro is on screen already (index.html) */
     this.toast = new Toast();
     this.install = new InstallHelper(this.storage);
     this.identity = new Identity();
@@ -79,13 +92,16 @@ export class App {
     });
     $("modeSwitch").append(this.modeSwitch.el);
 
-    this.router = new Router({ mapEl:$("app"), docked:route => !!this.layout?.docks(route), onRoute:route => this.layout?.routed(route) });
+    this.router = new Router({ mapEl:$("app"), docked:route => !!this.layout?.docks(route), onRoute:route => this.#routed(route) });
     this.music = new MusicBar({ game:this.game, toast:this.toast, storage:this.storage });
+    this.music.setAway("splash", true);      /* held back while the intro is up */
     const deps = {
       game:this.game, router:this.router, toast:this.toast, music:this.music, install:this.install,
       confirm:msg => window.confirm(msg),
       ensureSession:() => this.#ensureSession(),
       installApp:() => this.installApp(),
+      /** "Welcome, Lord Sam" over everything; `covered` runs once it hides what's underneath */
+      welcome:(who, opts) => this.splash.welcome(who, opts),
     };
     this.screens = [new JoinScreen(deps), new TrackerScreen(deps), new WinsScreen(deps), new AdminScreen(deps)];
     for(const s of this.screens) this.router.register(s);
@@ -95,6 +111,11 @@ export class App {
     this.layout = new DesktopLayout({ router:this.router, music:this.music, storage:this.storage,
       trackerBtn:$("trackerBtn"), splitBtn:$("splitBtn"), topbar:doc.querySelector(".topbar") });
     deps.layout = this.layout;     /* the tracker's back button leaves the music & tracker view */
+    this.account = new AccountLine($("account"), {
+      game:this.game,
+      onSignOut:() => { this.game.signOut(); this.router.go("join"); },
+      onSignIn:() => this.router.go("join"),
+    });
     this.game.onChange(state => this.#onGameState(state));
 
     this.#wire($);
@@ -104,19 +125,40 @@ export class App {
     this.install.registerServiceWorker();
     this.router.start();
     this.dom.note.textContent = "Loading the game…";
-    const store = await createStore();
-    const first = await Promise.race([
-      this.game.connect(store),
-      new Promise(resolve => setTimeout(() => resolve(null), CONNECT_TIMEOUT_MS)),
-    ]);
-    if(!first){
-      this.toast.show("Can't reach the game server — showing a local map for now.");
-      await this.newGame({ kind:"boot" });
-      return;
-    }
-    if(!first.session) await this.newGame({ kind:"boot" });
-    /* a player who isn't seated in the current game starts at the join screen */
-    if(!this.router.route && !this.game.mySeat) this.router.go("join", { replace:true });
+    /* the intro holds until the game has loaded, then fades into choosing an account — or,
+       for someone signed in and seated, into "Welcome, Lord …" and on to the map */
+    let loaded;
+    const ready = new Promise(r => { loaded = r; });
+    const release = () => this.music.setAway("splash", false);
+    this.splash.intro({ until:ready, next:() => this.#greeting(), onReveal:release }).then(release, release);
+    try{
+      const store = await createStore();
+      const first = await Promise.race([
+        this.game.connect(store),
+        new Promise(resolve => setTimeout(() => resolve(null), CONNECT_TIMEOUT_MS)),
+      ]);
+      if(!first){
+        this.toast.show("Can't reach the game server — showing a local map for now.");
+        await this.newGame({ kind:"boot" });
+        return;
+      }
+      if(!first.session) await this.newGame({ kind:"boot" });
+      /* a player who isn't seated in the current game starts at the join screen */
+      if(!this.router.route && !this.game.mySeat) this.router.go("join", { replace:true });
+    }finally{ loaded(); }
+  }
+
+  /** The welcome after the intro: only for someone signed in here and seated in the game. */
+  #greeting(){
+    const seat = this.game.mySeat;
+    return seat ? { name:seat.profile.name, note:`You're ${colorById(seat.color)?.label ?? "seated"}` } : null;
+  }
+
+  /** Every route change: the desktop layout, and the music is put away while the season wins are up. */
+  #routed(route){
+    this.layout?.routed(route);
+    this.music?.setAway("wins", route === "wins");
+    document.getElementById("winsBtn")?.setAttribute("aria-pressed", String(route === "wins"));
   }
 
   /** Apply a settings patch, persist it, and reflect it in the views. */
@@ -154,7 +196,7 @@ export class App {
       });
       if(ctrl.signal.aborted) return true;
       this.board = board;
-      this.#render();
+      this.#render({ build:kind === "user", sound:true });       /* New map: it builds itself in, with sounds here */
       if(this.game.ready) await this.game.publishBoard(board, this.settings.toJSON(), { onlyIfNone:kind === "boot" });
     }catch(err){
       if(err instanceof AbortError) return true;
@@ -199,9 +241,9 @@ export class App {
   #onGameState(state){
     if(!state){ for(const s of this.screens) if(s.visible) s.render(null); return; }
     if(state.session && state.sessionId !== this.shownSessionId){
-      const wasSeated = !!this.seatedIn;
+      const wasSeated = !!this.seatedIn, fresh = this.shownSessionId !== null;   /* (not the first game seen after loading) */
       this.shownSessionId = state.sessionId;
-      this.#showSessionBoard(state.session);
+      this.#showSessionBoard(state.session, fresh);
       /* a new game with fewer seats left this player out: pick again */
       if(wasSeated && !this.game.mySeat){
         this.toast.show("New game started with fewer seats — pick a color to join.");
@@ -214,7 +256,8 @@ export class App {
     this.winter.set(state.session ? state.counters.walker : 0);
   }
 
-  #showSessionBoard(session){
+  /** @param {boolean} [fresh]  a new game someone just started: it builds itself in (sounds only on the music's speaker) */
+  #showSessionBoard(session, fresh = false){
     /* already on screen (we just published it) */
     if(this.board && this.board.seed === session.meta.seed && this.board.generatorId === session.board.generatorId){
       return;
@@ -224,7 +267,7 @@ export class App {
       if(this.inflight?.kind === "boot") this.inflight.ctrl.abort();   /* someone else got there first */
       this.board = board;
       if(session.settings) this.update(session.settings);
-      this.#render();
+      this.#render({ build:fresh, sound:this.music.isSpeaker });
     }catch(err){
       console.error(err);
       this.toast.show("Couldn't load the shared map.");
@@ -233,9 +276,17 @@ export class App {
 
   /* ---------- map view ---------- */
 
-  #render(){
+  /**
+   * @param {object} [p]
+   * @param {boolean} [p.build]  a new map: build it in — where the map's on screen
+   * @param {boolean} [p.sound]  …with its sounds on this device
+   */
+  #render({ build = false, sound = false } = {}){
     if(!this.board) return;
-    this.boardView.render(this.board, readBoardPalette());
+    const route = this.router.route;
+    const onScreen = (!route || !!this.layout?.docks(route)) && !this.splash.showing && document.visibilityState === "visible";
+    const animate = build && onScreen && !reducedMotion();
+    this.boardView.render(this.board, readBoardPalette(), { animate, sound:animate && sound ? this.sound : null });
     this.scoreCard.render(this.board);
     this.dom.note.textContent = this.board.lanes ? "Dashed ports can only be reached by ship." : "";
   }
@@ -261,6 +312,8 @@ export class App {
     this.music.addOpener($("musicBtn"));
     /* hide the map: the tracker and the music half and half (desktop) */
     $("splitBtn").addEventListener("click", () => this.layout.enterSplit());
+    /* season wins: in the top bar only (the music is put away while it's up) */
+    $("winsBtn").addEventListener("click", () => this.router.route === "wins" ? this.router.back() : this.router.go("wins"));
     /* install: shown until the app is installed (Android / desktop: the browser's dialog; iPhone: how-to) */
     const installBtn = $("installBtn");
     const syncInstall = () => { installBtn.hidden = !this.install.mode; };
