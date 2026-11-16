@@ -36,6 +36,11 @@
   --ice:      #2A74B4;          /* WALKER letters */
   --ice-glow: rgb(70 160 245 / .55);
 
+  --spark: #E3A20E;             /* season badges: the crown's sparkles, */
+  --fly:   #3F3D39;             /* the flies, */
+  --wing:  rgb(110 135 160 / .9);
+  --stink: #5F8F1C;             /* the stink */
+
   --radius: 12px;
   --shadow: 0 1px 2px rgb(0 0 0 / .05), 0 10px 30px -12px rgb(0 0 0 / .22);
 
@@ -55,6 +60,7 @@
     --board-red:#B3382C; --board-port:#8E897F; --board-port-3:#E9E4D8; --board-label:#A8A59E;
     --shadow: 0 1px 2px rgb(0 0 0 / .4), 0 12px 34px -14px rgb(0 0 0 / .8);
     --ice:#D2EEFF; --ice-glow:rgb(110 190 255 / .75);
+    --spark:#FFE07A; --fly:#B9B5AC; --wing:rgb(200 225 245 / .85); --stink:#AEDB5E;
   }
 }
 :root[data-theme="dark"]{
@@ -67,4 +73,5 @@
   --board-red:#B3382C; --board-port:#8E897F; --board-port-3:#E9E4D8; --board-label:#A8A59E;
   --shadow: 0 1px 2px rgb(0 0 0 / .4), 0 12px 34px -14px rgb(0 0 0 / .8);
   --ice:#D2EEFF; --ice-glow:rgb(110 190 255 / .75);
+  --spark:#FFE07A; --fly:#B9B5AC; --wing:rgb(200 225 245 / .85); --stink:#AEDB5E;
 }

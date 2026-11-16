@@ -204,6 +204,13 @@ test("admin: remove a profile (frees its seat, drops its wins); wins edit never 
   let s = await state();
   const wins = Object.fromEntries(s.winsFor(season).map(r => [r.profile.name, r.wins]));
   assert.deepEqual(wins, { Alice:0, Bob:1, Carol:1 });
+  const leaders = Object.fromEntries(s.winsFor(season).map(r => [r.profile.name, r.leader]));
+  assert.deepEqual(leaders, { Alice:false, Bob:true, Carol:true }, "a tie for first: both lead");
+  await alice.adjustWins(ids.bob, season, +1);
+  assert.deepEqual(Object.fromEntries((await state()).winsFor(season).map(r => [r.profile.name, r.leader])), { Alice:false, Bob:true, Carol:false });
+  assert.ok((await state()).winsFor(season - 1).every(r => !r.leader), "nobody leads a season with no wins");
+  await alice.adjustWins(ids.bob, season, -1);
+  s = await state();
 
   await alice.removeProfile(ids.carol);
   s = await state();

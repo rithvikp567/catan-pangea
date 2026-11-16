@@ -89,14 +89,20 @@ export class GameState {
     return [...years].sort((a, b) => b - a);
   }
 
-  /** Total wins per profile for a season (ledger entries sum; never below 0). */
+  /**
+   * Total wins per profile for a season (ledger entries sum; never below 0),
+   * most first. `leader`: in first place — the most wins, at least one (a
+   * tie shares it).
+   */
   winsFor(season){
     const totals = new Map(this.profiles.map(p => [p.id, 0]));
     for(const e of Object.values(this.wins[season] ?? {})){
       if(totals.has(e.profileId)) totals.set(e.profileId, totals.get(e.profileId) + (e.delta ?? 1));
     }
-    return this.profiles
+    const rows = this.profiles
       .map(p => ({ profile:p, wins:Math.max(0, totals.get(p.id)) }))
       .sort((a, b) => b.wins - a.wins || a.profile.name.localeCompare(b.profile.name));
+    const top = rows[0]?.wins ?? 0;
+    return rows.map(r => ({ ...r, leader:top > 0 && r.wins === top }));
   }
 }

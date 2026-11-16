@@ -318,6 +318,92 @@
 .wins-name{ font-weight:550; }
 .wins-count{ font-size:20px; font-weight:650; font-variant-numeric:tabular-nums; }
 .wins-count small{ font-size:12px; font-weight:500; color:var(--ink-3); }
+
+/* ---------- season badges (ui/badges.js): a crown for first place, a turd for the rest ----------
+   8-bit like the winter frost: art pixels are 2 px, and moves go in whole
+   art pixels (steps) where they can. Everything may spill a little out of
+   its box (sparkles, stink, flies) — the row has room. */
+.wins-list[data-badges] .wins-row{ grid-template-columns:28px 40px minmax(0,1fr) auto; }
+.badge{ position:relative; display:block; width:40px; height:44px; pointer-events:none; }
+.badge svg{ display:block; overflow:visible; }
+.badge .badge-art{ position:absolute; left:2px; }
+.badge-crown .badge-art{ top:7px; animation:crown-glow 2.4s ease-in-out infinite alternate; }
+.badge-turd .badge-art{ bottom:1px; }
+
+/* the crown: a glint sweeps across, it glows, sparkles twinkle round it */
+.crown-shine{ transform:translateX(-10px); animation:crown-shine 3.2s infinite; }
+@keyframes crown-shine{
+  0%{ transform:translateX(-10px); animation-timing-function:steps(30, end); }
+  34%, 100%{ transform:translateX(20px); }
+}
+@keyframes crown-glow{
+  from{ filter:drop-shadow(0 0 1px rgb(255 190 40 / .35)); }
+  to{ filter:drop-shadow(0 0 6px rgb(255 190 40 / .95)); }
+}
+.spark{ position:absolute; width:10px; height:10px; transform:scale(0); animation:twinkle 2.1s step-end infinite; }
+.spark-1{ left:-5px; top:2px; }
+.spark-2{ right:-5px; top:-1px; animation-duration:2.7s; animation-delay:-.9s; transform:none; }
+.spark-3{ right:-3px; bottom:2px; animation-duration:3.3s; animation-delay:-2.2s; }
+@keyframes twinkle{
+  0%, 52%{ transform:scale(0); }
+  60%{ transform:scale(.6); }
+  68%{ transform:scale(1); }
+  80%{ transform:scale(.6); }
+  88%, 100%{ transform:scale(0); }
+}
+.spark-px{ fill:var(--spark); }
+.spark-core{ fill:#FFFFFF; }
+
+/* the turd: wisps of stink rise (and wiggle), two flies buzz round it */
+.stink{ position:absolute; bottom:22px; width:6px; height:14px; opacity:.8; animation:stink-rise 2.4s infinite; }
+.stink-1{ left:8px; }
+.stink-2{ left:17px; bottom:25px; animation-delay:-.8s; }
+.stink-3{ left:26px; animation-delay:-1.6s; }
+.stink-wave{ display:block; animation:stink-wiggle .7s step-end infinite; }
+.stink-px{ fill:var(--stink); }
+@keyframes stink-rise{
+  0%{ transform:translateY(6px); opacity:0; animation-timing-function:steps(3, end); }
+  30%{ transform:translateY(0); opacity:.9; animation-timing-function:steps(5, end); }
+  100%{ transform:translateY(-10px); opacity:0; }
+}
+@keyframes stink-wiggle{ 0%{ transform:none; } 50%{ transform:scaleX(-1); } }
+
+.fly{ position:absolute; left:15px; top:20px; width:10px; height:8px; }
+.fly-1{ transform:translate(-14px, -9px); animation:fly-loop 2.3s linear infinite; }
+.fly-2{ transform:translate(13px, -14px); animation:fly-eight 3.1s linear infinite; }
+.fly-buzz{ display:block; animation:buzz .24s step-end infinite; }
+.fly-2 .fly-buzz{ animation-delay:-.11s; }
+.fly-px{ fill:var(--fly); }
+.wing-px{ fill:var(--wing); }
+.wings-up, .wings-down{ animation:flap .1s step-end infinite; }
+.wings-down{ animation-delay:-.05s; }
+@keyframes flap{ 0%{ opacity:1; } 50%{ opacity:0; } }
+@keyframes buzz{
+  0%{ transform:none; } 25%{ transform:translate(1px, -1px); }
+  50%{ transform:translate(-1px, 0); } 75%{ transform:translate(0, 1px); }
+}
+@keyframes fly-loop{
+  0%, 100%{ transform:translate(-18px, -4px); }
+  12%{ transform:translate(-12px, -14px); }
+  25%{ transform:translate(-2px, -18px); }
+  37%{ transform:translate(10px, -14px); }
+  50%{ transform:translate(17px, -4px); }
+  62%{ transform:translate(12px, 4px); }
+  75%{ transform:translate(2px, -3px); }
+  87%{ transform:translate(-8px, 3px); }
+}
+@keyframes fly-eight{
+  0%, 100%{ transform:translate(14px, -16px); }
+  14%{ transform:translate(4px, -9px); }
+  28%{ transform:translate(-8px, -16px); }
+  42%{ transform:translate(-16px, -8px); }
+  57%{ transform:translate(-6px, -2px); }
+  71%{ transform:translate(6px, -9px); }
+  85%{ transform:translate(17px, -6px); }
+}
+@media (prefers-reduced-motion:reduce){
+  .badge, .badge *{ animation:none !important; }
+}
 .admin-list{ display:flex; flex-direction:column; }
 .admin-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:58px; }
 .admin-row + .admin-row{ border-top:1px solid var(--line); }

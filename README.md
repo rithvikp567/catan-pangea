@@ -3,7 +3,8 @@
 Random-continent Catan map generator and live game tracker for game night:
 free-form continents with the coastline kept tight, numbers and ports
 optimised for a fair draft, and a shared scoreboard (VP, cities and knights, karma,
-robber, the WALKER word with its 8-bit winter, honor coins, season wins) synced
+robber, the WALKER word with its 8-bit winter, honor coins, season wins with a
+crown for first place and turds for the rest) synced
 across everyone's phone, plus a docked YouTube music player for the table's
 playlist — one shared player that every phone controls while the phone cast
 to the TV plays the sound. Two board types — **Open Sea** and
