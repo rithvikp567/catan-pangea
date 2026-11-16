@@ -11,7 +11,7 @@
 body[data-desk] .app{ margin-left:var(--left-w, 0px); }
 body[data-desk] .screen{ left:var(--left-w, 0px); }
 body[data-desk] .victory{ left:var(--left-w, 0px); }
-body[data-desk] .toast{ left:calc(var(--left-w) + (100% - var(--left-w) - var(--panel-w)) / 2); bottom:24px; }
+body[data-desk] .toast{ left:calc(var(--left-w) + (100% - var(--left-w) - var(--panel-w)) / 2); bottom:calc(24px + var(--music-h)); }
 body[data-desk] dialog.about{
   width:min(720px, calc(100% - var(--left-w) - 48px));
   margin-left:calc(var(--left-w) + max(24px, (100% - var(--left-w) - 720px) / 2)); margin-right:auto;
@@ -23,9 +23,6 @@ body[data-desk] .screen[data-screen="tracker"]{
   left:0; right:auto; top:0; bottom:auto; width:var(--left-w); height:var(--split);
   padding:0; border-right:1px solid var(--line);
   container-type:size;           /* the seat rows share the column's height, not the window's */
-}
-body[data-desk] .screen[data-screen="tracker"] .vp-row{
-  min-height:clamp(42px, calc((100cqh - var(--tracker-chrome)) / var(--seats, 4)), 54px);
 }
 
 /* ---------- the music: the bottom of the column (all of it without the tracker) ---------- */
@@ -72,10 +69,10 @@ body[data-desk] .music-pop{ max-height:calc(100% - 32px); }
 .splitter{ display:none; position:fixed; z-index:77; touch-action:none; outline:none; }
 body[data-desk] .splitter[data-split="panel"]{
   display:block; z-index:31;   /* the settings column is a grid item with z-index 30 */
-  top:var(--top-h); bottom:0; right:calc(var(--panel-w) - 4px); width:8px; cursor:col-resize;
+  top:var(--top-h); bottom:var(--music-h); right:calc(var(--panel-w) - 4px); width:8px; cursor:col-resize;
 }
 body[data-desk]:not([data-left="none"]) .splitter[data-split="left"]{
-  display:block; top:0; bottom:0; left:calc(var(--left-w) - 4px); width:8px; cursor:col-resize;
+  display:block; top:0; bottom:var(--music-h); left:calc(var(--left-w) - 4px); width:8px; cursor:col-resize;   /* (the mini bar, when the music is closed) */
 }
 body[data-desk][data-left="both"] .splitter[data-split="split"]{
   display:block; left:0; width:var(--left-w); top:calc(var(--split) - 4px); height:8px; cursor:row-resize;

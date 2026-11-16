@@ -13,8 +13,12 @@
  *   - YouTube's own controls and ads are left alone.
  *
  * Portrait: a bar along the bottom. Phone landscape: a column on the
- * right. While open it measures itself into --music-h / --music-w on
- * <html>, and css/music.css moves the map and the screens out of its way.
+ * right. Closed, it shrinks to a thin mini bar along the bottom (every
+ * device, like a music app's) — the song, a play button and a way back to
+ * the player; play opens the player and plays (YouTube's rules: nothing
+ * plays while the player is hidden, so closing still pauses). Open or
+ * closed it measures itself into --music-h / --music-w on <html>, and
+ * css/music.css moves the map and the screens out of its way.
  * DesktopLayout can dock it elsewhere (setDock): desktop's left column,
  * or the music half of the music & tracker view (any device).
  * The playlist link is shared (GameState.music); playback is per phone —
@@ -37,6 +41,8 @@ const SVG = {
   list:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M4 6h12M4 11h12M4 16h7"/><path d="M19 10v8"/><circle cx="17" cy="18" r="2"/></svg>`,
   close:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>`,
   link:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a4.5 4.5 0 0 0 6.36 0l3-3a4.5 4.5 0 0 0-6.36-6.36l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.36 0l-3 3a4.5 4.5 0 0 0 6.36 6.36l1-1"/></svg>`,
+  up:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 14.5l6-6 6 6"/></svg>`,
+  note:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17.5V6l10-2v11.5"/><circle cx="6.5" cy="17.5" r="2.5"/><circle cx="16.5" cy="15.5" r="2.5"/></svg>`,
   external:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>`,
 };
 
@@ -101,11 +107,15 @@ export class MusicBar {
     this.startAt = null;         /* { index, t } for the next player — pick up where you left off */
     this.playedHere = false;     /* nothing is saved for this profile until music has played on this device */
     this.dock = "bar";           /* "bar" (phones), or desktop's left column: "column" (big player + songs) / "compact" */
+    this.now = null;             /* { id, title, author } of the song in the player, for the mini bar */
+    this.cued = null;            /* the same for the song picked up from another device before the player exists */
     this.toggleListeners = new Set();
 
     this.#build();
     game.onChange(state => this.#onState(state));
-    new ResizeObserver(() => this.#measure()).observe(this.el);
+    const sizes = new ResizeObserver(() => this.#measure());
+    sizes.observe(this.el);
+    sizes.observe(this.mini);
     addEventListener("resize", () => this.#measure());       /* rotation can move the bar without resizing it */
     document.addEventListener("visibilitychange", () => {
       this.#keepAwake();
@@ -116,6 +126,9 @@ export class MusicBar {
   }
 
   get isOpen(){ return !this.el.hidden; }
+
+  /** Height of the mini bar along the bottom (0 while the player is open). */
+  get miniHeight(){ return this.isOpen ? 0 : this.mini.offsetHeight; }
 
   /** A button elsewhere (map toolbar, tracker header) that opens / closes the bar. */
   addOpener(button){
@@ -153,6 +166,7 @@ export class MusicBar {
 
   open(){
     this.el.hidden = false;
+    this.mini.hidden = true;
     document.body.dataset.music = "open";
     this.storage.set("musicOpen", true);
     this.#measure();
@@ -171,6 +185,7 @@ export class MusicBar {
     this.#showSongs(false);
     this.#showPop(false);
     this.el.hidden = true;
+    this.mini.hidden = false;
     delete document.body.dataset.music;
     this.storage.set("musicOpen", false);
     this.#measure();
@@ -203,6 +218,7 @@ export class MusicBar {
     this.listId = spot.listId;
     this.pendingListId = null;
     this.startAt = { index, t };
+    this.#cue(index === (spot.index ?? 0) ? spot.videoId : null);     /* (a later song: not known until the player loads) */
     if(this.playerReady){                       /* made (or still loading) without the spot: start again */
       await this.#resetPlayer();
       this.startAt = { index, t };
@@ -278,11 +294,23 @@ export class MusicBar {
             h("a", { href:SIGN_IN_URL, target:"_blank", rel:"noopener" }, "sign in to YouTube"),
             " in this browser. That works on Android; on iPhone, Safari usually hides the sign-in from players on other sites."))));
 
+    /* closed: a thin bar along the bottom — tap it (or ⌃) for the player, ▶ opens it and plays */
+    this.miniArt = h("span", { class:"mini-art", "aria-hidden":"true" });
+    this.miniTitle = h("span", { class:"mini-title" });
+    this.miniArtist = h("span", { class:"mini-artist" });
+    this.miniPlay = iconButton("Play", SVG.play, () => this.#playFromMini(), "music-btn mini-play");
+    this.mini = h("section", { class:"music-mini", "aria-label":"Music" },
+      h("button", { type:"button", class:"mini-main", "aria-label":"Open the music player", onClick:() => this.open() },
+        this.miniArt, h("span", { class:"mini-text" }, this.miniTitle, this.miniArtist)),
+      this.miniPlay,
+      iconButton("Open the music player", SVG.up, () => this.open(), "music-btn mini-open"));
+
     this.observer = new IntersectionObserver(entries => {
       for(const e of entries) if(e.isIntersecting){ this.observer.unobserve(e.target); this.#fillSong(e.target); }
     }, { root:this.songList, rootMargin:"200px" });
 
-    document.body.append(this.songs, this.pop, this.el);
+    document.body.append(this.songs, this.pop, this.el, this.mini);
+    this.#paintMini();
   }
 
   /** A paste-a-link form (setup and the songs sheet each have one). */
@@ -358,6 +386,7 @@ export class MusicBar {
     this.pendingListId = null;
     this.listId = listId;
     this.startAt = null;
+    this.cued = null;
     this.renderedIds = "";
     if(this.player){
       /* YouTube's loadPlaylist / cuePlaylist keep the old songs once a playlist is
@@ -377,7 +406,7 @@ export class MusicBar {
     clearInterval(this.saveTimer);
     clearInterval(this.loadPoll);
     this.player?.destroy?.();
-    Object.assign(this, { player:null, playerReady:null, playing:false, started:false, shuffleApplied:false, order:[] });
+    Object.assign(this, { player:null, playerReady:null, playing:false, started:false, shuffleApplied:false, order:[], now:null });
     this.renderedIds = "";
     this.host = h("div");
     this.video.replaceChildren(this.host);
@@ -405,7 +434,19 @@ export class MusicBar {
     if(!this.player) return;
     if(this.playing){ this.player.pauseVideo(); return; }
     this.player.playVideo();
-    /* a phone that hasn't played yet ignores this — point at the video */
+    this.#hintFirstTap();
+  }
+
+  /** The mini bar's play: open the player and play. */
+  #playFromMini(){
+    this.open();
+    this.wantsMusic = true;
+    this.#startPlayer(true);
+    this.#hintFirstTap();
+  }
+
+  /** A phone that hasn't played yet ignores our play button — point at the video. */
+  #hintFirstTap(){
     if(!this.started) setTimeout(() => {
       if(!this.started) this.toast.show("Tap the video to start — phones need the first tap on the player itself.", { ms:4000 });
     }, 1500);
@@ -517,8 +558,13 @@ export class MusicBar {
   /** Publish the bar's size; a column (taller than wide) takes width, a bottom bar height. */
   #measure(){
     const root = document.documentElement.style;
+    if(!this.isOpen){                                 /* the mini bar: always along the bottom */
+      root.setProperty("--music-h", `${this.mini.offsetHeight}px`);
+      root.setProperty("--music-w", "0px");
+      return;
+    }
     /* in desktop's left column the layout makes room itself (DesktopLayout) */
-    const open = this.isOpen && this.dock === "bar", w = this.el.offsetWidth, ht = this.el.offsetHeight, side = ht > w;
+    const open = this.dock === "bar", w = this.el.offsetWidth, ht = this.el.offsetHeight, side = ht > w;
     root.setProperty("--music-h", open && !side ? `${ht}px` : "0px");
     root.setProperty("--music-w", open && side ? `${w}px` : "0px");
   }
@@ -533,6 +579,7 @@ export class MusicBar {
 
   #paint(){
     const setup = !this.listId;
+    this.#paintMini();
     this.el.dataset.state = setup ? "setup" : "player";
     this.video.hidden = setup;
     this.side.hidden = setup;
@@ -555,9 +602,36 @@ export class MusicBar {
     const id = data.video_id || (this.player.getPlaylist?.() ?? [])[this.player.getPlaylistIndex?.()];
     const hint = this.started ? null : "Tap the video to start";
     if(!id){ this.#setNow("Ready to play", hint ?? ""); return; }
-    if(data.title) this.#setNow(data.title, hint ?? data.author ?? "");
+    if(data.title){ this.now = { id, title:data.title, author:data.author ?? "" }; this.#setNow(data.title, hint ?? data.author ?? ""); }
+    else if(this.now?.id !== id) this.now = { id, title:"", author:"" };
     const info = await songInfo(id);
-    if(info && this.#currentId() === id) this.#setNow(info.title, (this.started ? null : hint) ?? info.author);
+    if(info && this.#currentId() === id){
+      this.now = { id, title:info.title, author:info.author };
+      this.#setNow(info.title, (this.started ? null : hint) ?? info.author);
+    }
+  }
+
+  /** The song picked up from another device, shown on the mini bar until the player exists. */
+  async #cue(videoId){
+    this.cued = videoId ? { id:videoId, title:"", author:"" } : null;
+    this.#paintMini();
+    const info = videoId ? await songInfo(videoId) : null;
+    if(info && this.cued?.id === videoId){ this.cued = { id:videoId, title:info.title, author:info.author }; this.#paintMini(); }
+  }
+
+  #paintMini(){
+    const setup = !this.listId;
+    this.mini.dataset.state = setup ? "setup" : "player";
+    this.miniPlay.hidden = setup;
+    const song = setup ? null : (this.player ? this.now : this.cued) ?? null;
+    const art = song?.id ? thumbnailUrl(song.id) : null;
+    if(this.miniArt.dataset.src !== (art ?? "")){
+      this.miniArt.dataset.src = art ?? "";
+      if(art) this.miniArt.replaceChildren(h("img", { src:art, alt:"", width:44, height:44 }));
+      else this.miniArt.innerHTML = SVG.note;   /* static, trusted markup */
+    }
+    this.miniTitle.textContent = setup ? "Music for the table" : song?.title || (this.player ? this.title.textContent : "Your playlist");
+    this.miniArtist.textContent = setup ? "Tap to add a YouTube playlist" : song?.title ? song.author : "Tap play to start";
   }
 
   #currentId(){
@@ -567,6 +641,7 @@ export class MusicBar {
   #setNow(title, artist){
     this.title.textContent = title;
     this.artist.textContent = artist;
+    this.#paintMini();
   }
 
   /* ---------------- songs sheet ---------------- */

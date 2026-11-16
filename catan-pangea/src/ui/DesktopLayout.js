@@ -1,7 +1,6 @@
 /**
  * The desktop arrangement (≥ 900 × 560 — the same query as the settings
- * sidebar) with its drag handles, and the music & tracker view, which
- * every device gets.
+ * sidebar) with its drag handles, and the music & tracker view.
  *
  * Desktop:
  *   ┌────────────┬───────────────────────────┬────────────┐
@@ -19,11 +18,12 @@
  * tracker on top, music below (the list moves into a sheet until the
  * music is given room for it). The map stays usable beside the tracker.
  *
- * The music & tracker view (the top bar's "hide the map" button, any
- * device) hides the map and gives the tracker and the music half the
- * screen each — side by side when the screen is wider than tall (axis x),
- * tracker over music on a phone held upright (axis y) — with a bar on the
- * line between them to drag:
+ * The music & tracker view (the top bar's "hide the map" button, desktop
+ * only — on a phone it would just be the tracker over the music bar) hides
+ * the map and gives the tracker and the music half the screen each — side
+ * by side when the window is wider than tall (axis x), tracker over music
+ * in a portrait window (axis y) — with a bar on the line between them to
+ * drag:
  *
  *   ┌───────────┬───────────┐      ┌───────────┐
  *   │ tracker   │ 16:9      │      │ tracker   │
@@ -72,10 +72,11 @@ export class DesktopLayout {
    * @param {import("./MusicBar.js").MusicBar} p.music
    * @param {import("../app/storage.js").SafeStorage} p.storage
    * @param {HTMLElement} [p.trackerBtn]   shows pressed while the tracker is docked
+   * @param {HTMLElement} [p.splitBtn]     opens the music & tracker view (shown on desktop only)
    * @param {HTMLElement} [p.topbar]
    */
-  constructor({ router, music, storage, trackerBtn = null, topbar = null }){
-    Object.assign(this, { router, music, storage, trackerBtn, topbar });
+  constructor({ router, music, storage, trackerBtn = null, splitBtn = null, topbar = null }){
+    Object.assign(this, { router, music, storage, trackerBtn, splitBtn, topbar });
     this.mq = matchMedia(DESKTOP_QUERY);
     const saved = storage.get("desktopLayout", {}) ?? {};
     this.size = { ...DEFAULTS };
@@ -102,7 +103,7 @@ export class DesktopLayout {
   get desktop(){ return this.mq.matches; }
 
   /** Is the music & tracker view on screen? */
-  get splitActive(){ return this.splitOn && this.music.isOpen && this.router.route === "tracker"; }
+  get splitActive(){ return this.desktop && this.splitOn && this.music.isOpen && this.router.route === "tracker"; }
 
   /** Does this route sit beside the map, leaving the map usable? (Not in the music & tracker view: no map there.) */
   docks(route){ return this.desktop && route === "tracker" && !(this.splitOn && this.music.isOpen); }
@@ -115,20 +116,17 @@ export class DesktopLayout {
 
   /** Hide the map: the tracker and the music half and half (opening either if needed). */
   enterSplit(){
+    if(!this.desktop) return;
     if(!this.music.isOpen) this.music.open();
     this.#setSplit(true);
     if(this.router.route === "tracker") this.router.refresh();
     else this.router.go("tracker");
   }
 
-  /**
-   * Back to the map. Desktop keeps the tracker and the music open beside
-   * it; a phone has no room for that, so it's just the map (with the music bar).
-   */
+  /** Back to the map; the tracker and the music stay open beside it. */
   showMap(){
     this.#setSplit(false);
-    if(this.desktop) this.router.refresh();
-    else this.router.go("");
+    this.router.refresh();
   }
 
   #setSplit(on){
@@ -143,6 +141,7 @@ export class DesktopLayout {
 
   update(){
     const root = document.documentElement.style, body = document.body.dataset;
+    if(this.splitBtn) this.splitBtn.hidden = !this.desktop;
     if(this.splitActive){ this.#paintSplit(); return; }
     delete body.view; delete body.axis;
     root.removeProperty("--half");
@@ -155,7 +154,7 @@ export class DesktopLayout {
     }
     const tracker = this.router.route === "tracker", music = this.music.isOpen;
     const left = tracker && music ? "both" : tracker ? "tracker" : music ? "music" : "none";
-    const vh = innerHeight, s = this.#clamped();
+    const vh = innerHeight - this.music.miniHeight, s = this.#clamped();   /* the mini bar along the bottom while the music is closed */
     const split = left === "both" ? vh - s.music : left === "tracker" ? vh : 0;
     body.desk = "";
     body.left = left;

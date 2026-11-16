@@ -201,21 +201,6 @@ details.advanced .group{ border-top:0; padding-top:4px; }
 .seed-line .icon-btn{ width:32px; height:32px; }
 .seed-line .icon-btn svg{ width:16px; height:16px; }
 
-.score-chip{
-  position:absolute; top:6px; left:12px; z-index:2;
-  display:flex; align-items:center; gap:8px;
-  min-height:36px; padding:0 12px 0 10px;
-  border:1px solid var(--line); border-radius:999px;
-  background:color-mix(in srgb, var(--surface) 88%, transparent);
-  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
-  font-size:13px; font-weight:600; cursor:pointer;
-}
-.score-chip .dot{ width:8px; height:8px; border-radius:50%; background:var(--ink-3); }
-.score-chip[data-key="good"] .dot{ background:var(--good); }
-.score-chip[data-key="ok"]   .dot{ background:var(--ok); }
-.score-chip[data-key="bad"]  .dot{ background:var(--bad); }
-.score-chip .val{ font-variant-numeric:tabular-nums; }
-.score-chip .lbl{ color:var(--ink-2); font-weight:500; }
 
 /* ---------- about dialog ---------- */
 dialog.about{
@@ -253,17 +238,24 @@ dialog.about::backdrop{ background:rgb(0 0 0 / .45); }
    Phone landscape: the board takes the full height on the left.
    ========================================================================== */
 @media (orientation:landscape) and (max-height:559px){
+  /* a slim rail on the right: smaller, quieter controls (a browser leaves ~300 px of height) */
   .app{
-    grid-template-columns:minmax(0,1fr) 216px;
+    grid-template-columns:minmax(0,1fr) 188px;
     grid-template-rows:auto minmax(0,1fr) auto;
     grid-template-areas:"stage top" "stage ." "stage dock";
   }
-  .topbar{ padding:10px 12px 0 0; gap:8px; }
+  .topbar{ padding:8px 10px 0 0; gap:6px; }
+  .brand{ font-size:14px; gap:6px; }
+  .brand svg{ width:16px; height:16px; }
   .topbar .mode{ order:3; }
-  .topbar .mode .seg{ font-size:13px; padding:0 6px; }
+  .topbar .segmented{ padding:2px; border-radius:9px; }
+  .topbar .mode .seg{ min-height:30px; padding:0 6px; border-radius:7px; font-size:12.5px; }
   .tools{ flex:1 1 100%; justify-content:space-between; gap:0; }   /* icons span the rail, lined up with the buttons below */
-  .brand{ font-size:15px; }
-  .dock{ flex-direction:column; padding:0 12px calc(10px + env(safe-area-inset-bottom)) 0; }
+  .tools .icon-btn{ height:34px; flex-basis:34px; border-radius:8px; }
+  .tools .icon-btn svg{ width:18px; height:18px; }
+  .dock{ flex-direction:column; gap:6px; padding:0 10px calc(8px + env(safe-area-inset-bottom)) 0; }
+  .dock .btn{ min-height:38px; padding:0 12px; gap:6px; border-radius:10px; font-size:13.5px; }
+  .dock .btn svg{ width:16px; height:16px; }
   .stage{ padding:6px 4px 6px 8px; }
   .panel{
     top:0; left:auto; width:min(380px, 88vw);
@@ -297,7 +289,7 @@ dialog.about::backdrop{ background:rgb(0 0 0 / .45); }
   }
   .dock{ border-left:1px solid var(--line); padding:12px 22px 22px; }
 
-  .sheet-head .icon-btn, #settingsBtn, .score-chip, .scrim{ display:none !important; }
+  .sheet-head .icon-btn, #settingsBtn, .scrim{ display:none !important; }
   .sheet-head{ position:static; padding-top:12px; background:transparent; }
 
   dialog.about{

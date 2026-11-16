@@ -11,6 +11,10 @@
  *     either — the app is made for phones; the browser's own install icon
  *     in the address bar still works for anyone who wants it.
  *
+ * Full screen without installing: browsers that let a page go full screen
+ * (Android, iPad) get a button for it too. iPhone browsers don't — there
+ * only the installed app (Add to Home Screen from Safari) hides the bars.
+ *
  * The service worker (sw.js) is registered here too: browsers want one
  * before they offer to install, and it lets the app open with no signal.
  */
@@ -37,10 +41,23 @@ export class InstallHelper {
     navigator.serviceWorker.register("sw.js").catch(err => console.warn("Offline support unavailable", err));
   }
 
-  /** Running as the installed app (home screen / app window)? */
+  /** Running as the installed app (home screen / app window)? (Our own full screen doesn't count.) */
   get installed(){
     return this.justInstalled || navigator.standalone === true
-      || matchMedia("(display-mode: standalone), (display-mode: fullscreen)").matches;
+      || (matchMedia("(display-mode: standalone), (display-mode: fullscreen)").matches && !document.fullscreenElement);
+  }
+
+  /** Can this page go full screen itself? (Android and iPad browsers; not iPhone, computers or the installed app.) */
+  get canFullscreen(){
+    return !!document.fullscreenEnabled && !this.computer && !this.installed;
+  }
+
+  /** Full screen on / off — needs a tap behind it. */
+  async toggleFullscreen(){
+    try{
+      if(document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen({ navigationUI:"hide" });
+    }catch(err){ console.warn("Full screen not available", err); }
   }
 
   /** A desktop computer? (No install button or card there.) */

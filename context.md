@@ -112,8 +112,12 @@ on the tracker): everything works, but nothing is shared between phones.
   (C&K / Base), Ship to port (Sea Lanes only); Advanced: Coastline (Loose
   0.80 / Standard 0.90 / Tight 0.95), Optimiser (Quick 6k / Standard 12k /
   Thorough 20k annealing steps), Replay a seed. Settings persist per device.
-- Map score (0–100, four parts) shown as a chip on the board and a card in
-  settings, with the seed (copy button).
+- Map score (0–100, four parts) shown as a card in settings, with the seed
+  (copy button). The board itself stays clear (the score chip over it went
+  in 2.6.0 — on phones the score is one tap away behind Settings).
+- Phone landscape: the board on the left, a slim rail on the right (188 px:
+  brand, icons, board type, then Settings / Tracker / New map at 38 px) —
+  sized to fit the ~300 px a browser leaves in landscape.
 - Save / share the board as a PNG (share sheet on phones, download on desktop).
 - Light / dark theme (follows the system until toggled).
 - "How it works" dialog explaining the math.
@@ -132,11 +136,19 @@ on the tracker): everything works, but nothing is shared between phones.
   their seat and color** (if the new map has fewer seats, the players who
   don't fit pick again), **season wins are kept**.
 - **Tracker screen** (`#/tracker`, *Tracker* button in the dock):
-  - **Fits one phone screen without scrolling** (3–6 players on a current
-    iPhone in Safari, measured at 393 × 659; on an iPhone SE-sized screen
-    it scrolls a little). The seat rows share the height the rest leaves
-    (42–54 px each): `--tracker-chrome` in `screens.css` is the measured
-    height of everything else (404 px since the walker row).
+  - **Fits one phone screen without scrolling.** The seat rows share the
+    height the rest leaves (42–54 px each, from `100cqh` — the tracker is a
+    size container, so the music bar, the mini bar and the browser's bars
+    all count): `--tracker-chrome` in `screens.css` is the measured height
+    of everything else (404 px since the walker row). When even 42 px rows
+    don't fit (a phone with the music player open: ~440 px in Brave or
+    Safari), `TrackerScreen` sets `data-fit="tight"`: the card titles step
+    aside (still read by screen readers — the tiles name themselves), the
+    two shared cards merge into one, the counters drop to 36 px and the
+    seed / "Playing as" line moves below the cards
+    (`--tracker-chrome-tight`, 252 px). Measured in Brave on an iPhone
+    (393 × 656): 3–4 players fit with the music open, up to 4 roomy with
+    it closed; 5–6 scroll a little with it open.
   - Victory points & honor — one row per seat (seat count = the map's
     player count): that player's honor coin in their color (only the owner
     can flip it; "Honorable" / "Dishonorable" under the name), then VP
@@ -182,7 +194,15 @@ on the tracker): everything works, but nothing is shared between phones.
 
 ### Music (YouTube playlist)
 
-- The **♪** button (map toolbar, tracker header) opens the **music bar**:
+- **Closed, it's a mini bar** along the bottom of every screen (phones
+  either way up, and desktop): the song's artwork, title and artist, a
+  play button and ⌃. Tap it (or ⌃, or **♪**) and the player pops open;
+  its play opens the player and plays. Closing the player pauses the music
+  — YouTube's rules don't allow playing from a hidden player — so the mini
+  bar is the paused state, one tap from playing again. Before anything has
+  played it shows the song picked up from another device, or *Music for
+  the table* to add a playlist.
+- The **♪** button (map toolbar, tracker header) pops open the **music bar**:
   the YouTube player (200 × 200 on phones, 16:9 on wider screens) with
   Previous / Play–Pause / Next, Shuffle, **Songs** (tap any song to play it;
   titles come from YouTube's oEmbed endpoint — no API key), **Playlist**
@@ -196,12 +216,14 @@ on the tracker): everything works, but nothing is shared between phones.
   can see you're signed in — works on Android Chrome; iPhone Safari's
   cross-site tracking protection usually hides the sign-in.
 - **Docked on every screen:** a bar along the bottom in portrait, a column
-  on the right in phone landscape (the best way to cast to a 16:9 TV), the
-  left column on desktop (see Desktop), or half the screen in the music &
-  tracker view (see below). The
-  map and every screen shrink to make room — `MusicBar` measures itself
-  into `--music-h` / `--music-w` and `css/music.css` applies them. In
-  portrait Safari the tracker scrolls about 90 px while the bar is open.
+  on the right in phone landscape (the best way to cast to a 16:9 TV: the
+  200 × 200 player with previous / play / next stacked beside it and the
+  song and other buttons in one row under it, 277 px wide, so it fits a
+  browser's short landscape view), the left column on desktop (see
+  Desktop), or half the window in the music & tracker view (see below).
+  The map and every screen shrink to make room — `MusicBar` measures the
+  bar (or the mini bar, when closed) into `--music-h` / `--music-w` and
+  `css/music.css` applies them.
 - **One shared playlist link** (`/v1/music`): paste a YouTube or YouTube
   Music playlist link once and every phone has it; anyone can change it
   from the Songs sheet. **Playback is per phone** — only the phone that's
@@ -238,6 +260,13 @@ on the tracker): everything works, but nothing is shared between phones.
   app's background — `apple-mobile-web-app-status-bar-style: default`, so
   the text stays readable in the light theme). The layout already pads for
   the notch and home bar (`viewport-fit=cover`).
+- **Full screen without installing:** where the browser lets a page go full
+  screen (Android browsers, iPad), a full-screen icon in the top bar does it
+  (`InstallHelper.canFullscreen` / `toggleFullscreen`). **iPhone browsers
+  can't** — Apple only allows a video to go full screen there, in Safari,
+  Brave and every other iPhone browser alike — so on iPhone the installed
+  app (Add to Home Screen, from Safari) is the only way to hide the bars.
+  Not shown on desktop computers or in the installed app.
 - **Opens with no signal.** `sw.js` keeps a copy of every file the app
   loads (and Firebase's SDK). Online it always fetches fresh files first —
   a deploy reaches everyone the next time they open the app; offline, or
@@ -272,14 +301,15 @@ on the tracker): everything works, but nothing is shared between phones.
   `--left-w` / `--split` / `--music-top` / `--panel-w` / `--top-h`);
   `css/desktop.css` lays it out. Phones never get any of it.
 
-### Music & tracker view (every device)
+### Music & tracker view (desktop)
 
-- **Hide the map.** The split-screen icon in the map's top bar (every
-  device) hides the map, the settings and the dock, and gives the screen to
-  the **tracker and the music, half each** — opening either one if it was
-  closed. Side by side when the screen is wider than tall (desktop, a
-  sideways phone), **tracker on top and music below** on a phone held
-  upright (or a portrait desktop window).
+- **Hide the map.** The split-screen icon in the map's top bar (desktop
+  only — 2.5.0 had it on phones too, where it was really just the tracker
+  over the music bar, so 2.6.0 took it off them) hides the map, the
+  settings and the dock, and gives the window to the **tracker and the
+  music, half each** — opening either one if it was closed. Side by side
+  when the window is wider than tall, **tracker on top and music below** in
+  a portrait window.
 - **The music half** (`wide` dock): the YouTube player at 16:9 across the
   half (capped so the songs keep ~170 px; never under 200 px tall — on a
   narrow half it letterboxes rather than shrink), the song and the controls
@@ -295,10 +325,10 @@ on the tracker): everything works, but nothing is shared between phones.
   than its player needs (400 px wide side by side, 320 px tall stacked);
   the tracker's minimum (300 / 200 px) gives way first on a small screen.
   Side by side and stacked each keep their own share (`halves` /
-  `halvesY` in the saved layout), so turning a phone keeps both.
-- **Ending it:** the tracker's back arrow ("Back to the map": on desktop the
-  tracker and music stay docked beside the map; on a phone it's the map),
-  the back gesture, or closing the music. The view itself is remembered per
+  `halvesY` in the saved layout).
+- **Ending it:** the tracker's back arrow ("Back to the map": the tracker
+  and music stay docked beside the map), the back gesture, or closing the
+  music. The view itself is remembered per
   device (`splitView`), so a reload on the tracker comes back to it; Enter
   doesn't make a new map while it's up.
 - `DesktopLayout` runs it too (`enterSplit` / `showMap` / `splitActive`):
@@ -409,7 +439,7 @@ catan-pangea/                       ← deployed as-is to GitHub Pages
   css/music.css                     music bar + how everything else makes room for it
   css/winter.css                    the WALKER snow / frost overlay
   css/desktop.css                   desktop left column (tracker + music), drag handles
-  css/split.css                     music & tracker view (map hidden, two halves), every device
+  css/split.css                     music & tracker view (map hidden, two halves), desktop
   src/main.js                       entry point → new App(document).start()
   src/engine/                       MAP ENGINE — pure, DOM-free (browser, Node, or a worker)
     hex.js                          axial coords, integer vertex lattice, distances, pixels
@@ -453,13 +483,13 @@ catan-pangea/                       ← deployed as-is to GitHub Pages
   src/ui/                           VIEWS
     BoardView.js                    SVG board renderer (concrete colors → exportable)
     SettingsPanel.js, controls.js   settings form; SegmentedControl, Stepper, CounterControl, holdRepeat
-    ScoreCard.js, Sheet.js          score card/chip; settings bottom-sheet / drawer
+    ScoreCard.js, Sheet.js          score card (settings); settings bottom-sheet / drawer
     ThemeController.js, palette.js  theme; board colors
     imageExport.js, Toast.js, dom.js  PNG/share; toasts; h()/s() DOM builders
     VictoryOverlay.js               victory / defeat screen
     MusicBar.js                     docked YouTube player (IFrame API), songs sheet, playlist link, resume across devices
     WinterEffect.js                 8-bit snow + frost that build up as WALKER fills
-    DesktopLayout.js                desktop left column + its drag handles; the music & tracker view (every device)
+    DesktopLayout.js                desktop left column + its drag handles; the music & tracker view
     screens/Screen.js               base class for full-screen views
     screens/JoinScreen.js, TrackerScreen.js, WinsScreen.js, AdminScreen.js, widgets.js
 tests/                              node:test (engine, store, game service)
@@ -606,7 +636,8 @@ your run created afterwards — never `DELETE /v1` once real data exists.
   tighter bound can still step back one at a time; `wraps:true` (the
   walker) makes + on the maximum go back to the minimum (pass `wraps` to
   `CounterControl` too). Adding a row of tiles makes the screen
-  taller: re-measure and update `--tracker-chrome`. Add a test.
+  taller: re-measure and update `--tracker-chrome` (and
+  `--tracker-chrome-tight`, measured with `data-fit="tight"`). Add a test.
 - **New per-player stat:** add the field to seats in `newSession()`, read it
   in `GameState.seats`, add a `GameService` method using a seat
   transaction, render it in `TrackerScreen.#buildSeats`.
@@ -681,6 +712,11 @@ your run created afterwards — never `DELETE /v1` once real data exists.
 - **`Screen.build()` runs inside the base constructor**, before a
   subclass's `#private` methods exist — call only public methods from
   `build()`.
+- **The tracker is a size container** (`container-type:size` on its
+  screen, every layout): its seat rows use `100cqh`, and `TrackerScreen`
+  switches `data-fit` from its own measured height (a `ResizeObserver`), so
+  anything that takes height away — the music bar, the mini bar, a
+  browser's bars — is handled the same way.
 - **Grid items honour `z-index`** without `position`: the desktop
   settings column (z-index 30) sits above anything fixed below 31.
 - **Screens get `deps.layout` after they're built** (`App` creates
@@ -700,6 +736,21 @@ your run created afterwards — never `DELETE /v1` once real data exists.
 ## 10. Changelog
 
 Keep newest first. Every feature PR adds an entry and updates the sections above.
+
+- **2.6.0 — Mini player, tidier phones.** Closed, the music is now a thin
+  mini bar along the bottom of every screen (phones and desktop): artwork,
+  song, play and ⌃; **♪** or a tap pops the player open, and its play opens
+  it and plays (closing still pauses — YouTube's rules). Phone landscape:
+  the player keeps YouTube's 200 × 200 minimum with previous / play / next
+  stacked beside it and the rest in one row under it, and the middle rail
+  is slimmer with smaller, quieter controls — all of it fits the ~300 px a
+  browser leaves in landscape. The tracker reorganises itself when the
+  screen is short (the music open on a phone): card titles step aside, the
+  shared cards merge, the seed line moves below — 3–4 players fit with the
+  music open. The score chip over the map is gone (the score is in
+  Settings). The music & tracker view is desktop-only again. A full-screen
+  button where the browser allows it (Android, iPad; iPhone browsers
+  can't — the installed app is the way there).
 
 - **2.5.0 — Music & tracker view; smaller desktop player.** A split-screen
   icon in the top bar (every device) hides the map and splits the screen
