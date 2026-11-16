@@ -8,6 +8,35 @@ import { SegmentedControl, Stepper, field } from "./controls.js";
 import { PLAYER_COUNTS, PROFILES, SHIP_RULES, COASTLINES, QUALITIES } from "../app/Settings.js";
 import { MIN_TILES, Smax } from "../engine/index.js";
 
+/**
+ * A <details> that slides open and shut (it would just jump): its content's
+ * height and opacity animate, and the + turns into × (css: .is-open).
+ */
+function animateDetails(details){
+  const summary = details.querySelector("summary"), body = details.querySelector(".group");
+  let anim = null;
+  const done = () => { anim = null; body.style.overflow = ""; };
+  summary.addEventListener("click", e => {
+    e.preventDefault();
+    const opening = !details.classList.contains("is-open");
+    details.classList.toggle("is-open", opening);
+    anim?.cancel();
+    if(matchMedia("(prefers-reduced-motion: reduce)").matches){ details.open = opening; return; }
+    body.style.overflow = "hidden";
+    if(opening){
+      details.open = true;
+      const hgt = body.offsetHeight;
+      anim = body.animate([{ height:"0px", opacity:0, transform:"translateY(-8px)" }, { height:`${hgt}px`, opacity:1, transform:"none" }],
+        { duration:300, easing:"cubic-bezier(.2,.8,.2,1)" });
+      anim.onfinish = done;
+    }else{
+      const hgt = body.offsetHeight;
+      anim = body.animate([{ height:`${hgt}px`, opacity:1 }, { height:"0px", opacity:0 }], { duration:220, easing:"ease-in" });
+      anim.onfinish = () => { details.open = false; done(); };
+    }
+  });
+}
+
 export class SettingsPanel {
   /**
    * @param {HTMLElement} root
@@ -54,13 +83,7 @@ export class SettingsPanel {
     const replay = () => { const v = seedInput.value.trim(); if(v) onReplaySeed(v); };
     seedInput.addEventListener("keydown", e => { if(e.key === "Enter"){ e.preventDefault(); replay(); } });
 
-    root.replaceChildren(
-      h("div", { class:"group" },
-        field("Players", this.players.el),
-        field("Land tiles", this.tiles.el, null, { inline:true }),
-        field("Game", this.profile.el),
-        this.shipField),
-      h("details", { class:"advanced" },
+    const advanced = h("details", { class:"advanced" },
         h("summary", {}, "Advanced"),
         h("div", { class:"group" },
           field("Coastline", this.coastline.el, this.coastHint),
@@ -68,7 +91,15 @@ export class SettingsPanel {
             h("p", { class:"field-hint" }, "Thorough balances a little better but takes longer on a phone.")),
           field("Replay a seed",
             h("div", { class:"seed-row" }, seedInput, h("button", { type:"button", class:"btn", onClick:replay }, "Replay")),
-            h("p", { class:"field-hint" }, "Same seed + same settings = the identical board.")))),
+            h("p", { class:"field-hint" }, "Same seed + same settings = the identical board."))));
+    animateDetails(advanced);
+    root.replaceChildren(
+      h("div", { class:"group" },
+        field("Players", this.players.el),
+        field("Land tiles", this.tiles.el, null, { inline:true }),
+        field("Game", this.profile.el),
+        this.shipField),
+      advanced,
     );
     this.sync(settings);
   }

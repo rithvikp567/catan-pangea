@@ -64,6 +64,8 @@ export class GameController {
   get ownProfile(){ return this.state?.profiles.find(p => p.deviceId === this.identity.deviceId) ?? null; }
 
   selectProfile(id){ this.identity.profileId = id; this.#emit(); }
+  /** Forget the profile on this device (its seat stays: picking it again is straight back in). */
+  signOut(){ this.selectProfile(null); }
 
   /* ---------- intents ---------- */
 
@@ -98,8 +100,8 @@ export class GameController {
     return seat ? this.#run(() => this.service.flipCoin(seat.key, seat.profileId)) : Promise.resolve();
   }
   adjustCounter(name, delta){ return this.#run(() => this.service.adjustCounter(name, delta)); }
-  cycleRobber(){ return this.#run(() => this.service.cycleRobber()); }
-  collectRobber(){ return this.#run(() => this.service.collectRobber()); }
+  abstainRobber(){ return this.#run(() => this.service.abstainRobber()); }
+  rob(){ return this.#run(() => this.service.rob()); }
 
   /** @returns {Promise<boolean>} whether the board became the shared game */
   publishBoard(board, settings, { onlyIfNone = false } = {}){

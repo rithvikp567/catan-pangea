@@ -160,44 +160,75 @@ body[data-music="open"] dialog.about::backdrop{ background:transparent; }
   .music[data-state="setup"]{ grid-template-columns:244px; grid-template-rows:none; }
 }
 
-/* ---------- the mini bar (the player closed): a thin strip along the bottom, every device ---------- */
+/* ---------- the mini bar (the player closed): a thin strip along the bottom, every device ----------
+   the artwork and Songs on the left, the song in the middle (tap / swipe up: the player; swipe
+   sideways: next / previous), ⏮ ▶ ⏭ on the right. The middle column gets the room first (up to
+   34em), then the sides share what's left equally — so on a wide screen the song sits exactly in
+   the middle, and on a phone it fills the space between the buttons. */
 .music-mini{
   /* (and the song's progress along its top edge) */
   position:fixed; z-index:75; left:0; right:0; bottom:0;
-  display:flex; align-items:center; gap:6px;
+  display:grid; grid-template-columns:minmax(max-content, 1fr) minmax(0, 34em) minmax(max-content, 1fr);
+  align-items:center; gap:6px;
   padding:6px max(8px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
   background:var(--surface); border-top:1px solid var(--line);
   box-shadow:0 -4px 14px rgb(0 0 0 / .06);
 }
+.mini-side{ display:flex; align-items:center; gap:4px; }
+.mini-left{ justify-self:start; }
+.mini-right{ justify-self:end; }
 .mini-main{
-  flex:1 1 auto; min-width:0; display:flex; align-items:center; gap:10px;
-  padding:0 4px 0 0; border:0; border-radius:10px; background:none; color:inherit; text-align:left; cursor:pointer;
+  min-width:0; min-height:46px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+  padding:0 4px; border:0; border-radius:10px; background:none; color:inherit; text-align:center; cursor:pointer;
+  overflow:hidden; touch-action:none;   /* the swipes are ours */
 }
+.mini-grip{ flex:none; width:28px; height:3px; border-radius:2px; background:var(--line); }
 .mini-art{
   flex:none; width:40px; height:40px; display:grid; place-items:center; overflow:hidden;
   border-radius:8px; background:var(--surface-2); color:var(--ink-3);
 }
 .mini-art img{ width:100%; height:100%; object-fit:cover; display:block; }
 .mini-art svg{ width:20px; height:20px; }
-.mini-text{ display:flex; flex-direction:column; min-width:0; line-height:1.25; }
-.mini-title{ font-size:14px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.mini-artist{ font-size:12px; color:var(--ink-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mini-text{ display:flex; flex-direction:column; align-items:center; max-width:100%; min-width:0; line-height:1.25; }
+.mini-title{ max-width:100%; font-size:14px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mini-artist{ max-width:100%; font-size:12px; color:var(--ink-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.music-mini .music-btn{ width:36px; height:36px; }
+.music-mini .music-btn svg{ width:20px; height:20px; }
 .music-mini .mini-play{ width:38px; height:38px; background:var(--primary); color:var(--primary-ink); }
 .music-mini .mini-play svg{ width:18px; height:18px; }
-.music-mini .mini-next{ width:36px; height:36px; }
-.music-mini .mini-next svg{ width:20px; height:20px; }
-.music-mini .mini-open{ width:36px; height:36px; color:var(--ink-2); }
+.music-mini .mini-songs{ color:var(--ink-2); }
 .mini-progress{
   position:absolute; left:0; right:0; top:-1px; height:2px; pointer-events:none;
   background:var(--primary); transform-origin:left center; transform:scaleX(0); transition:transform .5s linear;
 }
 .music-mini[data-state="setup"] .mini-progress{ display:none; }
-.music-mini .mini-open svg{ width:20px; height:20px; }
 @media (hover:hover){ .mini-main:hover .mini-title{ text-decoration:underline; text-underline-offset:2px; } }
 /* desktop: the same strip, a little roomier */
 @media (min-width:900px) and (min-height:560px){
   .music-mini{ padding-left:16px; padding-right:16px; gap:10px; }
+  .mini-side{ gap:8px; }
 }
+
+/* ---------- slide in as they appear (MusicBar adds .is-entering): up from the bottom,
+   from the right in phone landscape, from the left in the desktop column ---------- */
+.music.is-entering, .music-mini.is-entering{ animation:music-up .32s cubic-bezier(.2,.85,.25,1); }
+.music-sheet.is-entering{ animation:sheet-up .28s cubic-bezier(.2,.85,.25,1); }
+@keyframes music-up{ from{ transform:translateY(100%); } }
+@keyframes sheet-up{ from{ opacity:0; transform:translateY(28px); } }
+@keyframes music-from-right{ from{ transform:translateX(100%); } }
+@keyframes sheet-from-right{ from{ opacity:0; transform:translateX(28px); } }
+@keyframes music-from-left{ from{ opacity:0; transform:translateX(-48px); } }
+@keyframes music-fade{ from{ opacity:0; transform:scale(.98); } }
+@media (orientation:landscape) and (max-height:559px){
+  .music.is-entering{ animation-name:music-from-right; }
+  .music-sheet.is-entering{ animation-name:sheet-from-right; }
+}
+body[data-desk] .music.is-entering{ animation-name:music-from-left; }
+body[data-view="split"] .music.is-entering{ animation-name:music-fade; }
+@media (prefers-reduced-motion:reduce){ .is-entering{ animation:none !important; } }
+
+/* ---------- put away (the season wins, the intro): nothing of the music shows ---------- */
+body[data-music-away] :is(.music, .music-mini, .music-songs, .music-pop){ display:none !important; }
 
 /* ---------- sheets (songs, playlist): above the bar (beside it in landscape), never over the player ---------- */
 .music-sheet{

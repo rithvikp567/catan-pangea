@@ -64,11 +64,11 @@ body[data-desk] .music[data-state="setup"] > .music-songs{ display:none; }
 /* the playlist pop-up (and the songs, when compact) open beside the column, never over the player */
 body[data-desk] .music-sheet,
 body[data-desk] .music[data-dock="compact"] > .music-songs{
-  position:fixed; z-index:74; left:calc(var(--left-w) + 16px); right:auto; top:auto; bottom:16px;
+  position:fixed; z-index:74; left:calc(var(--left-w) + 16px); right:auto; top:auto; bottom:calc(16px + var(--music-h));   /* (above the mini bar: the songs from it) */
   width:420px; border:1px solid var(--line); border-radius:16px;
 }
-body[data-desk] .music-songs{ height:min(560px, calc(100% - 32px)); }
-body[data-desk] .music-pop{ max-height:calc(100% - 32px); }
+body[data-desk] .music-songs{ height:min(560px, calc(100% - 32px - var(--music-h))); }
+body[data-desk] .music-pop{ max-height:calc(100% - 32px - var(--music-h)); }
 
 /* ---------- drag handles ---------- */
 .splitter{ display:none; position:fixed; z-index:77; touch-action:none; outline:none; }

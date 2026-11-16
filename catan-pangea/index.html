@@ -28,7 +28,11 @@
     <header class="topbar">
       <div class="brand">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l8.66 5v10L12 22l-8.66-5V7z" fill="#3E6B48"/></svg>
-        <span>Pangaea</span>
+        <span class="brand-text">
+          <span class="brand-name">Pangaea</span>
+          <!-- who's signed in on this device: "Sam · Sign out" (AccountLine) -->
+          <span class="account" id="account" hidden></span>
+        </span>
       </div>
       <div class="mode" id="modeSwitch"></div>
       <div class="tools">
@@ -40,6 +44,9 @@
         </button>
         <button class="icon-btn" id="splitBtn" hidden type="button" aria-label="Hide the map: tracker and music" title="Hide the map — tracker and music, half and half">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M12 4.5v15M6 9.5h3M6 12.5h3M6 15.5h2"/><path d="M15.2 10v5l3.8-2.5z" fill="currentColor" stroke-width="1.2"/></svg>
+        </button>
+        <button class="icon-btn" id="winsBtn" type="button" aria-label="Season wins" title="Season wins" aria-pressed="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8.5 20h7M10 17h4"/></svg>
         </button>
         <button class="icon-btn" id="musicBtn" type="button" aria-label="Music" title="Music" aria-pressed="false">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17.5V6l10-2v11.5"/><circle cx="6.5" cy="17.5" r="2.5"/><circle cx="16.5" cy="15.5" r="2.5"/></svg>
@@ -133,12 +140,13 @@ v1 = 3A − S + 3 − 3L      (the generator fills lakes, so L = 0)</pre>
       </table></div>
 
       <h3>Game tracker</h3>
-      <p>Tap <b>Tracker</b> during the game. Everyone joins with their profile and a color nobody else has; the game is the map on screen, so <b>New map</b> starts a fresh game for everyone — you keep your seat and color, and season wins are kept. It tracks victory points (13 wins), each player's honor coin (flip your own), knights on the main island and off island, cities, karma, and the robber — <b>Collect</b> takes the robber's value off karma.</p>
+      <p>Tap <b>Tracker</b> during the game. Everyone joins with their profile and a color nobody else has; the game is the map on screen, so <b>New map</b> starts a fresh game for everyone — you keep your seat and color, and season wins are kept. It tracks victory points (13 wins), each player's honor coin (flip your own), knights on the main island and off island, cities, karma, and the robber — <b>Abstain</b> makes the robber worth one more (up to 3), <b>Rob</b> takes its value off karma and starts it over at 1.</p>
       <p><b>WALKER</b> gets a letter each time a 7 is rolled with the barbarians — tap <b>+</b>. As the word fills, the letters shake harder and winter sets in on every phone: pixel snow and frost. <b>+</b> on the full word starts it over and the snow melts away.</p>
-      <p>On another phone or computer, pick your profile on the welcome screen: if you're in the game you're straight back at the tracker.</p>
+      <p>On another phone or computer, pick your profile on the welcome screen: if you're in the game you're straight back at the tracker. Your name and <b>Sign out</b> sit next to Pangaea at the top.</p>
+      <p><b>Season wins</b> (the trophy at the top) shows the standings and, under them, a calendar: each day shows who won it — tap the day for everyone's points at that win. Swipe the calendar, or use the arrows under it, for other months. The music is out of the way while it's open (on the phone playing it, it pauses and plays on when you leave).</p>
 
       <h3>Music</h3>
-      <p>Tap <b>♪</b> (or the thin music bar along the bottom) to pop the player open: your YouTube or YouTube Music playlist (public or unlisted) with previous / play / next, shuffle and the song list. It stays docked under the map and the tracker — on the right when the phone is sideways — so the phone you cast to the TV shows the board and plays the music. Paste the link once and every phone has it; change it with the <b>🔗</b> button. On a phone, start the first song by tapping the video; after that the buttons work. Closing the player pauses the music (YouTube doesn't allow playing from a hidden player) and shrinks it back to the thin bar — its <b>▶</b> opens it and plays again.</p>
+      <p>Tap <b>♪</b> (or the thin music bar along the bottom) to pop the player open: your YouTube or YouTube Music playlist (public or unlisted) with previous / play / next, shuffle and the song list. It stays docked under the map and the tracker — on the right when the phone is sideways — so the phone you cast to the TV shows the board and plays the music. Paste the link once and every phone has it; change it with the <b>🔗</b> button. On a phone, start the first song by tapping the video; after that the buttons work. Closing the player pauses the music (YouTube doesn't allow playing from a hidden player) and shrinks it back to the thin bar — its <b>▶</b> opens it and plays again, <b>⏮ ⏭</b> change the song, the list button shows the songs, and swiping the song sideways goes to the next or previous one.</p>
       <p><b>Everyone shares one player.</b> Every phone shows the same song, in the same order (shuffled or not), playing or paused, at the same time — and anyone's play, pause, next, previous, shuffle, song list or time slider changes it for everyone. The sound comes from one device only: whichever pressed play first, normally the phone cast to the TV — and it stays there whatever anyone changes. On the other phones the video stays still with <b>On Sam's phone</b> under it, and their buttons work as a remote. To move the sound to your phone, tap <b>On Sam's phone</b> → <b>Play here</b>.</p>
       <p>On a computer, the music and the tracker share a column on the left of the map — the video sits beside its controls with the song list underneath. Drag the edges to resize the column, the split between them, and the settings on the right.</p>
       <p>On a computer, want the tracker and the music without the map? The <b>split-screen</b> icon at the top hides the map: the tracker gets one half and the music the other, with the video across its half and the song list under it. Drag the bar between them to resize; the back arrow brings the map back.</p>
@@ -163,6 +171,14 @@ v1 = 3A − S + 3 − 3L      (the generator fills lakes, so L = 0)</pre>
       </table></div>
     </div>
   </dialog>
+
+  <!-- the intro (ui/Splash.js takes it over): on screen from the first frame, so the map never flashes first -->
+  <div class="splash" id="splash" data-scene="intro">
+    <div class="splash-scene splash-intro">
+      <svg class="splash-isle" viewBox="-62 -62 124 124" aria-hidden="true"><g transform="translate(0.0 0.0)"><polygon class="splash-hex" style="--i:0;--fx:0px;--fy:-140px" points="0.0,-19.0 16.5,-9.5 16.5,9.5 0.0,19.0 -16.5,9.5 -16.5,-9.5" fill="#E5D6B0"/></g><g transform="translate(34.4 0.0)"><polygon class="splash-hex" style="--i:1;--fx:140px;--fy:0px" points="0.0,-19.0 16.5,-9.5 16.5,9.5 0.0,19.0 -16.5,9.5 -16.5,-9.5" fill="#3E6B48"/></g><g transform="translate(17.2 29.8)"><polygon class="splash-hex" style="--i:2;--fx:70px;--fy:121px" points="0.0,-19.0 16.5,-9.5 16.5,9.5 0.0,19.0 -16.5,9.5 -16.5,-9.5" fill="#9DBE6B"/></g><g transform="translate(-17.2 29.8)"><polygon class="splash-hex" style="--i:3;--fx:-70px;--fy:121px" points="0.0,-19.0 16.5,-9.5 16.5,9.5 0.0,19.0 -16.5,9.5 -16.5,-9.5" fill="#E1B04B"/></g><g transform="translate(-34.4 0.0)"><polygon class="splash-hex" style="--i:4;--fx:-140px;--fy:0px" points="0.0,-19.0 16.5,-9.5 16.5,9.5 0.0,19.0 -16.5,9.5 -16.5,-9.5" fill="#C46A45"/></g><g transform="translate(-17.2 -29.8)"><polygon class="splash-hex" style="--i:5;--fx:-70px;--fy:-121px" points="0.0,-19.0 16.5,-9.5 16.5,9.5 0.0,19.0 -16.5,9.5 -16.5,-9.5" fill="#8C969E"/></g><g transform="translate(17.2 -29.8)"><polygon class="splash-hex" style="--i:6;--fx:70px;--fy:-121px" points="0.0,-19.0 16.5,-9.5 16.5,9.5 0.0,19.0 -16.5,9.5 -16.5,-9.5" fill="#3E6B48"/></g><circle class="splash-token" cx="0" cy="0" r="8.5" fill="#F4EFE2"/><text class="splash-token" x="0" y="3.6" text-anchor="middle" font-size="10.5" font-weight="750" fill="#C8412E">8</text></svg>
+      <h1 class="splash-title"><span style="--w:0">Settlers</span> <span style="--w:1">of</span> <span style="--w:2">Catan</span></h1>
+    </div>
+  </div>
 
   <noscript><p style="padding:24px">Pangaea needs JavaScript to generate maps.</p></noscript>
 </body>

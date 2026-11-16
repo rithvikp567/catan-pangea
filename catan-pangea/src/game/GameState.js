@@ -105,4 +105,30 @@ export class GameState {
     const top = rows[0]?.wins ?? 0;
     return rows.map(r => ({ ...r, leader:top > 0 && r.wins === top }));
   }
+
+  /**
+   * Every win as it happened, oldest first (the season wins calendar):
+   * games won — with each player's points at that moment, `scores`, most
+   * first (recorded since 2.10.0; older wins have none) — and wins an admin
+   * added by hand (`source:"admin"`). Removals aren't listed, nor wins of
+   * removed profiles.
+   * @returns {{ id:string, season:number, at:number, source:string, profile:Profile, colorHex:string|null,
+   *   scores:{ profile:Profile, vp:number, colorHex:string|null, winner:boolean }[] }[]}
+   */
+  winHistory(){
+    const out = [];
+    for(const [season, entries] of Object.entries(this.wins)){
+      for(const [id, e] of Object.entries(entries ?? {})){
+        const profile = this.profile(e?.profileId);
+        if(!profile || (e.delta ?? 1) <= 0 || !Number.isFinite(e.at)) continue;
+        const scores = Object.entries(e.scores ?? {})
+          .map(([pid, sc]) => ({ profile:this.profile(pid), vp:sc?.vp ?? 0, colorHex:colorById(sc?.color)?.hex ?? null, winner:pid === profile.id }))
+          .filter(sc => sc.profile)
+          .sort((a, b) => b.vp - a.vp || Number(b.winner) - Number(a.winner) || a.profile.name.localeCompare(b.profile.name));
+        out.push({ id, season:Number(season), at:e.at, source:e.source ?? "game", profile,
+          colorHex:colorById(e.scores?.[profile.id]?.color)?.hex ?? null, scores });
+      }
+    }
+    return out.sort((a, b) => a.at - b.at || a.id.localeCompare(b.id));
+  }
 }

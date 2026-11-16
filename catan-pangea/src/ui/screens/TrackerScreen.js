@@ -6,8 +6,9 @@
  *                            0–13 (13 triggers the victory screen)
  *   Cities and Knights     — main island knights, off island knights (each
  *                            0–12 × players) and cities (0–4 × players)
- *   Karma, robber & walker — karma ±; robber cycles 1→2→3, Collect takes
- *                            its value off karma; then the word WALKER, one
+ *   Karma, robber & walker — karma ±; the robber (1–3): Abstain makes it
+ *                            worth one more, Rob takes its value off karma
+ *                            and starts it over at 1; then the word WALKER, one
  *                            letter per 7 rolled with the barbarians — the
  *                            lit letters shake harder as it fills, and
  *                            WinterEffect snows over every phone's screen
@@ -18,7 +19,7 @@
 import { h } from "../dom.js";
 import { Screen } from "./Screen.js";
 import { CounterControl } from "../controls.js";
-import { MAX_VP, COUNTERS, WALKER_WORD } from "../../game/rules.js";
+import { MAX_VP, COUNTERS, WALKER_WORD, ROBBER_VALUES } from "../../game/rules.js";
 import { syncStatusPill, section, inkOn, ICONS } from "./widgets.js";
 
 const EMPTY_SEAT_HEX = "#B9B5AC";
@@ -48,13 +49,9 @@ export class TrackerScreen extends Screen {
     this.layoutKey = null;
     this.lastFaces = new Map();
 
-    const wins = h("button", { type:"button", class:"icon-btn", "aria-label":"Season wins", title:"Season wins", onClick:() => this.router.go("wins") });
-    wins.innerHTML = ICONS.trophy;
-    const music = h("button", { type:"button", class:"icon-btn" });
-    music.innerHTML = ICONS.music;
-    this.deps.music?.addOpener(music);       /* the music bar stays docked on every screen */
+    /* (season wins, music and who's signed in live in the top bar) */
     this.pillSlot = h("span");
-    this.actions.append(this.pillSlot, music, wins);
+    this.actions.append(this.pillSlot);
 
     this.meta = h("div", { class:"tracker-meta" });
     this.empty = h("p", { class:"card empty" }, "No game yet — generate a map to start one.");
@@ -69,9 +66,12 @@ export class TrackerScreen extends Screen {
       return h("div", { class:"tile" }, h("span", { class:"tile-label", "aria-hidden":"true" }, label), ctl.el);
     };
 
-    this.robberValue = h("span", { class:"robber-value" });
-    this.robberBtn = h("button", { type:"button", class:"robber-btn", title:"Tap to cycle 1 → 2 → 3", onClick:() => this.game.cycleRobber() }, this.robberValue);
-    this.collectBtn = h("button", { type:"button", class:"btn collect-btn", onClick:() => this.game.collectRobber() });
+    /* the robber, 1–3: Abstain makes it worth one more; Rob takes it off karma and starts it over */
+    this.robberPips = h("span", { class:"robber-pips", "aria-hidden":"true" }, ROBBER_VALUES.map(() => h("i")));
+    this.abstainBtn = h("button", { type:"button", class:"btn robber-act abstain-btn", onClick:() => this.game.abstainRobber() },
+      h("span", {}, "Abstain"), this.robberPips);
+    this.robValue = h("span", { class:"rob-value" });
+    this.robBtn = h("button", { type:"button", class:"btn robber-act rob-btn", onClick:() => this.game.rob() }, h("span", {}, "Rob"), this.robValue);
 
     this.sections = h("div", { class:"tracker-grid" },
       section("Victory points & honor", this.vpList),
@@ -81,8 +81,8 @@ export class TrackerScreen extends Screen {
         tile("cities", "Cities"))),
       section("Karma, robber & walker", h("div", { class:"tiles is-karma" },
         tile("karma", "Karma", { signed:true }),
-        h("div", { class:"tile" }, h("span", { class:"tile-label", "aria-hidden":"true" }, "Robber"), this.robberBtn),
-        this.collectBtn),
+        h("div", { class:"tile robber-tile" }, h("span", { class:"tile-label", "aria-hidden":"true" }, "Robber"),
+          h("div", { class:"robber-acts" }, this.abstainBtn, this.robBtn))),
         this.buildWalker()));
 
     this.body.append(this.meta, this.empty, this.sections);
@@ -103,10 +103,10 @@ export class TrackerScreen extends Screen {
     if(!session) { this.meta.replaceChildren(); return; }
 
     const me = this.game.me, mySeat = this.game.mySeat, seats = state.seats;
+    /* (who's signed in is in the top bar; here only a way in for someone not seated yet) */
     this.meta.replaceChildren(
       h("span", { class:"tracker-seed" }, `Seed ${session.meta.seed} · ${state.players} players`),
-      h("button", { type:"button", class:"link-btn", onClick:() => this.router.go("join") },
-        mySeat ? `Playing as ${me.name} · change` : me ? `Join as ${me.name}` : "Join the game"));
+      ...(mySeat ? [] : [h("button", { type:"button", class:"link-btn", onClick:() => this.router.go("join") }, me ? `Join as ${me.name}` : "Join the game")]));
 
     const key = state.sessionId + "|" + seats.map(s => `${s.profileId}:${s.color}`).join(",") + "|" + (me?.id ?? "");
     if(key !== this.layoutKey){ this.layoutKey = key; this.#buildSeats(seats, mySeat); }
@@ -123,9 +123,16 @@ export class TrackerScreen extends Screen {
       ctl.set(c[name]);
     }
     this.#fit();
-    this.robberValue.textContent = String(c.robber);
-    this.robberBtn.setAttribute("aria-label", `Robber worth ${c.robber} ${c.robber === 1 ? "point" : "points"}. Tap to cycle 1, 2, 3.`);
-    this.collectBtn.textContent = `Collect: −${c.robber}`;
+    const top = ROBBER_VALUES.at(-1), pts = n => `${n} ${n === 1 ? "point" : "points"}`;
+    [...this.robberPips.children].forEach((pip, i) => pip.toggleAttribute("data-lit", i < c.robber));
+    this.abstainBtn.disabled = c.robber >= top;
+    this.abstainBtn.setAttribute("aria-label", c.robber >= top
+      ? `Abstain: the robber is already at its most, ${pts(top)}`
+      : `Abstain: the robber is worth ${pts(c.robber)}; abstaining makes it ${pts(c.robber + 1)}`);
+    this.robValue.textContent = `−${c.robber}`;
+    this.robBtn.setAttribute("aria-label", `Rob: karma down by ${c.robber}, and the robber starts over at 1`);
+    this.#bump(this.robberPips, c.robber, "robber");
+    this.#bump(this.shared.get("karma").el.querySelector(".counter-value") ?? this.shared.get("karma").el, c.karma, "karma");
   }
 
   /** − W A L K E R + : one letter per 7 rolled with the barbarians; + on R starts over. */
@@ -150,6 +157,17 @@ export class TrackerScreen extends Screen {
     ctl.el.classList.add("walker");
     this.shared.set("walker", ctl);
     return ctl.el;
+  }
+
+  /** A quick pop on a value that just changed (from any phone), not on the first paint. */
+  #bump(el, value, key){
+    this.bumped ??= new Map();
+    const was = this.bumped.get(key);
+    this.bumped.set(key, value);
+    if(was === undefined || was === value) return;
+    el.classList.remove("is-bumped");
+    void el.offsetWidth;                     /* restart the animation */
+    el.classList.add("is-bumped");
   }
 
   /**

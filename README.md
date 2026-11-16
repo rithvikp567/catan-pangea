@@ -4,13 +4,15 @@ Random-continent Catan map generator and live game tracker for game night:
 free-form continents with the coastline kept tight, numbers and ports
 optimised for a fair draft, and a shared scoreboard (VP, cities and knights, karma,
 robber, the WALKER word with its 8-bit winter, honor coins, season wins with a
-crown for first place and turds for the rest) synced
+crown for first place and turds for the rest, and a calendar of who won each day) synced
 across everyone's phone, plus a docked YouTube music player for the table's
 playlist — one shared player that every phone controls while the phone cast
 to the TV plays the sound. Two board types — **Open Sea** and
 **Sea Lanes** — built mobile-first, with a mini music player that sits along
 the bottom like a music app's, a resizable desktop layout and a desktop
-music & tracker view that hides the map. It installs
+music & tracker view that hides the map. New maps build themselves in with
+animations and sound effects, and every visit opens on a *Settlers of Catan*
+intro and a "Welcome, Lord …". It installs
 as an app straight from the browser (Add to Home Screen / Install app): full
 screen, no browser bars, and it opens with no signal.
 
