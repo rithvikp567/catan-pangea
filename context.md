@@ -264,11 +264,17 @@ on the tracker): everything works, but nothing is shared between phones.
     with each game win since 2.10.0 (`scores` in the ledger); older wins
     and wins an admin added say so instead. From `GameState.winHistory()`.
   - **The music is put away** while it's open — the player and the mini bar
-    (`MusicBar.setAway("wins")`). A hidden player mustn't play, so on the
-    device playing the sound the music pauses for everyone and plays on
-    when you leave (unless someone paused it meanwhile); someone else
-    pressing play meanwhile brings that device's player back on the
-    season wins screen, since it has to show to play.
+    (`MusicBar.setAway("wins")`). A hidden player mustn't play, so the
+    device playing the sound **holds** the music (`hold` in
+    `music/playback.js`): paused for everyone, and it plays on when you
+    leave. Someone else pressing play meanwhile doesn't bring the player
+    back over the season wins (2.10–2.11 did) — the play waits: their
+    phone says *Sam's computer has Season wins open — the music plays as
+    soon as they leave it*, the bar reads *On Sam's computer (on Season
+    wins)* with ⏸ (the music's on its way), and their pause takes the
+    waiting play back. Leaving the season wins plays it if a play is
+    waiting (`unhold`); Play here on a phone moves the sound there and
+    plays it.
 - **Admin** (`#/admin`, password `password` — not security, a shared
   management account): remove profiles (frees their seat, deletes their
   wins, lets their device create a new profile) and add/remove wins.
@@ -722,7 +728,8 @@ v1/
                                                watched on its own, not part of GameState
     queue:  { listId, setAt, songs:[videoId…] (the playlist's own order), order:[videoId…] (play order), shuffle }
     now:    { index (into order), videoId, playing, pos (s), at (ms, server clock), duration?,
-              speaker? (deviceId), speakerName?, speakerKind? ("phone"|"tablet"|"computer"), rev, by (deviceId) }
+              speaker? (deviceId), speakerName?, speakerKind? ("phone"|"tablet"|"computer"),
+              held? (the speaker's deviceId), heldFor? ("wins"|"splash"), resume? (play once unheld), rev, by (deviceId) }
     beat:   ms                               ← the speaker's last "still here" (every 20 s; gone after 70 s)
   listening/{profileId}:   (before 2.7.0: per-profile music spots; no longer written — removing a profile still clears it)
 ```
@@ -774,7 +781,9 @@ v1/
   shared playback: the clock, who's the speaker (play from a remote, Play
   here, a speaker going quiet, leaving), next / previous / a song ending
   (once), seek, shuffle (stored order, the song carries on), re-reading a
-  playlist, the speaker's reports, and two phones on one store.
+  playlist, the speaker's reports, holding the music while the speaker's
+  player is put away (a remote's play waits, its pause takes it back, Play
+  here moves it), and two phones on one store.
 
 UI is verified by driving the real app in a headless Chromium browser via
 the DevTools protocol at phone sizes (two tabs with different `?device=`
@@ -942,7 +951,16 @@ your run created afterwards — never `DELETE /v1` once real data exists.
   bar and its sheets (`music.css`), `--music-h` / `--music-w` read 0, and
   `DesktopLayout` drops the music column. Nothing creates, cues or plays a
   player while it's away (`#refresh`, `#tick`, `#startReading` all check).
-  It never hides a playing player: the speaker pauses first.
+  It never hides a playing player: the speaker **holds** the shared
+  playback first (`#syncHold` → `hold` / `unhold`, now.held / heldFor /
+  resume). While it's held, `play` from another device only sets `resume`
+  (the song can change, the clock stays stopped) and `pause` clears it, so
+  nothing ever needs the hidden player back; the speaker's own reports
+  can't restart it either. A speaker that reloads while holding lets go once
+  it's back on screen (`#syncHold` checks `held === me` on every refresh).
+  A remote's play / pause button shows `wantsToPlay` (playing, or held with
+  a play waiting). The 2.8.0 rule still stands: nothing moves the sound by
+  itself — `unhold` only ever plays on the device that held it.
 - **The intro is in `index.html`** (so nothing flashes before the JS
   runs); `Splash` takes it over and marks it `data-js`. Without JS it fades
   by itself after 9 s (a CSS fail-safe). It and the welcome are laid out
@@ -985,6 +1003,16 @@ your run created afterwards — never `DELETE /v1` once real data exists.
 ## 10. Changelog
 
 Keep newest first. Every feature PR adds an entry and updates the sections above.
+
+- **2.11.1 — Fix: Season wins no longer pops the music back up.** With the
+  season wins open on the device playing the music (a computer, say),
+  pressing play on another phone brought that device's music player back
+  over the season wins — on purpose since 2.10.0, as a hidden player can't
+  play, but it read as a glitch. Now that device *holds* the music while
+  the season wins are open: a play from elsewhere waits (that phone says
+  so, and its ⏸ takes it back), and the music plays as soon as the season
+  wins close. Play here still moves the sound to the phone. New `hold` /
+  `unhold` playback commands, with tests.
 
 - **2.11.0 — New map in step on every phone; a mute button; Abstain earns
   karma; a black icon.** A new map now builds itself in on every device at

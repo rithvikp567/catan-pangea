@@ -5,7 +5,7 @@ import { MemoryStore } from "../catan-pangea/src/sync/MemoryStore.js";
 import { GameService, GameError } from "../catan-pangea/src/game/GameService.js";
 import {
   BEAT_MS, SPEAKER_TIMEOUT_MS, livePosition, isPlaying, speakerOnline, shuffled,
-  load, play, pause, skip, ended, seek, setShuffle, takeOver, sync, COMMANDS,
+  load, play, pause, skip, ended, seek, setShuffle, takeOver, hold, unhold, isHeld, wantsToPlay, sync, COMMANDS,
 } from "../catan-pangea/src/music/playback.js";
 
 test("playlist links: YouTube, YouTube Music, share links and bare ids all give the list id", () => {
@@ -114,6 +114,44 @@ test("playback: the sound stays on the speaker whatever anyone does — only Pla
   assert.equal(takeOver(here, null, ctx(9500, "dev-alex")), undefined, "already here");
   assert.equal(play(here, { here:true }, ctx(9600, "dev-alex")).now.speaker, "dev-alex");
   assert.equal("release" in COMMANDS, false, "nothing hands the sound on by itself — not even closing the page");
+});
+
+test("playback: the speaker holds the music while its player is put away — a remote's play waits for it instead of calling the player back", () => {
+  let pb = play(load(null, { listId:"PL", setAt:1, songs:SONGS }, ctx(0)), {}, ctx(0, "dev-tv"));   /* the computer plays */
+  assert.equal(hold(pb, { why:"wins" }, ctx(1000, "dev-alex")), undefined, "only the speaker holds it");
+
+  /* the speaker opens the season wins: paused, and it'll play on when it's back */
+  pb = hold(pb, { why:"wins" }, ctx(10_000, "dev-tv"));
+  assert.deepEqual([pb.now.playing, pb.now.pos, pb.now.held, pb.now.heldFor, pb.now.resume], [false, 10, "dev-tv", "wins", true]);
+  assert.ok(isHeld(pb) && wantsToPlay(pb, 20_000), "it shows as on its way back");
+  assert.equal(hold(pb, { why:"wins" }, ctx(11_000, "dev-tv")), undefined, "already held");
+
+  /* someone pauses meanwhile: it won't play on; their play puts it back — still paused, still held */
+  pb = pause(pb, null, ctx(12_000, "dev-alex"));
+  assert.deepEqual([pb.now.playing, pb.now.resume, isHeld(pb), wantsToPlay(pb, 12_000)], [false, false, true, false]);
+  pb = play(pb, {}, ctx(13_000, "dev-alex"));
+  assert.deepEqual([pb.now.playing, pb.now.resume, pb.now.speaker, pb.now.held], [false, true, "dev-tv", "dev-tv"], "the play waits — the player isn't called back");
+  assert.equal(play(pb, {}, ctx(13_500, "dev-alex")), undefined, "a second play changes nothing");
+  pb = play(pb, { index:2 }, ctx(14_000, "dev-alex"));
+  assert.deepEqual([pb.now.videoId, pb.now.pos, pb.now.playing, pb.now.resume], ["c3", 0, false, true], "picking a song: that song, waiting");
+  assert.equal(livePosition(pb, 60_000), 0, "the clock doesn't run while it's held");
+  assert.equal(sync(pb, { rev:pb.now.rev, playing:true, pos:3 }, ctx(15_000, "dev-tv")).now.playing, false, "nor does a report from the speaker start it");
+
+  /* the speaker leaves the season wins: it plays */
+  assert.equal(unhold(pb, null, ctx(20_000, "dev-alex")), undefined, "only the device holding it lets go");
+  const back = unhold(pb, null, ctx(20_000, "dev-tv"));
+  assert.deepEqual([back.now.playing, back.now.videoId, back.now.held, back.now.resume, isHeld(back)], [true, "c3", null, null, false]);
+  assert.equal(livePosition(back, 25_000), 5);
+  assert.equal(unhold(back, null, ctx(21_000, "dev-tv")), undefined, "not held any more");
+  /* …and paused when nobody wanted it meanwhile */
+  const quietly = unhold(pause(pb, null, ctx(16_000, "dev-alex")), null, ctx(20_000, "dev-tv"));
+  assert.deepEqual([quietly.now.playing, isHeld(quietly)], [false, false]);
+
+  /* Play here while it's held: the sound moves, and the waiting play plays there */
+  const moved = takeOver(pb, null, ctx(17_000, "dev-alex", { name:"Alex" }));
+  assert.deepEqual([moved.now.speaker, moved.now.playing, moved.now.held, isHeld(moved)], ["dev-alex", true, null, false]);
+  assert.equal(play(pb, { here:true }, ctx(17_000, "dev-alex")).now.speaker, "dev-alex", "play here too");
+  assert.equal(play(pb, { here:true }, ctx(17_000, "dev-alex")).now.held, null);
 });
 
 test("playback: next, previous and a song ending go round the playlist — a song's end counts once", () => {
