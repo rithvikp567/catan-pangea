@@ -24,6 +24,9 @@
  *     over it — so this is a docked bar, never a hidden audio-only player;
  *   - nothing plays while the bar is closed: closing it on the speaker
  *     pauses the music, and a remote's play opens the speaker's bar;
+ *   - nor while it's put away (season wins, the intro): the speaker holds
+ *     the music, and a remote's play waits for it to be back instead of
+ *     calling the player up over the season wins;
  *   - no autoplay: music starts from someone's tap (on phones the very
  *     first play has to be a tap on the YouTube player itself — browsers
  *     only let a video start from a tap inside its own frame), and a
@@ -46,7 +49,7 @@
  */
 import { h } from "./dom.js";
 import { describePlayerError, parsePlaylist, playlistUrl, thumbnailUrl } from "../music/playlist.js";
-import { BEAT_MS, isPlaying, livePosition, songCount, speakerOnline } from "../music/playback.js";
+import { BEAT_MS, isHeld, livePosition, songCount, speakerOnline, wantsToPlay } from "../music/playback.js";
 
 const SVG = {
   play:`<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.6v12.8a1 1 0 0 0 1.52.85l10.2-6.4a1 1 0 0 0 0-1.7L9.52 4.75A1 1 0 0 0 8 5.6z"/></svg>`,
@@ -163,8 +166,7 @@ export class MusicBar {
     this.dock = "bar";           /* "bar" (phones), or desktop's left column: "column" (big player + songs) / "compact" */
     this.away = new Set();       /* why the music is put away for now ("wins", "splash"); empty: it shows */
     this.awayListeners = new Set();
-    this.awayAt = 0;
-    this.resumeAfterAway = false; /* it was playing here when put away: play on when it's back */
+    this.holdKey = null;         /* the hold / unhold last sent (once per shared change) */
     this.swipe = null;           /* the mini bar's song, swiped away: { dir, at } until the next song shows */
     this.miniSongId = null;
 
@@ -204,34 +206,48 @@ export class MusicBar {
   /**
    * Put the music away for a reason (or bring it back once no reason is
    * left). A hidden player mustn't play (YouTube's rules), so on the device
-   * playing the sound the music pauses for everyone and plays on when it's
-   * back — unless someone paused it meanwhile. Someone else pressing play
-   * while it's away for the season wins brings it back (it has to show to
-   * play); the intro ("splash") just holds it for a moment.
+   * playing the sound the shared playback is *held* (#syncHold): paused for
+   * everyone, and a play from another device meanwhile waits instead of
+   * calling this player back — the music plays when it's back if it was
+   * playing, or if anyone pressed play meanwhile (and not if someone paused
+   * it). The intro ("splash") holds it for a moment the same way.
    */
   setAway(reason, on){
     const was = this.isAway;
     if(on) this.away.add(reason); else this.away.delete(reason);
     const now = this.isAway;
-    if(now === was) return;
-    if(now){
-      this.awayAt = this.#t;
-      this.#showSongs(false);
-      this.#showPop(false);
-      if(this.#isSpeaker && this.pb?.now?.playing && this.isOpen){ this.resumeAfterAway = true; this.#send("pause"); }
-      if(this.#localActive()){ this.quietUntil = this.#t + 2500; this.player.pauseVideo(); }
+    if(now !== was){
+      if(now){
+        this.#showSongs(false);
+        this.#showPop(false);
+        if(this.#localActive()){ this.quietUntil = this.#t + 2500; this.player.pauseVideo(); }
+      }
+      document.body.toggleAttribute("data-music-away", now);   /* css/music.css hides it all */
+      this.#syncBody();
+      this.#measure();
+      for(const fn of this.awayListeners) fn(now);
+      if(!now) this.#enter(this.isOpen ? this.el : this.mini);
     }
-    document.body.toggleAttribute("data-music-away", now);   /* css/music.css hides it all */
-    this.#syncBody();
-    this.#measure();
-    for(const fn of this.awayListeners) fn(now);
-    if(!now){
-      this.#enter(this.isOpen ? this.el : this.mini);
-      const resume = this.resumeAfterAway;
-      this.resumeAfterAway = false;
-      if(resume && this.isOpen && this.#isSpeaker && !this.pb?.now?.playing) this.#playHere();
-    }
-    this.#refresh();
+    this.#refresh();          /* (holds / unholds the shared playback — the reason may have changed too) */
+  }
+
+  /**
+   * On the speaker: hold the shared playback while the music is put away,
+   * and let go once it's back — also after a reload, when this page never
+   * put it away itself.
+   */
+  #syncHold(){
+    const n = this.pb?.now, me = this.game.deviceId;
+    if(!n || !this.#queueReady) return;
+    const why = !this.isAway ? null : this.away.has("wins") ? "wins" : [...this.away][0];
+    let command = null;
+    if(why && this.#isSpeaker && !(n.held === me && n.heldFor === why)) command = "hold";
+    else if(!why && n.held === me) command = "unhold";
+    if(!command) return;
+    const key = `${command}|${why}|${n.rev}`;
+    if(key === this.holdKey) return;           /* sent already; wait for it (or for someone else's change) */
+    this.holdKey = key;
+    this.#send(command, why ? { why } : undefined);
   }
 
   /** body[data-music="open"]: the player shows (open, and not away). */
@@ -326,8 +342,10 @@ export class MusicBar {
   get #elsewhere(){ return !!this.pb?.now?.speaker && !this.#isSpeaker; }
   /** The speaker hasn't been heard from for a while (closed, locked, offline). */
   get #quiet(){ return this.#elsewhere && !speakerOnline(this.pb, this.#t); }
-  /** The table's music is playing somewhere it can be heard. */
-  get #playing(){ return isPlaying(this.pb, this.#t); }
+  /** The table's music is playing somewhere it can be heard — or held with a play waiting (what play / pause shows). */
+  get #playing(){ return wantsToPlay(this.pb, this.#t); }
+  /** The speaker holds the music: "on Season wins" / "back in a moment". */
+  get #heldWhy(){ return !isHeld(this.pb) ? null : this.pb.now.heldFor === "wins" ? "on Season wins" : "back in a moment"; }
   /** The shared playback has this playlist's songs. */
   get #queueReady(){
     const q = this.pb?.queue;
@@ -342,6 +360,17 @@ export class MusicBar {
   #localActive(){ const s = this.#localState(); return s != null && (s === STATE().PLAYING || s === STATE().BUFFERING); }
 
   #send(command, arg){ return this.game.controlMusic(command, arg, { kind:this.kind }); }
+
+  /** A remote's play: on the speaker — or, while the speaker holds the music, as soon as it's back. */
+  #remotePlay(arg){
+    if(isHeld(this.pb)){
+      const where = this.#where(), Where = where[0].toUpperCase() + where.slice(1);
+      this.toast.show(this.pb.now.heldFor === "wins"
+        ? `${Where} has Season wins open — the music plays as soon as they leave it. To play it here instead, tap “On ${where}”.`
+        : `${Where} will play it in a moment.`, { ms:5000 });
+    }
+    return this.#send("play", arg);
+  }
 
   /* ---------------- shared state → this device ---------------- */
 
@@ -364,15 +393,9 @@ export class MusicBar {
   /** Bring this device in line with the shared playback. */
   #refresh(){
     const ready = this.#queueReady;
-    if(this.isAway){
-      /* away for the season wins, and someone else pressed play: it has to show to play here */
-      const n = this.pb?.now;
-      if(ready && this.#isSpeaker && n?.playing && n.by !== this.game.deviceId && this.#t - this.awayAt > 1500
-        && this.away.size === 1 && this.away.has("wins")){ this.resumeAfterAway = false; this.setAway("wins", false); return; }
-      this.#paint();
-      return;
-    }
-    if(ready && this.wantPlay){ this.wantPlay = false; this.#elsewhere ? this.#send("play") : this.#playHere(); }
+    this.#syncHold();
+    if(this.isAway){ this.#paint(); return; }    /* (held: a play from elsewhere waits — it never calls this player back) */
+    if(ready && this.wantPlay){ this.wantPlay = false; this.#elsewhere ? this.#remotePlay() : this.#playHere(); }
     /* someone pressed play and the sound comes from here: the player shows (never from a hidden player) */
     if(ready && this.#isSpeaker && this.pb.now.playing && !this.isOpen && this.#t - this.closedAt > 3000){ this.open(); return; }
     if(this.isOpen && this.listId && this.pb !== undefined) ready ? this.#follow() : this.#readSongs();
@@ -537,20 +560,20 @@ export class MusicBar {
 
   #togglePlay(){
     if(this.#playing) return this.#send("pause");
-    if(this.#elsewhere) return this.#send("play");
+    if(this.#elsewhere) return this.#remotePlay();
     this.#playHere();
   }
 
   /** The mini bar's play: on a remote it just plays (on the speaker); here it opens the player and plays. */
   #playFromMini(){
     if(this.#playing) return this.#send("pause");
-    if(this.#queueReady && this.#elsewhere) return this.#send("play");
+    if(this.#queueReady && this.#elsewhere) return this.#remotePlay();
     this.open();
     this.#playHere();
   }
 
   /** A song in the list. */
-  #pick(index){ this.#elsewhere ? this.#send("play", { index }) : this.#playHere({ index }); }
+  #pick(index){ this.#elsewhere ? this.#remotePlay({ index }) : this.#playHere({ index }); }
 
   /** Play, with the sound on this device (it becomes the speaker). */
   #playHere(arg = {}){
@@ -916,8 +939,8 @@ export class MusicBar {
     this.whereBtn.hidden = !elsewhere;
     this.el.toggleAttribute("data-elsewhere", elsewhere);
     if(elsewhere){
-      const where = this.#where(), quiet = this.#quiet;
-      this.whereText.textContent = quiet ? `On ${where} · not responding` : `On ${where}`;
+      const where = this.#where(), quiet = this.#quiet, held = this.#heldWhy;
+      this.whereText.textContent = quiet ? `On ${where} · not responding` : held ? `On ${where} · ${held}` : `On ${where}`;
       this.whereBtn.setAttribute("aria-label", `${quiet ? "Set to play on" : "Playing on"} ${where} — tap to play it here instead`);
     }
     this.#paintHere();
@@ -971,7 +994,7 @@ export class MusicBar {
       if(art) this.miniArt.replaceChildren(h("img", { src:art, alt:"", width:44, height:44 }));
       else this.miniArt.innerHTML = SVG.note;   /* static, trusted markup */
     }
-    const where = ready && this.#elsewhere ? `On ${this.#where()}${this.#quiet ? " (not responding)" : ""}` : "";
+    const where = ready && this.#elsewhere ? `On ${this.#where()}${this.#quiet ? " (not responding)" : this.#heldWhy ? ` (${this.#heldWhy})` : ""}` : "";
     this.miniTitle.textContent = setup ? "Music for the table" : song?.title || (ready ? "…" : "Your playlist");
     this.miniArtist.textContent = setup ? "Tap to add a YouTube playlist"
       : [song?.title ? song.author : (ready ? "" : "Tap play to start"), where].filter(Boolean).join(" · ");
@@ -1009,6 +1032,8 @@ export class MusicBar {
         : `Nowhere yet. Press play and it plays on this ${kind}; every other device becomes a remote for it.`
       : this.#quiet
         ? `On ${this.#where()}, which isn't responding (closed, locked or offline). It plays there again when it's back — or move the sound to this ${kind}.`
+        : this.pb.now.heldFor === "wins" && isHeld(this.pb)
+        ? `On ${this.#where()}, which has Season wins open, so the music waits — it plays there as soon as they leave it if someone pressed play. Or move the sound to this ${kind}.`
         : `On ${this.#where()}. Every phone's buttons control it there, and it stays there — or move the sound to this ${kind}.`;
   }
 

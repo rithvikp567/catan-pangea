@@ -8,6 +8,12 @@
  * anyone changes; only "Play here" (takeOver) moves it. The one exception
  * is the very first play, when there's no speaker yet.
  *
+ * The speaker can *hold* the music while its player is put away (the
+ * season wins screen, the intro — a hidden player mustn't play): it's
+ * paused, and a play from anyone else meanwhile doesn't call the player
+ * back — it waits (`resume`) and the music plays once the speaker unholds
+ * it. Play here takes the sound (and the wait) somewhere else.
+ *
  * Stored at /v1/playback and only ever changed by the commands below, each
  * run inside a store transaction, so taps from several phones at once
  * never step on each other:
@@ -20,6 +26,7 @@
  *            playing, pos, at,           ← the clock: pos seconds in at time `at` (ms, server clock)
  *            duration?,                  ← seconds, once the speaker knows it
  *            speaker?, speakerName?, speakerKind?,   ← the device playing the sound (its device id), for "On Sam's phone"
+ *            held?, heldFor?, resume?,   ← the speaker holds it (its device id; "wins" | "splash"; play once it's back?)
  *            rev, by }                   ← bumped by every change, and which device made it
  *   beat:  ms                            ← the speaker's last "still here" (every BEAT_MS)
  *
@@ -57,6 +64,12 @@ export function livePosition(pb, t){
 /** Is the music playing somewhere it can be heard? */
 export const isPlaying = (pb, t) => !!pb?.now?.playing && speakerOnline(pb, t);
 
+/** Is the speaker holding the music (its player put away for now)? */
+export const isHeld = pb => !!pb?.now?.held && pb.now.held === pb.now.speaker;
+
+/** Playing — or held with a play waiting for the speaker to be back. What a play / pause button shows. */
+export const wantsToPlay = (pb, t) => isPlaying(pb, t) || (isHeld(pb) && pb.now.resume === true);
+
 /** Fisher–Yates, with `first` (the song playing) kept at the front. */
 export function shuffled(songs, first, random = Math.random){
   const rest = songs.filter(id => id !== first);
@@ -70,6 +83,7 @@ export function shuffled(songs, first, random = Math.random){
 const round = s => Math.round(s * 100) / 100;
 const song = (pb, index) => ({ index, videoId:pb.queue.order[index], pos:0, duration:null });
 const speakerHere = ctx => ({ speaker:ctx.deviceId, speakerName:ctx.name ?? null, speakerKind:ctx.kind ?? null });
+const UNHELD = Object.freeze({ held:null, heldFor:null, resume:null });   /* (nulls aren't stored) */
 
 /** A change to `now`: restamps the clock (keeping the position unless the patch moves it) and bumps rev. */
 function stamp(pb, patch, ctx){
@@ -92,6 +106,7 @@ export function load(pb, { listId, setAt = null, songs }, ctx){
  * Play (index: that song). From a remote, the speaker plays it — even one
  * that isn't responding (it picks up when it's back). This device becomes
  * the speaker only with `here`, or when there's no speaker at all yet.
+ * While the speaker holds the music, a remote's play waits for it.
  */
 export function play(pb, { index = null, here = false } = {}, ctx){
   const n = songCount(pb);
@@ -99,14 +114,24 @@ export function play(pb, { index = null, here = false } = {}, ctx){
   const take = here || !pb.now?.speaker;
   const patch = { playing:true };
   if(Number.isInteger(index) && index >= 0 && index < n && index !== pb.now?.index) Object.assign(patch, song(pb, index));
+  if(isHeld(pb)){
+    if(!take && pb.now.speaker !== ctx.deviceId){
+      if(pb.now.resume === true && !("index" in patch)) return undefined;
+      return stamp(pb, { ...patch, playing:false, resume:true }, ctx);          /* plays once the speaker's back */
+    }
+    Object.assign(patch, UNHELD);
+  }
   if(take) Object.assign(patch, speakerHere(ctx));
   const next = stamp(pb, patch, ctx);
   if(take) next.beat = ctx.t;
   return next;
 }
 
+/** Pause — or, while the speaker holds the music, take back the play that was waiting. */
 export function pause(pb, _arg, ctx){
-  if(!songCount(pb) || !pb.now?.playing) return undefined;
+  if(!songCount(pb)) return undefined;
+  if(isHeld(pb) && pb.now.resume === true) return stamp(pb, { resume:false }, ctx);
+  if(!pb.now?.playing) return undefined;
   return stamp(pb, { playing:false }, ctx);
 }
 
@@ -138,10 +163,34 @@ export function setShuffle(pb, on, ctx){
   return stamp({ ...pb, queue:{ ...pb.queue, order, shuffle:!!on } }, { index, videoId:order[index] }, ctx);
 }
 
-/** Play here: this device plays the sound from now on (playing or paused as it was). */
+/** Play here: this device plays the sound from now on (playing or paused as it was — held, as it would be). */
 export function takeOver(pb, _arg, ctx){
   if(!songCount(pb) || (pb.now?.speaker === ctx.deviceId && speakerOnline(pb, ctx.t))) return undefined;
-  return { ...stamp(pb, speakerHere(ctx), ctx), beat:ctx.t };
+  const patch = speakerHere(ctx);
+  if(isHeld(pb)) Object.assign(patch, UNHELD, { playing:pb.now.resume === true });
+  return { ...stamp(pb, patch, ctx), beat:ctx.t };
+}
+
+/**
+ * The speaker puts its player away (`why`: "wins" — the season wins
+ * screen — or "splash", the intro). A hidden player mustn't play, so the
+ * music pauses; it plays on when it's unheld if it was playing, or if
+ * anyone presses play meanwhile.
+ */
+export function hold(pb, { why = "away" } = {}, ctx){
+  if(!songCount(pb) || pb.now?.speaker !== ctx.deviceId) return undefined;
+  const already = isHeld(pb);
+  if(already && pb.now.heldFor === why) return undefined;
+  const resume = already ? pb.now.resume === true : pb.now.playing === true;
+  return { ...stamp(pb, { held:ctx.deviceId, heldFor:why, resume, playing:false }, ctx), beat:ctx.t };
+}
+
+/** The speaker's player is back: the music plays if a play was waiting for it. */
+export function unhold(pb, _arg, ctx){
+  if(!pb?.now?.held || pb.now.held !== ctx.deviceId) return undefined;
+  const mine = pb.now.speaker === ctx.deviceId;
+  const next = stamp(pb, { ...UNHELD, playing:mine && pb.now.resume === true ? true : pb.now.playing === true }, ctx);
+  return mine ? { ...next, beat:ctx.t } : next;
 }
 
 /**
@@ -154,11 +203,11 @@ export function sync(pb, { rev, pos, playing, duration } = {}, ctx){
   if(!songCount(pb) || pb.now?.speaker !== ctx.deviceId || pb.now.rev !== rev) return undefined;
   const patch = {};
   if(Number.isFinite(pos)) patch.pos = pos;
-  if(typeof playing === "boolean") patch.playing = playing;
+  if(typeof playing === "boolean" && !(playing && isHeld(pb))) patch.playing = playing;   /* (held: its player is away) */
   if(Number.isFinite(duration) && duration > 0) patch.duration = Math.round(duration);
   if(!Object.keys(patch).length) return undefined;
   return { ...stamp(pb, patch, ctx), beat:ctx.t };
 }
 
 /** Every command, by name (GameService.controlMusic runs them in a transaction). */
-export const COMMANDS = Object.freeze({ load, play, pause, skip, ended, seek, shuffle:setShuffle, takeOver, sync });
+export const COMMANDS = Object.freeze({ load, play, pause, skip, ended, seek, shuffle:setShuffle, takeOver, hold, unhold, sync });
