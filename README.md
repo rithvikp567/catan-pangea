@@ -29,11 +29,15 @@ ES modules don't load from `file://`, so serve the folder:
 npm start
 ```
 
-Then open http://localhost:8000. To try it on your phone on the same Wi-Fi:
+Then open http://localhost:8000/?store=local — *this device only*: leave
+`?store=local` off only when you mean to use the live game (see Syncing,
+below). To try it on your phone on the same Wi-Fi:
 
 ```bash
 HOST=0.0.0.0 npm start
 ```
+
+and open the network address it prints, plus `/?store=local`.
 
 To try several "phones" on one computer without touching the live game,
 open tabs with `http://localhost:8000/?store=local&device=alice`,
@@ -55,12 +59,28 @@ or set the config to `null` for "this device only" mode.
 npm test
 ```
 
-Runs the engine test suite with Node's built-in test runner (Node 20+).
+Runs the engine test suite with Node's built-in test runner (Node 22+, the
+version CI uses).
+
+## Contributing
+
+`main` is protected: every change goes through a pull request. Fork the
+repo (or, as a collaborator, push a branch), open a pull request into
+`main`, and the tests run on it (`.github/workflows/test.yml` — until your
+first pull request has merged, each run waits for the owner to approve
+it); it merges once they pass and the owner approves it. If the check
+fails, open **Details** beside it for the log, fix it, run `npm test` and
+push to the same branch. Read [context.md](context.md) first — it's the
+handover doc, for people and coding agents alike — and update it in the
+same change. When you run the app locally, add `?store=local` to the URL:
+a plain `npm start` reads and writes the live game. Don't change
+`firebaseConfig.js` in a pull request (merged, it would point the live
+site at another database).
 
 ## Deploy
 
-Pushing to `main` runs the tests, then publishes `catan-pangea/` to GitHub
-Pages via `.github/workflows/deploy-pages.yml`.
+Merging a pull request into `main` runs the tests again, then publishes
+`catan-pangea/` to GitHub Pages via `.github/workflows/deploy-pages.yml`.
 
 ## How it works
 

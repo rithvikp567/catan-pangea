@@ -5,7 +5,7 @@
   "description": "Random-continent Catan map generator. No build step, no runtime dependencies.",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "start": "node scripts/serve.js",
