@@ -56,8 +56,8 @@ no browser bars, and it opens with no signal.
 ## 2. Quick start
 
 ```bash
-npm start          # http://localhost:8000 (zero-dependency Node static server)
-npm test           # node:test suite (Node 20+)
+npm start          # then open http://localhost:8000/?store=local (zero-dependency Node static server)
+npm test           # node:test suite (Node 22+: `node --test` takes globs from Node 21)
 HOST=0.0.0.0 npm start   # also reachable from a phone on the same Wi-Fi
 ```
 
@@ -76,8 +76,62 @@ HOST=0.0.0.0 npm start   # also reachable from a phone on the same Wi-Fi
   with `?store=local&device=bob`). Each tab gets its own identity and the
   tabs share one device-only store, so the whole multiplayer flow can be
   exercised locally without touching the live game.
-- **Deploy:** push to `main`. `.github/workflows/deploy-pages.yml` runs
-  `npm test`, then publishes the `catan-pangea/` folder to GitHub Pages.
+- **Deploy:** merge a pull request into `main` — direct pushes are blocked
+  (see Contributing, next). `.github/workflows/deploy-pages.yml` runs
+  `npm test` on every push to `main`, then publishes the `catan-pangea/`
+  folder to GitHub Pages.
+
+### Contributing (`main` is protected)
+
+Changes reach `main` — and so the live site — **only through a pull
+request**. Two repository rulesets (GitHub → Settings → Rules → Rulesets)
+guard it, and a pull request can merge only once:
+
+- its **npm test** check has passed — `.github/workflows/test.yml` runs
+  `npm test` on Node 22 for every pull request into `main`. The ruleset
+  **Require tests** has no bypass: nobody skips this, the owner included —
+- and someone with write access (in practice the owner) has **approved**
+  it. New commits pushed after an approval dismiss it.
+
+**Protect main** holds the approval rule and blocks pushing to `main`,
+force-pushing and deleting it. The owner (the repository admin) may bypass
+it, but **only when merging a pull request**, never by pushing to `main` —
+that's how the owner's own pull requests merge, since an author can't
+approve their own: `gh pr merge <number> --merge --admin` (a plain
+`gh pr merge` is refused). It skips only the approval: until the check has
+passed, the merge is refused anyway.
+
+**The flow:** fork the repo (or, as a collaborator, push a branch) → make
+the change, updating this file in the same change (the section it touches
+and a changelog entry) → `npm test` → open a pull request into `main` → the
+check runs on it → the owner reviews, approves and merges → the deploy runs
+the tests again and publishes the site, about a minute later (the *Deploy
+to GitHub Pages* run in the Actions tab shows whether it went out). Phones
+get it the next time the app loads — a fresh start or a reload; an app left
+open keeps the old version until it's reopened (`sw.js` fetches fresh files
+first).
+
+- **First-time contributors:** until someone has had a commit or pull
+  request merged here, every push to any of their pull requests from a
+  fork waits for the owner's approval before the npm test check runs (on
+  the pull request: *Awaiting approval* → **Approve workflows to run**).
+  Until each push is approved the check doesn't run, so the pull request
+  can't merge (the repository's *require approval for first-time
+  contributors* setting). Runs left unapproved for 30 days expire as
+  failed: push again.
+- **If the check fails:** open **Details** beside it for the log, fix it,
+  run `npm test` and push to the same branch — the check runs again (and
+  any earlier approval is dismissed). If GitHub says the branch has
+  conflicts (usually this file's changelog), merge `main` into your branch
+  (keep both changelog entries, newest first) and push. A pull request
+  whose base was changed to `main` afterwards gets no run: push a new
+  commit, or close and reopen it.
+- **Test the app with `?store=local`** (above): a plain local run plays
+  with the real game's data. Contributors and their agents never write to
+  the live database by any route (§7).
+- **Don't change `firebaseConfig.js` in a pull request:** merged, it would
+  point the live site at another database. A fork that runs its own copy
+  keeps its config on its own branches (Firebase setup, step 6).
 
 ### Firebase setup (needed for phones to sync)
 
@@ -99,7 +153,11 @@ on the tracker): everything works, but nothing is shared between phones.
 5. Paste it into [`catan-pangea/src/sync/firebaseConfig.js`](catan-pangea/src/sync/firebaseConfig.js)
    as `FIREBASE_CONFIG` — make sure it includes **`databaseURL`**.
    (These values are public identifiers, safe to commit.)
-6. Commit and push. The tracker's pill turns green: **Live**.
+6. Commit and push to your fork (this repository's protection doesn't
+   apply there) — but keep this change out of pull requests to this
+   repository: merged, it would point the live site at your database. For
+   the fork's own site, enable Actions on the fork and set Settings → Pages
+   → Source to GitHub Actions. The tracker's pill turns green: **Live**.
 
 ---
 
@@ -648,6 +706,10 @@ catan-pangea/                       ← deployed as-is to GitHub Pages
     screens/Screen.js               base class for full-screen views
     screens/JoinScreen.js, TrackerScreen.js, WinsScreen.js, AdminScreen.js, widgets.js
 tests/                              node:test (engine, store, game service)
+.github/workflows/test.yml          npm test on every pull request into main (the required "npm test" check)
+.github/workflows/deploy-pages.yml  every push to main (a merged pull request): npm test, then publish catan-pangea/ to Pages
+CLAUDE.md                           first stop for Claude Code: read this file, pull requests only, ?store=local
+AGENTS.md                           the same rules for other coding agents
 scripts/serve.js                    zero-dependency dev server
 scripts/make-icons.mjs              re-renders icons/ from one SVG (headless Chromium; run by hand)
 database.rules.json                 Firebase RTDB rules (paste into the console)
@@ -785,6 +847,12 @@ v1/
   player is put away (a remote's play waits, its pause takes it back, Play
   here moves it), and two phones on one store.
 
+**In CI:** every pull request into `main` runs `npm test` on Node 22
+(`.github/workflows/test.yml`, the check *npm test*), and the pull request
+can't merge until it passes — nobody can skip it, the owner included (the
+ruleset *Require tests*, §2 Contributing); the deploy runs it again after
+the merge, before publishing.
+
 UI is verified by driving the real app in a headless Chromium browser via
 the DevTools protocol at phone sizes (two tabs with different `?device=`
 values for multiplayer, **always with `?store=local`** so the run doesn't
@@ -795,8 +863,9 @@ shared music, open each "phone" in a **window of its own**
 and a hidden tab won't start a video. `YT.get(iframe.id)` gives the test
 each page's player (state, time, video id).
 
-If you ever need to check the real database end to end, the Realtime
-Database REST API is open under `/v1` (e.g. `curl
+**Owner only — contributors and their agents never write to the live
+database.** If you ever need to check the real database end to end, the
+Realtime Database REST API is open under `/v1` (e.g. `curl
 https://catan-pangea-default-rtdb.firebaseio.com/v1.json`). Only do it when
 no game is in progress, and remove exactly the profiles / session / wins
 your run created afterwards — never `DELETE /v1` once real data exists.
@@ -836,6 +905,24 @@ your run created afterwards — never `DELETE /v1` once real data exists.
 
 ## 9. Known limitations & gotchas
 
+- **`main` is protected** (the rulesets *Protect main* and *Require
+  tests*, §2 Contributing): no pushes to `main` at all — work on a branch
+  or a fork and open a pull request. The owner's own pull requests merge
+  with `gh pr merge <n> --merge --admin`, which skips only the approval
+  (the admin may bypass *Protect main* only on a pull request; *Require
+  tests* has no bypass, so the merge waits for a green check). The
+  required check is matched by its name, *npm test* — the `name:` of the
+  job in `test.yml` — and by the GitHub Actions app (id 15368), so renaming
+  that job (or giving the workflow path filters, so it doesn't run on every
+  pull request) leaves pull requests waiting for a check that never comes:
+  update *Require tests* with it. Keep `test.yml` on `pull_request`, never
+  `pull_request_target` (under it the job checks out and tests `main`, not
+  the pull request, so the check would say nothing about the change; and
+  checking out the pull request's code there would run a fork's code with
+  this repository's secrets and without the first-time-contributor
+  approval). A pull request runs its own copy of `test.yml`, `package.json`
+  and `tests/`, so it could turn its check green by editing them: review
+  changes there closely.
 - **The database is open** (no auth): anyone who finds the project URL
   could edit or wipe data. Acceptable for a friends-only tool; if that
   changes, add Firebase Anonymous Auth and per-path rules.
@@ -1003,6 +1090,17 @@ your run created afterwards — never `DELETE /v1` once real data exists.
 ## 10. Changelog
 
 Keep newest first. Every feature PR adds an entry and updates the sections above.
+
+- **Repo — `main` is protected; tests on every pull request** (no change
+  to the app — still 2.11.1). Two repository rulesets: *Protect main*
+  blocks pushing to `main`, force-pushing and deleting it and asks for an
+  approval (the owner may skip the approval only when merging a pull
+  request, `gh pr merge <n> --merge --admin`); *Require tests* makes the
+  new **npm test** check (`.github/workflows/test.yml`, every pull request
+  into `main`, Node 22) pass before any merge, with no bypass. Node 22+ is
+  now the stated minimum (`npm test`'s glob needs Node 21+). Contributing
+  steps in §2, `README.md`, `CLAUDE.md` and `AGENTS.md` (which now carries
+  the same rules for other coding agents).
 
 - **2.11.1 — Fix: Season wins no longer pops the music back up.** With the
   season wins open on the device playing the music (a computer, say),
