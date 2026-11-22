@@ -15,7 +15,8 @@
  * starts at `start` (a performance.now() time, possibly already past — a
  * device that heard about a new map late joins in where it's got to, and
  * skips what's gone by), and returns a function that stops what hasn't
- * played yet. Muted (`setMuted`, remembered per device) it's all silent.
+ * played yet. Muted (`setMuted` — Player Settings → Sound effects, each
+ * person's own: App) it's all silent.
  */
 const START_TIMEOUT_MS = 600;   /* how long a timeline waits for the audio to start (after that it's skipped) */
 const VOLUME = 0.5;
@@ -24,10 +25,8 @@ const AC = () => globalThis.AudioContext ?? globalThis.webkitAudioContext;
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
 export class Sound {
-  /** @param {{ storage?: import("../app/storage.js").SafeStorage }} [p] */
-  constructor({ storage = null } = {}){
-    this.storage = storage;
-    this.muted = storage?.get("soundOff", false) === true;
+  constructor(){
+    this.muted = false;
     this.ctx = null;
     this.out = null;
     this.noiseBuf = null;
@@ -43,8 +42,8 @@ export class Sound {
 
   /** Mute / unmute every sound effect on this device (not the music). */
   setMuted(on){
+    if(this.muted === !!on) return;
     this.muted = !!on;
-    this.storage?.set("soundOff", this.muted);
     if(this.out && this.ctx){
       const t = this.ctx.currentTime;
       this.out.gain.cancelScheduledValues(t);

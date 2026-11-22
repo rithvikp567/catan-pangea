@@ -12,8 +12,8 @@
  *              fanfare when the browser allows sound — after a tap), then
  *              it fades into the map / tracker.
  *
- * A tap skips either. It's laid out around the music player (never over
- * it); while the intro is up the music is held back (App).
+ * A tap skips either. Both cover the whole window: the music is put away
+ * while they're up (App) — never covered.
  */
 import { h } from "./dom.js";
 import { crown } from "./badges.js";
@@ -72,16 +72,19 @@ export class Splash {
   }
 
   /**
-   * The welcome on its own (an account was just picked). `covered` runs once
-   * it fully covers the screen — the place to switch what's underneath.
+   * The welcome on its own (an account was just picked), over the whole
+   * window (App puts the music away meanwhile). `covered` runs once it fully
+   * covers the screen — the place to switch what's underneath; `onReveal`
+   * as it starts to fade away.
    * @param {{ name:string, note?:string|null }} who
-   * @param {{ covered?:() => void }} [p]
+   * @param {{ covered?:() => void, onReveal?:() => void }} [p]
    */
-  async welcome(who, { covered = () => {} } = {}){
+  async welcome(who, { covered = () => {}, onReveal = () => {} } = {}){
     await this.#scene(this.#welcomeScene(who), { crossfade:false });
     this.sound?.fanfare();
     covered();
     await this.#hold(WELCOME_MS - IN_MS);
+    onReveal();
     await this.#fadeOut();
   }
 

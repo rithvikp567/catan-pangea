@@ -11,8 +11,9 @@ import { MIN_TILES, Smax } from "../engine/index.js";
 /**
  * A <details> that slides open and shut (it would just jump): its content's
  * height and opacity animate, and the + turns into × (css: .is-open).
+ * (Advanced, and Player Settings — ui/PlayerSettings.js.)
  */
-function animateDetails(details){
+export function animateDetails(details){
   const summary = details.querySelector("summary"), body = details.querySelector(".group");
   let anim = null;
   const done = () => { anim = null; body.style.overflow = ""; };

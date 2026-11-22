@@ -21,7 +21,8 @@ export class Sheet {
     opener.addEventListener("click", () => this.toggle());
     closer.addEventListener("click", () => this.close());
     scrim.addEventListener("click", () => this.close());
-    document.addEventListener("keydown", e => { if(e.key === "Escape" && this.isOpen) this.close(); });
+    /* Esc closes the sheet — unless a pop-up is open over it (the color picker): Esc is that one's */
+    document.addEventListener("keydown", e => { if(e.key === "Escape" && this.isOpen && !document.querySelector("dialog[open]")) this.close(); });
     this.desktop.addEventListener("change", () => { if(this.desktop.matches) this.close(); this.#sync(); });
     this.#sync();
   }

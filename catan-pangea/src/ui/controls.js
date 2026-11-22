@@ -28,17 +28,19 @@ export class SegmentedControl {
    * @param {{value:any, label:string}[]} p.options
    * @param {any} p.value
    * @param {(value:any) => void} [p.onChange]
+   * @param {(value:any) => void} [p.onSame]  the option already picked was clicked (or Enter / Space on it)
    * @param {string} [p.className]    the group's class
    * @param {string} [p.optionClass]  each option's class
    * @param {(o:object) => any} [p.render]  an option's content (default: its label)
    * @param {(o:object) => object} [p.attrs]  more attributes for an option's button
    */
-  constructor({ label, options, value, onChange = () => {}, className = "segmented", optionClass = "seg", render = o => o.label, attrs = () => ({}) }){
+  constructor({ label, options, value, onChange = () => {}, onSame = () => {}, className = "segmented", optionClass = "seg", render = o => o.label, attrs = () => ({}) }){
     this.options = options;
     this.onChange = onChange;
+    this.onSame = onSame;
     this.buttons = options.map(o => h("button", {
       type:"button", class:optionClass, role:"radio", ...attrs(o),
-      onClick:() => this.#choose(o.value),
+      onClick:() => { if(o.value === this.value) this.onSame(o.value); else this.#choose(o.value); },
     }, render(o)));
     this.el = h("div", { class:className, role:"radiogroup", "aria-label":label, onKeydown:e => this.#onKey(e) }, this.buttons);
     this.set(value);

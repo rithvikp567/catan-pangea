@@ -14,14 +14,16 @@
  * once: the device that pressed New map publishes, with the map, the moment
  * the build starts (`meta.buildAt`, on the server's clock, BUILD_LEAD_MS
  * ahead so the map has reached everyone by then), and every device runs the
- * same build from that moment — the animation where the map is on screen,
- * the sounds on every open device (unless it's muted: the volume button on
- * the map). Every page load opens with the intro (Splash); signing in ends
- * with "Welcome, Lord …".
+ * same build from that moment — the animation where the map is on screen
+ * (unless the person turned Map animations off), the sounds on every open
+ * device (unless they turned Sound effects off). Every page load opens with
+ * the intro (Splash); signing in ends with "Welcome, Lord …", over
+ * everything (the music is put away for it).
  *
- * The look (theme + accent color) is each person's own: LookSync decides
- * whose shows and saves picks on the signed-in profile, so it follows them
- * to every device; ThemeController paints it.
+ * Player Settings (theme, accent color, custom colors, map animations,
+ * sound effects) are each person's own: LookSync decides whose apply and
+ * saves picks on the signed-in profile, so they follow them to every
+ * device; ThemeController paints the look.
  */
 import { Annealer, AbortError, GENERATORS, randomSeedName, restoreBoard } from "../engine/index.js";
 import { Settings } from "./Settings.js";
@@ -40,7 +42,7 @@ import { ScoreCard } from "../ui/ScoreCard.js";
 import { SettingsPanel } from "../ui/SettingsPanel.js";
 import { Sheet } from "../ui/Sheet.js";
 import { ThemeController } from "../ui/ThemeController.js";
-import { LookPanel } from "../ui/LookPanel.js";
+import { PlayerSettings } from "../ui/PlayerSettings.js";
 import { Toast } from "../ui/Toast.js";
 import { VictoryOverlay } from "../ui/VictoryOverlay.js";
 import { MusicBar } from "../ui/MusicBar.js";
@@ -81,17 +83,23 @@ export class App {
     this.shownSessionId = null;    /* the shared game whose board is on screen */
     this.seatedIn = null;          /* session id this device was last seated in */
 
-    this.sound = new Sound({ storage:this.storage });
+    this.sound = new Sound();       /* (on / off: the person's Player Settings, below) */
     this.splash = new Splash({ sound:this.sound });   /* the intro is on screen already (index.html) */
     this.toast = new Toast();
     this.install = new InstallHelper(this.storage);
     this.identity = new Identity();
     this.game = new GameController({ identity:this.identity, toast:this.toast });
 
-    this.theme = new ThemeController();          /* the look index.html's head script painted, kept up to date */
-    /* whose look shows here (the signed-in person's follows them to every device) — each
+    /* the look index.html's head script painted, kept up to date */
+    this.theme = new ThemeController(document.documentElement, { storage:this.identity.storage });
+    /* sound effects muted on this device before 2.13 (the map's volume button): this device's own setting now */
+    if(this.storage.get("soundOff") === true && this.identity.storage.get("sounds") == null) this.identity.storage.set("sounds", false);
+    /* whose Player Settings apply here (the signed-in person's follow them to every device) — each
        ?device= tab on localhost is a device of its own, so it keeps Identity's storage */
-    this.look = new LookSync({ game:this.game, storage:this.identity.storage, apply:look => this.theme.set(look) });
+    this.look = new LookSync({ game:this.game, storage:this.identity.storage, apply:look => {
+      this.theme.set(look);
+      this.sound.setMuted(!look.sounds);
+    } });
     /* a pick waiting to be saved goes now if the page is hidden or closed (a locked phone, the app swiped away) */
     addEventListener("pagehide", () => this.look.flush());
     document.addEventListener("visibilitychange", () => { if(document.visibilityState === "hidden") this.look.flush(); });
@@ -103,8 +111,14 @@ export class App {
       onChange:patch => this.update(patch),
       onReplaySeed:seed => { this.sheet.close(); this.newGame({ seed }); },
     });
-    this.lookPanel = new LookPanel($("look"), { onPick:patch => this.look.pick(patch) });
-    this.look.onChange((look, owner) => this.lookPanel.sync(look, owner));
+    this.playerSettings = new PlayerSettings($("look"), {
+      onPick:patch => {
+        this.look.pick(patch);
+        if(patch.sounds === true) this.sound.preview();     /* a pop: this is what it sounds like (and that it works) */
+      },
+      scheme:() => this.theme.scheme,
+    });
+    this.look.onChange(look => this.playerSettings.sync(look));
     this.modeSwitch = new SegmentedControl({
       label:"Board type", value:this.settings.mode,
       options:GENERATORS.map(g => ({ value:g.id, label:g.name })),
@@ -120,8 +134,13 @@ export class App {
       confirm:msg => window.confirm(msg),
       ensureSession:() => this.#ensureSession(),
       installApp:() => this.installApp(),
-      /** "Welcome, Lord Sam" over everything; `covered` runs once it hides what's underneath */
-      welcome:(who, opts) => this.splash.welcome(who, opts),
+      /** "Welcome, Lord Sam" over everything — the music put away meanwhile (a player mustn't be
+          covered); `covered` runs once it hides what's underneath */
+      welcome:(who, opts = {}) => {
+        const back = () => this.music.setAway("welcome", false);
+        this.music.setAway("welcome", true);
+        return this.splash.welcome(who, { ...opts, onReveal:back }).finally(back);
+      },
     };
     this.screens = [new JoinScreen(deps), new TrackerScreen(deps), new WinsScreen(deps), new AdminScreen(deps)];
     for(const s of this.screens) this.router.register(s);
@@ -129,7 +148,7 @@ export class App {
     this.winter = new WinterEffect({ max:COUNTERS.walker.max(0) });
     this.winter.keepClear(this.music.video);       /* frost all round the window, never over the YouTube player */
     this.layout = new DesktopLayout({ router:this.router, music:this.music, storage:this.storage,
-      trackerBtn:$("trackerBtn"), splitBtn:$("splitBtn"), topbar:doc.querySelector(".topbar") });
+      trackerBtn:$("trackerBtn"), splitBtn:$("splitBtn") });
     deps.layout = this.layout;     /* the tracker's back button leaves the music & tracker view */
     this.account = new AccountLine($("account"), {
       game:this.game,
@@ -174,10 +193,14 @@ export class App {
     return seat ? { name:seat.profile.name, note:`You're ${colorById(seat.color)?.label ?? "seated"}` } : null;
   }
 
-  /** Every route change: the desktop layout, and the music is put away while the season wins are up. */
+  /** Every route change: the desktop layout, and the music is put away while the season wins or the sign-in screen are up. */
   #routed(route){
     this.layout?.routed(route);
-    this.music?.setAway("wins", route === "wins");
+    /* the new reason first, then the old one off — so going from one to the other never lets the music
+       go for a moment in between (an unhold, then a hold again) */
+    const away = route === "wins" || route === "join" ? route : null;
+    if(away) this.music?.setAway(away, true);
+    for(const r of ["wins", "join"]) if(r !== away) this.music?.setAway(r, false);
     document.getElementById("winsBtn")?.setAttribute("aria-pressed", String(route === "wins"));
   }
 
@@ -304,8 +327,9 @@ export class App {
   /**
    * Draw the board. A new map (`buildAt`: when its build starts, server
    * clock) builds itself in, from that moment — part way through if it
-   * started already: animated where the map is on screen, and its sounds
-   * on any device whose page is showing (muted: silently).
+   * started already: animated where the map is on screen (unless Map
+   * animations are off), and its sounds on any device whose page is showing
+   * (Sound effects off: silently).
    * @param {{ buildAt?:number|null }} [p]
    */
   #render({ buildAt = null } = {}){
@@ -317,14 +341,14 @@ export class App {
       const onScreen = (!route || !!this.layout?.docks(route)) && !this.splash.showing;
       build = {
         start:performance.now() + (buildAt - this.game.now()),
-        motion:onScreen && !reducedMotion(),
+        motion:onScreen && !reducedMotion() && this.look.current.animations !== false,
         sound:this.sound,
         seed:`${this.board.seed}|${buildAt}`,
       };
     }
     this.boardView.render(this.board, readBoardPalette(), { build });
     this.scoreCard.render(this.board);
-    this.dom.note.textContent = this.board.lanes ? "Dashed ports can only be reached by ship." : "";
+    this.dom.note.textContent = "";
   }
 
   #setBusy(busy){
@@ -333,7 +357,7 @@ export class App {
     btn.setAttribute("aria-busy", String(busy));
     this.dom.label.textContent = busy ? "Generating…" : "New map";
     this.boardView.setStale(busy && !!this.board);
-    if(busy) this.scoreCard.showPending();
+    this.scoreCard.setPending(busy);         /* (faded while a map's being made — back when it's done, made or not) */
     this.#setProgress(0);
   }
 
@@ -377,31 +401,16 @@ export class App {
       themeBtn.setAttribute("aria-label", `Switch to the ${to} theme`);
       themeBtn.title = `Switch to the ${to} theme — more themes in Settings`;
     };
-    themeBtn.addEventListener("click", () => this.look.pick({ theme:flipTheme(this.look.current.theme, this.theme.systemDark) }));
+    themeBtn.addEventListener("click", () => this.look.pick({ theme:flipTheme(this.look.current.theme, this.theme.scheme === "dark") }));
     /* the board bakes its colors in: recolor it in place (a new map's build animation carries on),
        and the snow has a palette for each family */
     this.theme.onChange(({ colors }) => {
       if(colors){ this.boardView.recolor(readBoardPalette()); this.winter.refreshTheme(); }
       syncThemeBtn();
+      this.playerSettings.sync(this.look.current);   /* (no theme picked: Light or Dark shows picked, as the device is set) */
     });
     syncThemeBtn();
     $("shareBtn").addEventListener("click", () => this.#saveImage());
-    /* the map's volume button: the sound effects on / off on this device (not the music) */
-    const muteBtn = $("muteBtn");
-    const syncMute = muted => {
-      muteBtn.setAttribute("aria-pressed", String(muted));
-      muteBtn.setAttribute("aria-label", muted ? "Sound effects off — turn on" : "Sound effects on — mute");
-      muteBtn.title = muted ? "Sound effects off (new map, welcome) — tap to turn on" : "Sound effects on (new map, welcome) — tap to mute";
-    };
-    this.sound.onMuted(syncMute);
-    syncMute(this.sound.muted);
-    muteBtn.addEventListener("click", () => {
-      const muted = !this.sound.muted;
-      this.sound.setMuted(muted);
-      if(!muted) this.sound.preview();          /* a pop: this is what it sounds like (and that it works) */
-      this.toast.show(muted ? "Sound effects off on this device." : "Sound effects on.");
-    });
-
     $("aboutBtn").addEventListener("click", () => this.dom.about.showModal());
     this.dom.about.querySelector("[data-close]").addEventListener("click", () => this.dom.about.close());
     this.dom.about.addEventListener("click", e => { if(e.target === this.dom.about) this.dom.about.close(); });

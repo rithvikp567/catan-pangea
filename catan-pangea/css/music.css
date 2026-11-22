@@ -32,7 +32,7 @@
 }
 /* (this file loads after app.css: keep its landscape drawer and desktop column as they were) */
 @media (orientation:landscape) and (max-height:559px){ .panel{ left:auto; max-height:none; } }
-@media (min-width:900px) and (min-height:560px){ .panel{ max-height:none; } .dock{ padding-bottom:22px; } }
+@media (min-width:900px) and (min-height:560px){ .panel{ max-height:none; } .dock{ padding-bottom:var(--card-gap); } }
 .toast{
   left:calc((100% - var(--music-w)) / 2);
   bottom:calc(92px + var(--music-h) + max(0px, env(safe-area-inset-bottom) - var(--music-h)));
@@ -43,6 +43,13 @@ body[data-music="open"] dialog.about{
   height:calc(100% - var(--music-h)); width:calc(100% - var(--music-w)); margin:0;
 }
 body[data-music="open"] dialog.about::backdrop{ background:transparent; }
+/* the color picker (Player Settings) too: in the space the music leaves, without dimming it */
+body[data-music="open"] dialog.picker{
+  bottom:var(--music-h); right:var(--music-w);
+  width:min(340px, calc(100% - var(--music-w) - 24px)); max-width:calc(100% - var(--music-w) - 24px);   /* (narrow beside a landscape column: it shrinks, never over the player) */
+  max-height:calc(100% - var(--music-h) - 24px);
+}
+body[data-music="open"] dialog.picker::backdrop{ background:transparent; }
 @media (min-width:900px) and (min-height:560px){
   body[data-music="open"] dialog.about{
     width:min(720px, calc(100% - 48px - var(--music-w))); height:auto;
@@ -118,7 +125,7 @@ body[data-music="open"] dialog.about::backdrop{ background:transparent; }
 .music-btn svg{ display:block; width:22px; height:22px; }
 .music-btn:active{ background:var(--surface-2); }
 .music-btn:disabled{ opacity:.35; cursor:default; }
-.music-btn.is-play{ background:var(--accent); color:var(--accent-ink); }
+.music-btn.is-play{ background:linear-gradient(var(--accent), var(--accent)), var(--surface); color:var(--accent-ink); }
 .music-btn.is-play svg{ width:24px; height:24px; }
 .music-controls .music-btn{ width:min(40px, 29cqi); height:min(40px, 29cqi); }
 .music-controls .music-btn.is-play{ width:min(52px, 38cqi); height:min(52px, 38cqi); }
@@ -207,7 +214,7 @@ body[data-music="open"] dialog.about::backdrop{ background:transparent; }
 .mini-artist{ max-width:100%; font-size:12px; color:var(--ink-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .music-mini .music-btn{ width:36px; height:36px; }
 .music-mini .music-btn svg{ width:20px; height:20px; }
-.music-mini .mini-play{ width:38px; height:38px; background:var(--accent); color:var(--accent-ink); }
+.music-mini .mini-play{ width:38px; height:38px; background:linear-gradient(var(--accent), var(--accent)), var(--surface); color:var(--accent-ink); }
 .music-mini .mini-play svg{ width:18px; height:18px; }
 .music-mini .mini-songs{ color:var(--ink-2); }
 .mini-progress{
@@ -242,7 +249,7 @@ body[data-desk] .music.is-entering{ animation-name:music-from-left; }
 body[data-view="split"] .music.is-entering{ animation-name:music-fade; }
 @media (prefers-reduced-motion:reduce){ .is-entering{ animation:none !important; } }
 
-/* ---------- put away (the season wins, the intro): nothing of the music shows ---------- */
+/* ---------- put away (season wins, the sign-in screen, the intro, the welcome): nothing of the music shows ---------- */
 body[data-music-away] :is(.music, .music-mini, .music-songs, .music-pop){ display:none !important; }
 
 /* ---------- sheets (songs, playlist): floating cards above the bar (beside it in landscape), never over the player ---------- */

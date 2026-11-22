@@ -17,7 +17,8 @@
   <!-- the look, before the first frame: the one this device showed last (app/LookSync keeps it as
        "lastLook", in Identity's storage), so nobody's own theme flashes the default first — the
        browser's bar too. The lists repeat game/looks.js and each theme's --bg in css/tokens.css:
-       keep them in step (tests/look.test.js checks) -->
+       keep them in step (tests/look.test.js checks). A custom theme or accent is painted from the
+       colors ui/ThemeController worked out for it last time ("lastPaint") -->
   <script>
     (function(){
       var root = document.documentElement, dark = false;
@@ -37,8 +38,14 @@
           scheme = FAM[theme];
         }
         if(typeof accent === "string" && ACC.indexOf(accent) >= 0) root.setAttribute("data-accent", accent);
+        var paint = read("lastPaint"), vars = paint && paint.vars, bg = null;
+        if(vars && typeof vars === "object" && paint.theme === theme && paint.accent === accent){
+          for(var k in vars) if(/^--[\w-]+$/.test(k) && typeof vars[k] === "string") root.style.setProperty(k, vars[k]);
+          if(theme === "custom"){ root.setAttribute("data-theme", "custom"); scheme = paint.scheme === "dark" ? "dark" : "light"; bg = vars["--bg"]; }
+          if(accent === "custom") root.setAttribute("data-accent", "custom");
+        }
         var bar = document.querySelector('meta[name="theme-color"]');
-        if(bar) bar.setAttribute("content", BG[root.getAttribute("data-theme") || scheme]);
+        if(bar) bar.setAttribute("content", bg || BG[root.getAttribute("data-theme") || scheme]);
       }catch(e){}
       root.setAttribute("data-scheme", scheme);
     })();
@@ -55,15 +62,22 @@
 <body>
   <div class="app" id="app">
     <header class="topbar">
-      <div class="brand">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l8.66 5v10L12 22l-8.66-5V7z" fill="#3E6B48"/></svg>
-        <span class="brand-text">
-          <span class="brand-name">Pangaea</span>
+      <!-- Pangaea, the board type and who's signed in. On a phone: Pangaea's tile (who's signed in under
+           the name) and the board type's under it. On desktop, three tiles over the map: Pangaea on the
+           left, the board type centred with the map, who's signed in at the right — the board type on a
+           row of its own when the map is too narrow for that -->
+      <div class="top-tile"><div class="top-tile-in">
+        <div class="brand">
+          <span class="brand-mark">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l8.66 5v10L12 22l-8.66-5V7z" fill="#3E6B48"/></svg>
+            <span class="brand-name">Pangaea</span>
+          </span>
           <!-- who's signed in on this device: "Sam · Sign out" (AccountLine) -->
           <span class="account" id="account" hidden></span>
-        </span>
-      </div>
-      <div class="mode" id="modeSwitch"></div>
+        </div>
+        <div class="mode" id="modeSwitch"></div>
+      </div></div>
+      <!-- the icons: a tile of their own (over the settings column on desktop) -->
       <div class="tools">
         <button class="icon-btn" id="installBtn" type="button" aria-label="Install the app" title="Install the app — full screen, no browser bars" hidden>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M12 7.5v7M9 11.5l3 3 3-3"/></svg>
@@ -95,10 +109,6 @@
     <main class="stage" id="stage">
       <svg class="board" id="board" role="img" aria-label="Generated Catan map"></svg>
       <p class="stage-note" id="stageNote" aria-live="polite"></p>
-      <!-- the sound effects on / off on this device (Sound.setMuted; not the music) -->
-      <button class="icon-btn stage-mute" id="muteBtn" type="button" aria-pressed="false" aria-label="Sound effects on — mute" title="Sound effects on — tap to mute">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.2L12 5.5v13l-4.8-4H4z" fill="currentColor" fill-opacity=".14"/><path class="mute-on" d="M15.5 9.2a4 4 0 0 1 0 5.6M18 6.8a7.4 7.4 0 0 1 0 10.4"/><path class="mute-off" d="M16 9.5l5 5M21 9.5l-5 5"/></svg>
-      </button>
     </main>
 
     <aside class="panel" id="panel" aria-labelledby="panelTitle">
@@ -108,10 +118,12 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
         </button>
       </div>
-      <section class="score-card" id="scoreCard" aria-live="polite"></section>
+      <!-- the map score, one line (ui/ScoreCard.js; it says each new map to screen readers itself) -->
+      <section class="score-card" id="scoreCard" aria-label="Map score"></section>
       <section id="settings"></section>
-      <!-- Accent color and Theme: each person's own, and it follows them to every device they sign in on (ui/LookPanel.js) -->
-      <section class="look" id="look" aria-label="Look"></section>
+      <!-- Player Settings (accent color, theme, map animations, sound effects): each person's own, and
+           they follow them to every device they sign in on (ui/PlayerSettings.js) -->
+      <section class="look" id="look" aria-label="Player Settings"></section>
     </aside>
     <div class="scrim" id="scrim" hidden></div>
 
@@ -165,7 +177,7 @@ v1 = 3A − S + 3 − 3L      (the generator fills lakes, so L = 0)</pre>
       </ol>
       <p>Each candidate is penalised for a 6 or 8 touching another 6/8, identical numbers touching, same-terrain clumps, resource pips out of line with tile counts, 2:1 ports far from (or on top of) their resource, and — most of all — a simulated draft where the best and worst seats end up far apart.</p>
 
-      <p><b>New map builds itself in on every phone at once</b> — the tiles fly in, the numbers flip over, the ports pop on — with sound effects, in step on every phone that has the app open (the build shows where the map's on screen; the sounds play on the tracker too). The <b>volume button</b> in the map's bottom corner mutes the sound effects on your phone (not the music). No sound on an iPhone? Its silent switch mutes them — and any phone needs one tap in the app first.</p>
+      <p><b>New map builds itself in on every phone at once</b> — the tiles fly in, the numbers flip over, the ports pop on — with sound effects, in step on every phone that has the app open (the build shows where the map's on screen; the sounds play on the tracker too). Turn them off for yourself in <b>Settings → Player Settings</b>: <b>Map animations</b> (the map just appears) and <b>Sound effects</b> (never the music). No sound on an iPhone? Its silent switch mutes them — and any phone needs one tap in the app first.</p>
 
       <h3>Board types</h3>
       <div class="table-wrap"><table>
@@ -195,7 +207,7 @@ v1 = 3A − S + 3 − 3L      (the generator fills lakes, so L = 0)</pre>
       <p>Just want full screen without installing? On Android (and iPad) the <b>full-screen</b> icon at the top hides the browser bars. iPhone browsers — Safari, Brave and the rest — don't let a website do that; there, the installed app (added from Safari) is the full-screen version.</p>
 
       <h3>Settings</h3>
-      <p><b>Accent color</b> and <b>Theme</b> (at the bottom of Settings) are yours, not the table's: signed in, your pick is saved with your profile, so the phone, the laptop and the TV all switch to it — change it on one and the others follow a moment later. Signed out, a device keeps its own.</p>
+      <p><b>Player Settings</b> (at the bottom of Settings) are yours, not the table's — the accent color, the theme (or a color of your own off the color wheel, as see-through as you like), map animations and sound effects. Signed in, they're saved with your profile, so the phone, the laptop and the TV all follow — change one on the phone and the others switch a moment later. Signed out, a device keeps its own.</p>
       <div class="table-wrap"><table>
         <tbody>
           <tr><td>Players</td><td>How many seats the fairness simulation optimises for.</td></tr>
@@ -205,8 +217,10 @@ v1 = 3A − S + 3 − 3L      (the generator fills lakes, so L = 0)</pre>
           <tr><td>Coastline</td><td>Loose 0.80 · Standard 0.90 · Tight 0.95 of Smax — directly sets how many 3-spots you get.</td></tr>
           <tr><td>Optimiser</td><td>How long to anneal. Thorough is tighter but slower on a phone.</td></tr>
           <tr><td>Replay a seed</td><td>Same seed + same settings = the identical board.</td></tr>
-          <tr><td>Accent color</td><td>The color of the buttons, outlines and whatever's picked or playing. Graphite is the original black-and-white look.</td></tr>
-          <tr><td>Theme</td><td>Light, Sand or Mist; Dark, Hearth or Midnight — or Match device, which follows the phone's own light / dark setting. The light / dark button at the top swaps to the partner theme (Sand ⇄ Hearth, Mist ⇄ Midnight).</td></tr>
+          <tr><td>Accent color</td><td>Player Settings. The color of the buttons, outlines and whatever's picked or playing. Graphite is the original black-and-white look; <b>Custom</b> opens a color wheel with an opacity slider and your last five custom colors.</td></tr>
+          <tr><td>Theme</td><td>Player Settings. Light, Sand or Mist; Dark, Hearth or Midnight — or <b>Custom</b>: any color as the background, the rest worked out from it. Until you pick one it follows the phone's own light / dark setting. The light / dark button at the top swaps to the partner theme (Sand ⇄ Hearth, Mist ⇄ Midnight).</td></tr>
+          <tr><td>Map animations</td><td>Player Settings. Off: a new map just appears on your devices instead of building itself in.</td></tr>
+          <tr><td>Sound effects</td><td>Player Settings. The build's clacks and pops and the welcome's fanfare — never the music.</td></tr>
         </tbody>
       </table></div>
     </div>

@@ -24,9 +24,9 @@
  *     over it — so this is a docked bar, never a hidden audio-only player;
  *   - nothing plays while the bar is closed: closing it on the speaker
  *     pauses the music, and a remote's play opens the speaker's bar;
- *   - nor while it's put away (season wins, the intro): the speaker holds
- *     the music, and a remote's play waits for it to be back instead of
- *     calling the player up over the season wins;
+ *   - nor while it's put away (season wins, the sign-in screen, the intro
+ *     and the welcome): the speaker holds the music, and a remote's play
+ *     waits for it to be back instead of calling the player up over them;
  *   - no autoplay: music starts from someone's tap (on phones the very
  *     first play has to be a tap on the YouTube player itself — browsers
  *     only let a video start from a tap inside its own frame), and a
@@ -44,12 +44,17 @@
  * the music half of the music & tracker view.
  *
  * It can also be put away for a while (setAway: the season wins screen, the
- * intro): nothing of it shows, and since a hidden player mustn't play, the
- * device playing the sound pauses it — and plays on when it's back.
+ * sign-in screen, the intro and the welcome): nothing of it shows, and
+ * since a hidden player mustn't play, the device playing the sound pauses
+ * it — and plays on when it's back.
  */
 import { h } from "./dom.js";
 import { describePlayerError, parsePlaylist, playlistUrl, thumbnailUrl } from "../music/playlist.js";
 import { BEAT_MS, isHeld, livePosition, songCount, speakerOnline, wantsToPlay } from "../music/playback.js";
+
+/* why the speaker holds the music (MusicBar.setAway's reasons): what its line says on the remotes, and the screen it's on */
+const HELD_WHY = { wins:"on Season wins", join:"signing in" };
+const HELD_SCREEN = { wins:"has Season wins open", join:"is on the sign-in screen" };
 
 const SVG = {
   play:`<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.6v12.8a1 1 0 0 0 1.52.85l10.2-6.4a1 1 0 0 0 0-1.7L9.52 4.75A1 1 0 0 0 8 5.6z"/></svg>`,
@@ -179,7 +184,7 @@ export class MusicBar {
     this.renderedIds = "";
     this.seeking = false;        /* the time slider is being dragged */
     this.dock = "bar";           /* "bar" (phones), or desktop's left column: "column" (big player + songs) / "compact" */
-    this.away = new Set();       /* why the music is put away for now ("wins", "splash"); empty: it shows */
+    this.away = new Set();       /* why the music is put away for now ("wins", "join", "splash", "welcome"); empty: it shows */
     this.awayListeners = new Set();
     this.holdKey = null;         /* the hold / unhold last sent (once per shared change) */
     this.swipe = null;           /* the mini bar's song, swiped away: { dir, at } until the next song shows */
@@ -198,7 +203,7 @@ export class MusicBar {
   }
 
   get isOpen(){ return !this.el.hidden; }
-  /** Put away for now (the season wins screen, the intro): nothing of the music shows. */
+  /** Put away for now (season wins, the sign-in screen, the intro, the welcome): nothing of the music shows. */
   get isAway(){ return this.away.size > 0; }
 
   /** How much of the window's height the mini bar takes along the bottom — its card and the gap
@@ -226,7 +231,8 @@ export class MusicBar {
    * everyone, and a play from another device meanwhile waits instead of
    * calling this player back — the music plays when it's back if it was
    * playing, or if anyone pressed play meanwhile (and not if someone paused
-   * it). The intro ("splash") holds it for a moment the same way.
+   * it). The sign-in screen ("join") holds it the same way, and the intro
+   * ("splash") and the welcome ("welcome") for a moment.
    */
   setAway(reason, on){
     const was = this.isAway;
@@ -255,7 +261,8 @@ export class MusicBar {
   #syncHold(){
     const n = this.pb?.now, me = this.game.deviceId;
     if(!n || !this.#queueReady) return;
-    const why = !this.isAway ? null : this.away.has("wins") ? "wins" : [...this.away][0];
+    /* the screen it's on says why (Season wins, signing in) — before the intro or the welcome over it */
+    const why = !this.isAway ? null : ["wins", "join"].find(r => this.away.has(r)) ?? [...this.away][0];
     let command = null;
     if(why && this.#isSpeaker && !(n.held === me && n.heldFor === why)) command = "hold";
     else if(!why && n.held === me) command = "unhold";
@@ -360,8 +367,8 @@ export class MusicBar {
   get #quiet(){ return this.#elsewhere && !speakerOnline(this.pb, this.#t); }
   /** The table's music is playing somewhere it can be heard — or held with a play waiting (what play / pause shows). */
   get #playing(){ return wantsToPlay(this.pb, this.#t); }
-  /** The speaker holds the music: "on Season wins" / "back in a moment". */
-  get #heldWhy(){ return !isHeld(this.pb) ? null : this.pb.now.heldFor === "wins" ? "on Season wins" : "back in a moment"; }
+  /** The speaker holds the music: "on Season wins" / "signing in" / "back in a moment". */
+  get #heldWhy(){ return !isHeld(this.pb) ? null : HELD_WHY[this.pb.now.heldFor] ?? "back in a moment"; }
   /** The shared playback has this playlist's songs. */
   get #queueReady(){
     const q = this.pb?.queue;
@@ -381,8 +388,9 @@ export class MusicBar {
   #remotePlay(arg){
     if(isHeld(this.pb)){
       const where = this.#where(), Where = where[0].toUpperCase() + where.slice(1);
-      this.toast.show(this.pb.now.heldFor === "wins"
-        ? `${Where} has Season wins open — the music plays as soon as they leave it. To play it here instead, tap “On ${where}”.`
+      const screen = HELD_SCREEN[this.pb.now.heldFor];
+      this.toast.show(screen
+        ? `${Where} ${screen} — the music plays as soon as they leave it. To play it here instead, tap “On ${where}”.`
         : `${Where} will play it in a moment.`, { ms:5000 });
     }
     return this.#send("play", arg);
@@ -1050,8 +1058,8 @@ export class MusicBar {
         : `Nowhere yet. Press play and it plays on this ${kind}; every other device becomes a remote for it.`
       : this.#quiet
         ? `On ${this.#where()}, which isn't responding (closed, locked or offline). It plays there again when it's back — or move the sound to this ${kind}.`
-        : this.pb.now.heldFor === "wins" && isHeld(this.pb)
-        ? `On ${this.#where()}, which has Season wins open, so the music waits — it plays there as soon as they leave it if someone pressed play. Or move the sound to this ${kind}.`
+        : HELD_SCREEN[this.pb.now.heldFor] && isHeld(this.pb)
+        ? `On ${this.#where()}, which ${HELD_SCREEN[this.pb.now.heldFor]}, so the music waits — it plays there as soon as they leave it if someone pressed play. Or move the sound to this ${kind}.`
         : `On ${this.#where()}. Every phone's buttons control it there, and it stays there — or move the sound to this ${kind}.`;
   }
 

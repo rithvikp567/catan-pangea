@@ -1,16 +1,19 @@
 /* ==========================================================================
    Desktop (src/ui/DesktopLayout.js sets body[data-desk], body[data-left]
-   and --left-w / --split / --music-top / --panel-w / --top-h).
+   and --left-w / --split / --music-top / --panel-w).
    The left column holds the tracker (top) and the music (bottom); the
    map and the settings column sit to its right. Nothing here applies to
    phones, and it steps aside for the music & tracker view (css/split.css)
    — every rule starts with body[data-desk].
    ========================================================================== */
 
-/* everything else moves right of the left column */
+/* everything else moves right of the left column — the map's margin is the gap beside it, the same
+   12 px as the one between the map and the settings column (the column's cards keep their own inset) */
 body[data-desk] .app{ margin-left:var(--left-w, 0px); }
+body[data-desk]:not([data-left="none"]) .app{ margin-left:calc(var(--left-w) - var(--card-gap)); }
 body[data-desk] .screen{ left:var(--left-w, 0px); }
 body[data-desk] .victory{ left:var(--left-w, 0px); }
+body[data-desk] dialog.picker{ left:var(--left-w, 0px); }
 body[data-desk] .toast{ left:calc(var(--left-w) + (100% - var(--left-w) - var(--panel-w)) / 2); bottom:calc(24px + var(--music-h)); }
 body[data-desk] dialog.about{
   width:min(720px, calc(100% - var(--left-w) - 48px));
@@ -75,10 +78,10 @@ body[data-desk] .music-pop{ max-height:calc(100% - 32px - var(--music-h)); }
 .splitter{ display:none; position:fixed; z-index:77; touch-action:none; outline:none; }
 body[data-desk] .splitter[data-split="panel"]{
   display:block; z-index:31;   /* the settings column is a grid item with z-index 30 */
-  top:var(--top-h); bottom:var(--music-h); right:calc(var(--panel-w) - 4px); width:8px; cursor:col-resize;
+  top:0; bottom:var(--music-h); right:calc(var(--panel-w) + var(--card-gap) / 2 - 4px); width:8px; cursor:col-resize;   /* (in the gap between the map's tiles and the settings', top to bottom) */
 }
 body[data-desk]:not([data-left="none"]) .splitter[data-split="left"]{
-  display:block; top:0; bottom:var(--music-h); left:calc(var(--left-w) - 4px); width:8px; cursor:col-resize;   /* (the mini bar, when the music is closed) */
+  display:block; top:0; bottom:var(--music-h); left:calc(var(--left-w) - var(--card-gap) / 2 - 4px); width:8px; cursor:col-resize;   /* (in the gap; the mini bar, when the music is closed) */
 }
 body[data-desk][data-left="both"] .splitter[data-split="split"]{
   display:block; left:0; width:var(--left-w); top:calc(var(--split) - 4px); height:8px; cursor:row-resize;

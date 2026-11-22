@@ -68,7 +68,7 @@ export class GameController {
   /** Forget the profile on this device (its seat stays: picking it again is straight back in). */
   signOut(){ this.selectProfile(null); }
 
-  /** My saved look — theme / accent ids (game/looks.js) — or null when nobody's signed in here. */
+  /** My saved Player Settings (game/looks.js), or null when nobody's signed in here. */
   get myLook(){ return this.me ? cleanLook(this.me.look) : null; }
 
   /* ---------- intents ---------- */
@@ -125,10 +125,11 @@ export class GameController {
   adjustWins(profileId, season, delta){ return this.#run(() => this.service.adjustWins(profileId, season, delta)); }
 
   /**
-   * Save a theme / accent on a profile — mine, or that of whoever made the
-   * pick (every device they're signed in on follows). Never throws; a
-   * failure toasts, except a removed profile, which the caller handles.
-   * @param {{ theme?:string, accent?:string }} patch
+   * Save Player Settings (game/looks.js) on a profile — mine, or that of
+   * whoever made the pick (every device they're signed in on follows).
+   * Never throws; a failure toasts, except a removed profile, which the
+   * caller handles.
+   * @param {object} patch
    * @param {string} [profileId]
    * @returns {Promise<"saved"|"same"|"gone"|"failed">}
    */
