@@ -3,8 +3,8 @@
  * screen owns its <section>, builds its DOM once, and updates it from
  * GameState in render(). Subclasses override build() and render().
  *
- * Two layouts: "page" (sticky header with back button, title and
- * actions — the default) and "centered" (no header; the subclass places
+ * Two layouts: "page" (sticky header: the back button with the title,
+ * and the actions — the default; on the tracker they're tiles) and "centered" (no header; the subclass places
  * `this.heading` itself and the content sits in the middle of the screen,
  * for welcome-style views).
  */
@@ -28,7 +28,7 @@ export class Screen {
     this.actions = h("div", { class:"screen-actions" });
     this.body = h("div", { class:"screen-body" });
     const head = layout === "page"
-      ? h("header", { class:"screen-head" }, this.backButton(), this.heading, this.actions)
+      ? h("header", { class:"screen-head" }, h("div", { class:"screen-title" }, this.backButton(), this.heading), this.actions)
       : null;
     this.el = h("section", { class:"screen", "data-screen":name, "data-layout":layout, "aria-label":title, hidden:true },
       h("div", { class:"screen-inner" }, head, this.body));

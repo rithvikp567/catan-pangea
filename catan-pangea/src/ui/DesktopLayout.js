@@ -38,7 +38,7 @@
  *
  * This class decides and measures; the CSS lays it out —
  * css/desktop.css from body[data-desk], body[data-left] and --left-w /
- * --split / --music-top / --panel-w / --top-h; css/split.css from
+ * --split / --music-top / --panel-w; css/split.css from
  * body[data-view="split"], body[data-axis] and --half (the tracker's
  * share in px). The two never apply at once.
  */
@@ -62,7 +62,7 @@ const MAX_PANEL = 560;
 const MAX_LEFT = 759;
 /* under the tracker, the song list shows once the music is this tall (player, its card, ~3 songs) */
 const SONGS_FROM = 392;
-const DESK_VARS = ["--left-w", "--split", "--panel-w", "--music-top", "--top-h"];
+const DESK_VARS = ["--left-w", "--split", "--panel-w", "--music-top"];
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
@@ -74,10 +74,9 @@ export class DesktopLayout {
    * @param {import("../app/storage.js").SafeStorage} p.storage
    * @param {HTMLElement} [p.trackerBtn]   shows pressed while the tracker is docked
    * @param {HTMLElement} [p.splitBtn]     opens the music & tracker view (shown on desktop only)
-   * @param {HTMLElement} [p.topbar]
    */
-  constructor({ router, music, storage, trackerBtn = null, splitBtn = null, topbar = null }){
-    Object.assign(this, { router, music, storage, trackerBtn, splitBtn, topbar });
+  constructor({ router, music, storage, trackerBtn = null, splitBtn = null }){
+    Object.assign(this, { router, music, storage, trackerBtn, splitBtn });
     this.mq = matchMedia(DESKTOP_QUERY);
     const saved = storage.get("desktopLayout", {}) ?? {};
     this.size = { ...DEFAULTS };
@@ -176,7 +175,6 @@ export class DesktopLayout {
     root.setProperty("--panel-w", `${s.panel}px`);
     root.setProperty("--split", `${split}px`);
     root.setProperty("--music-top", `${left === "both" ? split : 0}px`);
-    root.setProperty("--top-h", `${this.topbar?.offsetHeight ?? 64}px`);
 
     /* the song list under the player once the music has room for it */
     this.music.setDock(left === "music" || (left === "both" && s.music >= SONGS_FROM) ? "column" : "compact");
@@ -253,7 +251,16 @@ export class DesktopLayout {
       el.classList.add("is-dragging");
       document.body.classList.add("is-resizing");
       document.body.dataset.resizing = this.#moves(name);
-      const move = ev => this.#dragTo(name, ev.clientX, ev.clientY);
+      let x0, y0, vw, vh, from;
+      const hold = ev => { x0 = ev.clientX; y0 = ev.clientY; vw = innerWidth; vh = innerHeight; from = this.#clamped(); };
+      hold(e);
+      const move = ev => {
+        /* the window changed size mid-drag (snapped, rotated — the halves can turn from side by side to
+           one over the other): this move only takes hold again, in the new layout (it may come before
+           the resize event, so it's checked here) */
+        if(innerWidth !== vw || innerHeight !== vh) return hold(ev);
+        this.#dragTo(name, ev.clientX - x0, ev.clientY - y0, from);
+      };
       const up = () => {
         el.removeEventListener("pointermove", move);
         el.classList.remove("is-dragging");
@@ -285,11 +292,12 @@ export class DesktopLayout {
     return el;
   }
 
-  #dragTo(name, x, y){
-    if(name === "left") this.size.left = x;
-    else if(name === "panel") this.size.panel = innerWidth - x;
-    else if(name === "halves") this.size[this.#halfKey] = this.#axis === "x" ? x / innerWidth : y / innerHeight;
-    else this.size.music = innerHeight - y;
+  /** Follow the pointer from where it took hold (a handle sits in the middle of a gap: no jump to the pointer). */
+  #dragTo(name, dx, dy, from){
+    if(name === "left") this.size.left = from.left + dx;
+    else if(name === "panel") this.size.panel = from.panel - dx;
+    else if(name === "halves") this.size[this.#halfKey] = from[this.#halfKey] + (this.#axis === "x" ? dx / innerWidth : dy / innerHeight);
+    else this.size.music = from.music - dy;
     Object.assign(this.size, this.#clamped());
     this.update();
   }

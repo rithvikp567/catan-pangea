@@ -1,27 +1,32 @@
 /**
- * Whose look (theme + accent color, game/looks.js) shows on this device,
+ * Whose Player Settings (game/looks.js: the theme and accent color, custom
+ * colors, the map's build animation, sound effects) apply on this device,
  * and where a pick is saved.
  *
- *  - Signed in: the person's own, saved on their profile — it follows them
+ *  - Signed in: the person's own, saved on their profile — they follow them
  *    to every device they sign in on (a pick on the phone shows on the
  *    laptop a moment later). What they never picked shows the default, so
  *    all their devices look the same.
- *  - Signed out (or the profile was removed): this device's own look, kept
- *    on the device only. Signing out brings it back, so a shared laptop or
- *    TV never keeps someone else's look.
+ *  - Signed out (or the profile was removed): this device's own, kept on
+ *    the device only. Signing out brings them back, so a shared laptop or
+ *    TV never keeps someone else's.
  *
  * A pick belongs to whoever was signed in when it was made. It shows at
  * once and is saved on their profile when a run of picks settles — or
  * straight away if they sign out (or someone else signs in) first, or the
  * page is hidden (`flush`, from App).
  *
- * It only decides; `apply(look)` (ui/ThemeController) paints. The look it
- * showed last is kept on the device as `lastLook`, which index.html's head
- * script paints before the first frame — so nobody sees the default flash
- * while their own arrives with the game data. Until that data has loaded,
- * it keeps showing what's there. DOM-free (tests/look.test.js).
+ * It only decides; `apply(look)` (App: ui/ThemeController, Sound, the
+ * build animation) applies them. The settings it showed last are kept on
+ * the device as `lastLook` (index.html's head script paints from them
+ * before the first frame — so nobody sees the default flash while their
+ * own arrives with the game data). Until that data has loaded, it keeps
+ * showing what's there. DOM-free (tests/look.test.js).
  */
 import { cleanLook, resolveLook, sameLook } from "../game/looks.js";
+
+/** A device's own settings, each under its own key in its storage (`theme`, `accent`… as before 2.13). */
+const DEVICE_KEYS = ["theme", "accent", "customTheme", "customAccent", "recent", "animations", "sounds"];
 
 /** A run of picks (arrow keys through the themes) is saved once, when it settles. */
 const SAVE_AFTER_MS = 400;
@@ -32,12 +37,12 @@ export class LookSync {
    * @param {import("./GameController.js").GameController} p.game
    * @param {import("./storage.js").SafeStorage} p.storage   this device's storage — Identity's
    *   (so each ?device= tab on localhost is a phone of its own)
-   * @param {(look:{ theme:string, accent:string }) => void} p.apply
+   * @param {(look:object) => void} p.apply   the settings to apply (a whole look, game/looks.js)
    */
   constructor({ game, storage, apply }){
     Object.assign(this, { game, storage, apply });
     this.listeners = new Set();
-    /** @type {{ id:string, look:{ theme?:string, accent?:string } }|null}  a pick not saved yet, and whose it is */
+    /** @type {{ id:string, look:object }|null}  a pick not saved yet (some fields of a look), and whose it is */
     this.pending = null;
     this.saving = null;        /* the pending pick being saved right now */
     this.timer = null;
@@ -47,14 +52,14 @@ export class LookSync {
     game.onChange(() => this.#changed());
   }
 
-  /** The look showing now. */
+  /** The settings applying now (a whole look). */
   get current(){ return this.look; }
 
-  /** This device's own look (the one shown while nobody's signed in). */
-  get device(){ return { theme:this.storage.get("theme"), accent:this.storage.get("accent") }; }
+  /** This device's own settings (the ones that apply while nobody's signed in). */
+  get device(){ return Object.fromEntries(DEVICE_KEYS.map(k => [k, this.storage.get(k)])); }
 
   /**
-   * @param {(look:{ theme:string, accent:string }, owner:string|null) => void} fn
+   * @param {(look:object, owner:string|null) => void} fn
    *   now, and whenever the look or whose it is changes (owner: the signed-in
    *   person's name — their picks are saved for them — or null: this device's)
    */
@@ -64,10 +69,10 @@ export class LookSync {
   }
 
   /**
-   * A pick (Settings, or the top bar's light / dark switch): it shows at
-   * once, and is saved on the profile of whoever's signed in here (once a
-   * run of picks settles), on this device when nobody is.
-   * @param {{ theme?:string, accent?:string }} patch
+   * A pick (Player Settings, or the top bar's light / dark switch): it
+   * shows at once, and is saved on the profile of whoever's signed in here
+   * (once a run of picks settles), on this device when nobody is.
+   * @param {object} patch  some fields of a look (game/looks.js)
    */
   pick(patch){
     const clean = cleanLook(patch);
@@ -84,7 +89,7 @@ export class LookSync {
       for(const [key, value] of Object.entries(clean)) this.storage.set(key, value);
     }
     if(this.game.ready) this.#sync();
-    else this.#show({ ...this.look, ...clean });        /* (still loading: on top of what shows) */
+    else this.#show(resolveLook({ ...this.look, ...clean }, null));   /* (still loading: on top of what shows) */
   }
 
   /** Save a pick that's waiting, now — the page is being hidden or closed. */
@@ -135,7 +140,7 @@ export class LookSync {
     if(!changed && owner === this.owner) return;
     this.owner = owner;
     if(changed){
-      this.look = { theme:look.theme, accent:look.accent };
+      this.look = { ...look, recent:[...look.recent] };
       this.storage.set("lastLook", this.look);
       this.apply(this.look);
     }

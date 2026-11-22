@@ -9,7 +9,8 @@
  * is the very first play, when there's no speaker yet.
  *
  * The speaker can *hold* the music while its player is put away (the
- * season wins screen, the intro — a hidden player mustn't play): it's
+ * season wins screen, the sign-in screen, the intro — a hidden player
+ * mustn't play): it's
  * paused, and a play from anyone else meanwhile doesn't call the player
  * back — it waits (`resume`) and the music plays once the speaker unholds
  * it. Play here takes the sound (and the wait) somewhere else.
@@ -26,7 +27,7 @@
  *            playing, pos, at,           ← the clock: pos seconds in at time `at` (ms, server clock)
  *            duration?,                  ← seconds, once the speaker knows it
  *            speaker?, speakerName?, speakerKind?,   ← the device playing the sound (its device id), for "On Sam's phone"
- *            held?, heldFor?, resume?,   ← the speaker holds it (its device id; "wins" | "splash"; play once it's back?)
+ *            held?, heldFor?, resume?,   ← the speaker holds it (its device id; "wins" | "join" | "splash" | "welcome"; play once it's back?)
  *            rev, by }                   ← bumped by every change, and which device made it
  *   beat:  ms                            ← the speaker's last "still here" (every BEAT_MS)
  *
@@ -173,7 +174,8 @@ export function takeOver(pb, _arg, ctx){
 
 /**
  * The speaker puts its player away (`why`: "wins" — the season wins
- * screen — or "splash", the intro). A hidden player mustn't play, so the
+ * screen — "join", the sign-in screen, "splash", the intro, or "welcome").
+ * A hidden player mustn't play, so the
  * music pauses; it plays on when it's unheld if it was playing, or if
  * anyone presses play meanwhile.
  */

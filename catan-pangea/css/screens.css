@@ -44,8 +44,9 @@ body[data-desk] .screen[data-screen="tracker"][data-leave]{ animation-name:dock-
   display:flex; align-items:center; gap:6px;
   padding:8px 0; background:var(--bg);
 }
-.screen-head h1{ flex:1; margin:0; font-size:19px; font-weight:650; letter-spacing:-.01em; outline:none; }
-.screen-actions{ display:flex; align-items:center; gap:4px; }
+.screen-title{ flex:1; min-width:0; display:flex; align-items:center; gap:6px; }
+.screen-head h1{ flex:1; min-width:0; margin:0; font-size:19px; font-weight:650; letter-spacing:-.01em; outline:none; }
+.screen-actions{ display:flex; align-items:center; gap:4px; margin-left:auto; }
 .back-btn{ margin-left:-8px; }
 
 .card{
@@ -156,7 +157,19 @@ body[data-desk] .screen[data-screen="tracker"][data-leave]{ animation-name:dock-
    seat rows share whatever height the header and the two shared cards
    leave (TrackerScreen sets --seats). Very short screens still scroll. */
 .screen[data-screen="tracker"] .screen-inner{ padding:0 12px 12px; }
-.screen[data-screen="tracker"] .screen-head{ padding:4px 0; }
+.screen[data-screen="tracker"] .screen-head{ padding:4px 0; gap:8px; }
+/* its header in tiles, like the top bar's: the back arrow with "Tracker" at the left, how it's
+   syncing at the right (40 px tall: the header keeps its height — --tracker-chrome counts it) */
+.screen[data-screen="tracker"] .screen-title{
+  flex:0 1 auto; height:40px; gap:2px; padding:0 16px 0 2px;
+  background:var(--surface); border:1px solid var(--accent-line); border-radius:var(--card-radius);
+}
+.screen[data-screen="tracker"] .screen-title h1{ flex:0 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.screen[data-screen="tracker"] .back-btn{ width:36px; height:36px; margin:0; border-radius:calc(var(--card-radius) - 3px); }
+.screen[data-screen="tracker"] .sync-pill{
+  height:40px; padding:0 14px; border-radius:var(--card-radius);
+  background:var(--surface); border:1px solid var(--accent-line);
+}
 .screen[data-screen="tracker"] .card{ padding:8px 12px 10px; margin-top:8px; }
 .screen[data-screen="tracker"] .card-title{ margin:0 0 2px; font-size:11px; }
 /* one line: the seed gives way (ellipsis) to "Join as …" (someone not seated yet) */
@@ -209,7 +222,7 @@ body[data-desk] .screen[data-screen="tracker"][data-leave]{ animation-name:dock-
 }
 .screen[data-fit="tight"] .tile{ gap:2px; }
 .screen[data-fit="tight"] .tile-label{ font-size:12px; }
-.screen[data-fit="tight"] :is(.tile .counter-btn, .tile .counter-value, .walker .counter-btn, .walker .counter-value, .robber-act){
+.screen[data-fit="tight"] :is(.tile .counter-value, .walker .counter-value, .robber-act){
   height:36px; min-height:36px;
 }
 .screen[data-fit="tight"] .walker{ margin-top:6px; }
@@ -222,18 +235,21 @@ body[data-desk] .screen[data-screen="tracker"][data-leave]{ animation-name:dock-
 .vp-row[data-open="true"] .vp-name-line{ color:var(--ink-3); font-weight:500; }
 .vp-row[data-open="true"] .coin-state{ display:none; }
 .vp-control{ display:flex; align-items:center; gap:2px; }
-.vp-control .counter-btn{ width:40px; height:40px; }
 .vp-control .counter-value{ height:40px; }
 .vp-max{ min-width:24px; font-size:12px; color:var(--ink-3); }
 .seat-dot{ width:14px; height:14px; border-radius:50%; background:var(--c); box-shadow:inset 0 0 0 1px rgb(0 0 0 / .2); }
 
+/* − value +: small buttons beside the number (2.13.0: 44 px, then 32, looked comical next to it);
+   the tap area reaches past each button, to 42 px */
 .counter{ display:flex; align-items:center; gap:4px; }
 .counter-btn{
-  width:44px; height:44px; flex:none; display:grid; place-items:center; padding:0;
-  border:1px solid var(--accent-line); border-radius:12px; background:var(--surface); color:var(--ink);
+  --btn:26px;
+  position:relative; width:var(--btn); height:var(--btn); flex:none; display:grid; place-items:center; padding:0;
+  border:1px solid var(--accent-line); border-radius:8px; background:var(--surface); color:var(--ink);
   cursor:pointer; user-select:none;
 }
-.counter-btn svg{ display:block; width:20px; height:20px; }
+.counter-btn::before{ content:""; position:absolute; inset:-9px; }   /* (from inside the 1 px border: 24 + 18) */
+.counter-btn svg{ display:block; width:13px; height:13px; }
 .counter-btn:active{ background:var(--surface-2); }
 .counter-btn:disabled{ opacity:.3; cursor:default; }
 .counter-value{
@@ -274,7 +290,8 @@ body[data-desk] .screen[data-screen="tracker"][data-leave]{ animation-name:dock-
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
 .tile .counter{ gap:2px; justify-content:space-between; }
-.tile .counter-btn{ width:auto; flex:0 1 38px; min-width:30px; height:40px; border-radius:10px; }
+.tile .counter-btn{ flex:0 0 var(--btn); }
+.tile .counter-btn::before{ inset:-9px -5px; }   /* (the tiles are 8 px apart: one tile's + and the next one's − reach 4 px each into it) */
 .tile .counter-value{ flex:1 1 auto; min-width:2ch; height:40px; font-size:20px; }
 .tile .counter-value.is-signed{ min-width:3.6ch; }
 .tiles.is-karma .counter{ gap:6px; }
@@ -283,7 +300,7 @@ body[data-desk] .screen[data-screen="tracker"][data-leave]{ animation-name:dock-
 .robber-acts{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:6px; }
 .robber-act{ min-height:40px; height:40px; padding:0 8px; gap:6px; border-radius:10px; white-space:nowrap; font-size:14px; }
 .robber-act:disabled{ opacity:.45; cursor:default; transform:none; }
-.rob-btn{ background:var(--accent); color:var(--accent-ink); border-color:transparent; }
+.rob-btn{ background:linear-gradient(var(--accent), var(--accent)), var(--surface); color:var(--accent-ink); border-color:transparent; }
 .rob-value{ font-variant-numeric:tabular-nums; font-weight:750; }
 .robber-pips{ display:inline-flex; gap:3px; }
 .robber-pips i{ width:6px; height:6px; border-radius:50%; background:var(--line); transition:background .2s, transform .2s; }
@@ -296,7 +313,6 @@ body[data-desk] .screen[data-screen="tracker"][data-leave]{ animation-name:dock-
 /* WALKER: − W A L K E R + — lit letters glow icy and shake harder with
    every letter (TrackerScreen sets --amp, --rot and --dur on the word) */
 .walker{ justify-content:space-between; gap:6px; margin-top:8px; }
-.walker .counter-btn{ width:44px; height:40px; border-radius:10px; }
 .walker .counter-value{ flex:1 1 auto; min-width:0; height:40px; }
 .walker-word{
   display:flex; justify-content:center; gap:clamp(5px, 2.6vw, 14px);
@@ -375,6 +391,23 @@ button.cal-day .cal-date{ color:var(--ink-2); }
 .cal-nav{ border:1px solid var(--accent-line); }
 .cal-nav:disabled{ opacity:.3; cursor:default; }
 .cal-nav:disabled:hover{ background:transparent; }
+/* a wider window: season wins a little bigger, so it fills more of it (2.13.0) */
+@media (min-width:700px){
+  .screen[data-screen="wins"] .screen-inner{ max-width:900px; }
+  .screen[data-screen="wins"] .screen-head h1{ font-size:22px; }
+  .screen[data-screen="wins"] .card{ padding:18px 20px 14px; margin-top:16px; }
+  .screen[data-screen="wins"] .card-title{ font-size:12.5px; }
+  .wins-row{ min-height:64px; gap:14px; font-size:18px; }
+  .wins-count{ font-size:26px; }
+  .wins-count small{ font-size:13px; }
+  .cal-weekdays{ font-size:12.5px; margin:10px 0 6px; }
+  .cal-weekdays, .cal-grid{ gap:5px; }
+  .cal-day{ min-height:70px; padding:6px 5px 5px; border-radius:11px; }
+  .cal-date{ font-size:13px; }
+  .cal-win{ font-size:12px; }
+  .cal-label{ font-size:17px; }
+  .cal-foot{ margin-top:12px; }
+}
 
 /* a day's pop-up: everyone's points at the win — fades in and out, round the music player like every overlay */
 .wins-pop{
@@ -536,6 +569,8 @@ body[data-desk] .wins-pop{ left:var(--left-w); }
 /* ---------- dock: three buttons on a phone ---------- */
 .dock .btn:not(.primary){ padding:0 14px; }
 @media (max-width:370px){ .dock .btn:not(.primary) span{ display:none; } }
+/* phone landscape: Settings and Tracker side by side in the rail (app.css) — the room is for the label */
+@media (orientation:landscape) and (max-height:559px){ .dock .btn:not(.primary){ padding:0 4px; gap:4px; } }
 
 /* ---------- the intro and the welcome (ui/Splash.js; the intro's markup is in index.html) ---------- */
 .splash{
@@ -550,7 +585,8 @@ body[data-desk] .wins-pop{ left:var(--left-w); }
 /* (JS never ran: it fades by itself) */
 .splash:not([data-js]){ animation:splash-failsafe .5s 9s forwards; }
 @keyframes splash-failsafe{ to{ opacity:0; visibility:hidden; } }
-/* the welcome later on (an account picked) stays round the music player, like every overlay */
+/* both put the music away while they're up (App), so they cover the whole window; should a player
+   ever be open under one, it stays round it like every overlay — never over it */
 body[data-music="open"] .splash{ bottom:var(--music-h); right:var(--music-w); }
 body[data-desk][data-music="open"] .splash{ left:var(--left-w); }
 body[data-view="split"][data-music="open"][data-axis="x"] .splash{ right:calc(100% - var(--half)); }

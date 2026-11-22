@@ -32,6 +32,10 @@ body[data-view="split"] .screen[data-screen="tracker"] .screen-inner{
   min-height:100%; display:flex; flex-direction:column; justify-content:center;   /* in the middle of its half when shorter */
 }
 body[data-view="split"] .tracker-grid{ grid-template-columns:minmax(0,1fr); grid-template-rows:none; }
+/* (the − and + don't grow with the rest: 32 px at most on screen, the size they'd be on a phone at
+   most — the numbers beside them grow; the tap area grows with the zoom) */
+body[data-view="split"] .screen[data-screen="tracker"] .counter-btn{ --btn:min(26px, calc(32px / var(--grow, 1))); }
+body[data-view="split"] .screen[data-screen="tracker"] .counter-btn svg{ width:min(13px, calc(16px / var(--grow, 1))); height:min(13px, calc(16px / var(--grow, 1))); }
 body[data-view="split"] .tracker-grid > :first-child{ grid-row:auto; }
 
 /* ---------- the music half ---------- */

@@ -154,6 +154,21 @@ test("playback: the speaker holds the music while its player is put away — a r
   assert.equal(play(pb, { here:true }, ctx(17_000, "dev-alex")).now.held, null);
 });
 
+test("playback: the sign-in screen holds the music the same way, and the welcome after it keeps the play waiting", () => {
+  let pb = play(load(null, { listId:"PL", setAt:1, songs:SONGS }, ctx(0)), {}, ctx(0, "dev-tv"));
+  /* the speaker signs out: the sign-in screen puts its player away */
+  pb = hold(pb, { why:"join" }, ctx(10_000, "dev-tv"));
+  assert.deepEqual([pb.now.playing, pb.now.held, pb.now.heldFor, pb.now.resume], [false, "dev-tv", "join", true]);
+  pb = play(pause(pb, null, ctx(10_500, "dev-alex")), {}, ctx(11_000, "dev-alex"));   /* someone pauses, then plays again */
+  assert.deepEqual([pb.now.playing, pb.now.resume, pb.now.held, pb.now.speaker], [false, true, "dev-tv", "dev-tv"],
+    "a remote's play waits — it never calls the player back over the sign-in screen");
+  /* someone signs in there: the welcome holds it a moment longer, the play still waiting */
+  pb = hold(pb, { why:"welcome" }, ctx(12_000, "dev-tv"));
+  assert.deepEqual([pb.now.heldFor, pb.now.resume, pb.now.playing], ["welcome", true, false]);
+  pb = unhold(pb, null, ctx(14_000, "dev-tv"));
+  assert.deepEqual([pb.now.playing, isHeld(pb)], [true, false], "the welcome over: it plays");
+});
+
 test("playback: next, previous and a song ending go round the playlist — a song's end counts once", () => {
   let pb = play(load(null, { listId:"PL", setAt:1, songs:SONGS }, ctx(0)), {}, ctx(0));
   pb = skip(pb, -1, ctx(1000, "dev-alex"));

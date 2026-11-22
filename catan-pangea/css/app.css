@@ -34,19 +34,31 @@ button{ touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
   padding:env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
 }
 
+/* the top bar: tiles, like the map's card — Pangaea (and who's signed in), the board type, the
+   icons. On a phone each is a tile of its own (the brand and the icons in a row, the board type
+   under them); on desktop Pangaea and the board type share one over the map (below) */
 .topbar{
   grid-area:top;
-  display:flex; flex-wrap:wrap; align-items:center; gap:10px;
-  padding:10px 14px 4px;
+  /* Pangaea and who's signed in get the room they need first, short of squeezing the icons under
+     26 px each; the icons share the rest, up to 40 px each */
+  display:grid; grid-template-columns:minmax(0, max-content) minmax(min-content, 1fr); grid-template-areas:"brand tools" "mode mode";
+  align-items:stretch; gap:8px;
+  padding:10px var(--card-gap) 4px;                  /* (lined up with the map's card) */
+}
+.top-tile, .top-tile-in{ display:contents; }
+.brand, .tools, .topbar .mode .segmented{
+  background:var(--surface); border:1px solid var(--accent-line); border-radius:var(--card-radius);
 }
 .brand{
-  display:flex; align-items:center; gap:8px; margin-right:auto;
+  grid-area:brand; min-width:0;
+  display:flex; align-items:center; gap:10px; padding:4px 12px 4px 10px;
   font-weight:650; font-size:17px; letter-spacing:-.01em;
 }
-.brand{ flex:0 1 auto; min-width:0; }
+/* the logo and the name; "Sam · Sign out" (AccountLine) right of them — under the name on a phone, where
+   the icons need the row; a tile of its own at the right on desktop */
+.brand-mark{ display:flex; align-items:center; gap:8px; min-width:0; }
 .brand svg{ width:20px; height:20px; flex:none; }
-/* "Sam · Sign out" right of the name (AccountLine); under it on a phone, where the icons need the row */
-.brand-text{ display:flex; align-items:baseline; gap:10px; min-width:0; }
+.brand-name{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .account{ display:inline-flex; align-items:baseline; gap:5px; min-width:0; font-size:13.5px; font-weight:500; letter-spacing:0; color:var(--ink-3); white-space:nowrap; }
 .account-name{ min-width:0; max-width:14ch; overflow:hidden; text-overflow:ellipsis; color:var(--ink-2); font-weight:600; }
 .account-btn{
@@ -55,13 +67,26 @@ button{ touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
 }
 .account-btn:hover{ color:var(--ink); }
 @media (max-width:599px), (orientation:landscape) and (max-height:559px){
-  .brand-text{ flex-direction:column; align-items:flex-start; gap:1px; line-height:1.15; }
-  .account{ font-size:12px; }
+  /* the logo beside two lines: the name, and who's signed in under it */
+  .brand{ display:grid; grid-template-columns:auto minmax(0, 1fr); align-items:center; gap:1px 8px; line-height:1.15; }
+  .brand-mark{ display:contents; }
+  .brand svg{ grid-row:1 / span 2; }
+  .brand:has(> .account[hidden]) svg{ grid-row:1; }     /* (nobody's line yet — no game: the name alone, beside the logo) */
+  .brand-name, .account{ grid-column:2; }
+  .account{ justify-self:start; font-size:12px; max-width:100%; }
 }
-/* the icons take the room the brand leaves and shrink a little rather than wrap (six on a 360 px phone) */
-.tools{ display:flex; gap:4px; flex:1 1 0; min-width:0; justify-content:flex-end; }
-.tools .icon-btn{ flex:0 1 40px; min-width:30px; }
-.topbar .mode{ order:3; flex:1 1 100%; }
+/* a narrow phone: the logo steps aside so the icons keep their room */
+@media (max-width:399px) and (orientation:portrait){ .brand svg{ display:none; } .brand{ padding:4px 10px; column-gap:0; } }
+/* the icons: their tile hugs them at the right, and they shrink rather than wrap (seven on a 360 px phone):
+   no padding lets each go down to its 26 px minimum (a button's own padding held them at 32 px and cut
+   the name beside them short); the grid track inside gives each 40 px when there's room */
+.tools{ grid-area:tools; justify-self:end; max-width:100%; min-width:0; display:flex; align-items:center; gap:2px; padding:2px; }
+.tools .icon-btn{ flex:0 1 40px; width:auto; min-width:26px; padding:0; grid-template-columns:minmax(26px, 40px); }
+.topbar .mode{ grid-area:mode; contain:inline-size; }   /* (its row's width is the bar's: the switch doesn't hold the icons' column wide) */
+/* the board type's switch is its own tile: what's picked in the accent's tint */
+.topbar .mode .segmented{ padding:3px; }
+.topbar .mode .seg{ border-radius:12px; }
+.topbar .mode .seg[aria-checked="true"]{ background:var(--accent-soft); box-shadow:none; }
 
 .stage{
   /* the map: a card, like the tracker's sections (the hexes' gutters are its color: --board-gap) */
@@ -80,20 +105,6 @@ button{ touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
   position:absolute; left:0; right:0; bottom:6px; margin:0;
   text-align:center; font-size:12px; color:var(--ink-3); pointer-events:none;
 }
-/* the sound effects' volume button, in the map's bottom right corner (App: Sound.setMuted);
-   `.stage` in front so it outranks .icon-btn (and its :hover, which sticks after a tap on a phone) */
-.stage .stage-mute{
-  position:absolute; right:6px; bottom:6px; z-index:2;
-  width:36px; height:36px; color:var(--ink-3);
-  background:color-mix(in srgb, var(--map-bg) 72%, transparent);
-}
-.stage .stage-mute:hover{ color:var(--ink); background:var(--surface-2); }
-.stage .stage-mute svg{ width:19px; height:19px; }
-.stage-mute .mute-off{ display:none; }
-.stage-mute[aria-pressed="true"] .mute-on{ display:none; }
-.stage-mute[aria-pressed="true"] .mute-off{ display:inline; }
-.stage .stage-mute[aria-pressed="true"]{ color:var(--bad); background:color-mix(in srgb, var(--map-bg) 72%, transparent); }
-.stage-mute:active svg{ transform:scale(.88); }
 
 .dock{
   grid-area:dock;
@@ -112,8 +123,10 @@ button{ touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
   font-weight:600; cursor:pointer; user-select:none;
 }
 .btn:active{ transform:scale(.985); }
-.btn svg{ width:18px; height:18px; }
-.btn.primary{ background:var(--accent); color:var(--accent-ink); border-color:transparent; }
+.btn svg{ flex:none; width:18px; height:18px; }
+/* filled with the accent over the card color, so a see-through custom accent looks the same anywhere
+   (and its text color, worked out for it there, reads: game/colors.js) */
+.btn.primary{ background:linear-gradient(var(--accent), var(--accent)), var(--surface); color:var(--accent-ink); border-color:transparent; }
 .btn .progress{
   position:absolute; inset:0; transform-origin:left center;
   transform:scaleX(var(--p, 0));
@@ -148,18 +161,20 @@ button{ touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
 }
 
 /* ---------- stepper ---------- */
-.stepper{ display:flex; align-items:center; gap:6px; }
+/* − and + small beside the number between them (the tap area reaches past the circle, to 42 px) */
+.stepper{ display:flex; align-items:center; gap:8px; }
 .stepper button{
-  width:44px; height:44px; flex:none;
+  position:relative; width:28px; height:28px; flex:none; padding:0;
   border:1px solid var(--accent-line); border-radius:50%;
-  background:var(--surface); font-size:22px; line-height:1; cursor:pointer;
+  background:var(--surface); line-height:1; cursor:pointer;
   display:grid; place-items:center; user-select:none;
 }
+.stepper button::before{ content:""; position:absolute; inset:-8px; }   /* (from inside the 1 px border: 26 + 16) */
 .stepper button:disabled{ opacity:.35; cursor:default; }
-.stepper button svg{ display:block; width:20px; height:20px; }
+.stepper button svg{ display:block; width:13px; height:13px; }
 .stepper output{
-  min-width:3ch; text-align:center;
-  font-size:20px; font-weight:600; font-variant-numeric:tabular-nums;
+  min-width:2.6ch; text-align:center;
+  font-size:18px; font-weight:600; font-variant-numeric:tabular-nums;
 }
 
 /* ---------- settings panel ---------- */
@@ -211,69 +226,185 @@ details.advanced .group{ border-top:0; padding-top:4px; }
 }
 .seed-row .btn{ min-height:44px; }
 
-/* ---------- the look: Settings → Accent color and Theme (ui/LookPanel.js) ----------
-   every swatch and preview carries its own data-accent / data-scheme / data-theme,
-   so tokens.css colors it as itself */
+/* ---------- Settings → Player Settings (ui/PlayerSettings.js): a drop-down like Advanced ----------
+   every swatch and preview carries its own data-accent / data-scheme / data-theme, so tokens.css
+   colors it as itself (a custom one: its colors as properties, from game/colors.js) */
+.look-group{ display:flex; flex-direction:column; gap:10px; }
 .look-head{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
 .section-title{ margin:0; font-size:12px; font-weight:650; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3); }
 .look-value{ font-size:13px; font-weight:600; color:var(--ink-2); }
-.look .group{ gap:12px; }
-.accent-grid{ display:grid; grid-template-columns:repeat(8, minmax(0, 44px)); justify-content:space-between; gap:4px; }
+details.player-settings .group{ gap:20px; }
+/* the eight accents, then Custom at the end of the row */
+.accent-row{ display:flex; align-items:center; gap:4px; }
+.accent-grid{ flex:1 1 auto; min-width:0; display:grid; grid-template-columns:repeat(8, minmax(0, 40px)); justify-content:space-between; gap:2px; }
+.accent-row .accent-custom{ flex:0 0 auto; width:min(40px, 11%); }
 .accent-choice{
   aspect-ratio:1; width:100%; min-width:0; padding:0; display:grid; place-items:center;
   border:0; border-radius:50%; background:none; cursor:pointer;
 }
 .accent-dot{
-  width:72%; aspect-ratio:1; border-radius:50%; forced-color-adjust:none;
+  width:76%; aspect-ratio:1; border-radius:50%; forced-color-adjust:none;
   background:var(--accent-l, var(--ink)); box-shadow:inset 0 0 0 1px rgb(0 0 0 / .12);
   transition:box-shadow .15s, transform .15s;
 }
 [data-scheme="dark"] .accent-dot{ background:var(--accent-d, var(--ink)); box-shadow:inset 0 0 0 1px rgb(255 255 255 / .12); }
 .accent-choice:active .accent-dot{ transform:scale(.9); }
-.accent-choice[aria-checked="true"] .accent-dot{ box-shadow:0 0 0 2px var(--surface), 0 0 0 4px var(--ink); }
+.accent-choice[aria-checked="true"] .accent-dot,
+.accent-custom[aria-pressed="true"] .accent-dot{ box-shadow:0 0 0 2px var(--surface), 0 0 0 4px var(--ink); }
+/* Custom: the person's color over a checkerboard (it may be see-through) — a rainbow until they pick one */
+.accent-dot.is-custom{
+  background:linear-gradient(var(--accent-l, transparent), var(--accent-l, transparent)), repeating-conic-gradient(#c9c6bf 0 25%, #fff 0 50%) 50% / 8px 8px;
+}
+[data-scheme="dark"] .accent-dot.is-custom{
+  background:linear-gradient(var(--accent-d, transparent), var(--accent-d, transparent)), repeating-conic-gradient(#555 0 25%, #2a2a28 0 50%) 50% / 8px 8px;
+}
+.accent-dot.is-custom.is-empty, [data-scheme="dark"] .accent-dot.is-custom.is-empty{
+  background:conic-gradient(from 0deg, #e5484d, #f1a33c, #e8d44a, #46a758, #3b9fd9, #6e56cf, #d6409f, #e5484d);
+}
 .theme-grid{ display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:8px; }
 .theme-choice{
   min-width:0; display:flex; flex-direction:column; gap:5px; padding:5px 5px 6px;
   border:1px solid var(--accent-line); border-radius:12px; background:var(--surface); color:var(--ink);
   font-size:12.5px; font-weight:600; cursor:pointer;
 }
-.theme-choice[data-theme-id="system"]{ grid-column:1 / -1; flex-direction:row; align-items:center; gap:10px; padding:5px 10px 5px 5px; }
-.theme-choice[data-theme-id="system"] .theme-thumb{ flex:0 0 33%; }
-.theme-choice[aria-checked="true"]{ border-color:var(--ink); box-shadow:0 0 0 1px var(--ink); }
+.theme-choice[aria-checked="true"], .theme-custom[aria-pressed="true"]{ border-color:var(--ink); box-shadow:0 0 0 1px var(--ink); }
 .theme-thumb{ display:flex; height:34px; overflow:hidden; border-radius:8px; box-shadow:inset 0 0 0 1px var(--line); }
 .theme-mini{ flex:1; display:grid; place-items:center; background:var(--bg); }
 .theme-mini i{
   width:64%; height:52%; border-radius:4px; background:var(--surface);
   box-shadow:0 0 0 1px var(--line), inset 0 -4px 0 var(--accent);
 }
+.theme-mini.is-empty{ background:conic-gradient(from 200deg, #e5484d, #f1a33c, #e8d44a, #46a758, #3b9fd9, #6e56cf, #e5484d); }
+.theme-mini.is-empty i{ background:rgb(255 255 255 / .85); box-shadow:inset 0 -4px 0 var(--accent); }
 .theme-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:center; }
-.theme-choice[data-theme-id="system"] .theme-name{ text-align:left; }
-.look-where{ margin-top:-2px; }
+/* Custom: a full-width tile under the six */
+.theme-custom{ flex-direction:row; align-items:center; gap:10px; padding:5px 12px 5px 5px; }
+.theme-custom .theme-thumb{ flex:0 0 33%; }
+.theme-custom .theme-name{ text-align:left; }
+.theme-hint{ margin-left:auto; font-size:12px; font-weight:500; color:var(--ink-3); }
 
-/* ---------- score ---------- */
-.score-card{ padding:6px 0 16px; }
-.score-top{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
-.score-total{ font-size:40px; font-weight:650; letter-spacing:-.03em; line-height:1; }
-.score-total small{ font-size:15px; font-weight:500; color:var(--ink-3); letter-spacing:0; }
-.verdict{
-  font-size:12px; font-weight:650; padding:5px 10px; border-radius:999px; white-space:nowrap;
+/* Map animations, Sound effects: a label and a switch */
+.look-toggles{ gap:2px; }
+.toggle-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:44px; cursor:pointer; }
+.toggle-label{ font-size:14px; font-weight:600; color:var(--ink); }
+.switch{
+  position:relative; flex:none; width:44px; height:26px; padding:0; border-radius:999px; cursor:pointer;
+  border:1px solid var(--accent-line); background:var(--surface-2); transition:background .18s, border-color .18s;
 }
-.verdict[data-key="good"]{ color:var(--good); background:color-mix(in srgb, var(--good) 14%, transparent); }
-.verdict[data-key="ok"]  { color:var(--ok);   background:color-mix(in srgb, var(--ok) 16%, transparent); }
-.verdict[data-key="bad"] { color:var(--bad);  background:color-mix(in srgb, var(--bad) 14%, transparent); }
-.verdict[data-key="pending"]{ color:var(--ink-3); background:var(--surface-2); }
+.switch-knob{
+  position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%;
+  background:var(--raised); box-shadow:0 1px 3px rgb(0 0 0 / .3); transition:transform .18s cubic-bezier(.2,.8,.2,1);
+}
+.switch[aria-checked="true"]{ background:linear-gradient(var(--accent), var(--accent)), var(--surface); border-color:transparent; }
+.switch[aria-checked="true"] .switch-knob{ transform:translateX(18px); background:var(--accent-ink); }
 
-.parts{ display:grid; grid-template-columns:auto 1fr auto; gap:9px 12px; align-items:center; margin-top:16px; font-size:13px; }
+/* ---------- the color picker (ui/ColorPicker.js): a pop-up, round the music player like every overlay ---------- */
+dialog.picker{
+  width:min(340px, calc(100% - 24px)); max-height:calc(100% - 24px); overflow-y:auto; padding:0;
+  border:1px solid var(--accent-line); border-radius:20px; background:var(--surface); color:var(--ink);
+  box-shadow:var(--shadow);
+}
+dialog.picker::backdrop{ background:rgb(0 0 0 / .35); }
+.picker-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 8px 0 18px; }
+.picker-title{ margin:0; font-size:16px; font-weight:650; }
+.picker-body{ display:flex; flex-direction:column; gap:14px; padding:6px 18px 4px; }
+/* the wheel: hue round it (from the top, clockwise), white in the middle; darker with the brightness */
+.picker-wheel{
+  position:relative; width:min(200px, 62vw); aspect-ratio:1; margin:4px auto 0; border-radius:50%;
+  background:radial-gradient(closest-side, #fff, rgb(255 255 255 / 0)), conic-gradient(red, yellow, lime, cyan, blue, magenta, red);
+  box-shadow:inset 0 0 0 1px rgb(0 0 0 / .12); touch-action:none; cursor:crosshair;
+}
+.picker-shade{ position:absolute; inset:0; border-radius:50%; background:#000; pointer-events:none; }
+.picker-knob{
+  position:absolute; width:22px; height:22px; margin:-11px 0 0 -11px; border-radius:50%;
+  border:3px solid #fff; box-shadow:0 0 0 1px rgb(0 0 0 / .35), 0 2px 6px rgb(0 0 0 / .35); outline-offset:3px;
+}
+.picker-field{ display:flex; flex-direction:column; gap:6px; }
+.picker-field-head{ display:flex; align-items:baseline; justify-content:space-between; }
+.picker-alpha-out{ font-size:12.5px; color:var(--ink-3); }
+.picker-range{
+  -webkit-appearance:none; appearance:none; width:100%; height:22px; margin:0; border-radius:999px; cursor:pointer;
+  border:1px solid var(--accent-line);
+}
+.picker-bright{ background:linear-gradient(90deg, #000, var(--to, #fff)); }
+/* the opacity bar: the color fading out over a checkerboard */
+.picker-alpha{
+  background:linear-gradient(90deg, transparent, var(--to, #000)), repeating-conic-gradient(#c9c6bf 0 25%, #fff 0 50%) 0 0 / 10px 10px;
+}
+.picker-range::-webkit-slider-thumb{
+  -webkit-appearance:none; appearance:none; width:22px; height:22px; border-radius:50%;
+  background:#fff; border:0; box-shadow:0 0 0 1px rgb(0 0 0 / .3), 0 1px 4px rgb(0 0 0 / .35);
+}
+.picker-range::-moz-range-thumb{ width:22px; height:22px; border-radius:50%; background:#fff; border:0; box-shadow:0 0 0 1px rgb(0 0 0 / .3), 0 1px 4px rgb(0 0 0 / .35); }
+.picker-out{ display:flex; align-items:center; gap:10px; }
+.picker-hex{
+  flex:1 1 auto; min-width:0; min-height:40px; padding:0 12px; border:1px solid var(--accent-line); border-radius:10px;
+  background:var(--bg); color:var(--ink); font:500 16px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace; text-transform:uppercase;
+}
+.picker-preview{ flex:0 0 132px; }
+.pv-page{
+  display:flex; align-items:center; gap:6px; height:42px; padding:0 7px; border-radius:10px; overflow:hidden;
+  background:var(--bg); box-shadow:inset 0 0 0 1px var(--line); font-size:11px; font-weight:650;
+}
+.pv-card{ flex:1; min-width:0; display:flex; flex-direction:column; padding:3px 6px; border-radius:6px; background:var(--surface); color:var(--ink); box-shadow:0 0 0 1px var(--line); line-height:1.2; }
+.pv-card span{ font-weight:500; color:var(--ink-2); }
+.pv-btn{ flex:none; padding:5px 7px; border-radius:6px; background:linear-gradient(var(--accent), var(--accent)), var(--surface); color:var(--accent-ink); white-space:nowrap; }
+.pv-page.is-accent{ background:var(--surface); justify-content:space-between; }
+.pv-pick{ padding:5px 7px; border-radius:6px; color:var(--accent-text); background:color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+.picker-recent{ display:flex; flex-direction:column; gap:6px; }
+.picker-recent-row{ display:flex; gap:8px; }
+.picker-swatch{
+  width:36px; height:36px; padding:0; border:0; border-radius:50%; cursor:pointer;
+  background:repeating-conic-gradient(#c9c6bf 0 25%, #fff 0 50%) 50% / 8px 8px;
+  box-shadow:inset 0 0 0 1px var(--line);
+}
+.picker-swatch i{ display:block; width:100%; height:100%; border-radius:50%; box-shadow:inset 0 0 0 1px rgb(0 0 0 / .14); }
+.picker-swatch:active{ transform:scale(.92); }
+.picker-foot{ display:flex; gap:10px; padding:14px 18px 18px; }
+.picker-foot .btn{ flex:1; min-height:44px; }
+
+/* read by screen readers, not shown */
+.visually-hidden{ position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+
+/* ---------- score: one quiet line — the total, a dot per part, the seed; a tap opens the parts (ui/ScoreCard.js) ---------- */
+.score-card{ padding:6px 0 10px; transition:opacity .2s; container-type:inline-size; }   /* (6 px: room for the focus ring under the sheet's header) */
+.score-card[data-pending]{ opacity:.45; }          /* a new map on its way */
+.score-row{ display:flex; align-items:center; gap:6px; }
+.score-toggle{
+  flex:none; display:flex; align-items:center; gap:8px; min-height:44px; margin-left:-8px; padding:0 8px;   /* (snug: the longest seed, meridian-0000, fits beside it in the 340 px column) */
+  border:0; border-radius:12px; background:none; color:inherit; font:inherit; cursor:pointer;
+}
+@media (hover:hover){ .score-toggle:hover{ background:var(--surface-2); } }
+.score-total{ display:flex; align-items:baseline; gap:4px; }
+.score-num{ font-size:26px; font-weight:650; letter-spacing:-.02em; line-height:1; }
+.score-total small{ font-size:12.5px; font-weight:500; color:var(--ink-3); }
+/* each part's dot: a ring, filled as far as the part scored (out of 25) — in the accent as text, which
+   always reads on the cards (a custom accent's fill may be see-through or pale); the rest shows the card */
+.score-dots{ display:flex; gap:4px; }
+.score-dots i{
+  width:10px; height:10px; border-radius:50%;
+  background:conic-gradient(var(--accent-text) calc(var(--p, 0) * 1turn), transparent 0);
+  box-shadow:inset 0 0 0 1px var(--ink-2);
+}
+.score-chevron{ display:grid; color:var(--ink-3); transition:transform .26s cubic-bezier(.2,.8,.2,1); }
+.score-chevron svg{ width:16px; height:16px; }
+.score-card.is-open .score-chevron{ transform:rotate(180deg); }
+.score-seed{ margin-left:auto; display:flex; align-items:center; gap:2px; min-width:0; font-size:12.5px; color:var(--ink-3); }
+.score-seed-text{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:inherit; font-variant-numeric:tabular-nums; color:var(--ink-2); }
+.score-seed .icon-btn{ flex:none; width:32px; height:32px; }
+.score-seed .icon-btn svg{ width:16px; height:16px; }
+/* a narrow settings column: the seed under the score */
+@container (max-width:279px){
+  .score-row{ flex-wrap:wrap; row-gap:0; }
+  .score-seed{ flex-basis:100%; margin:-4px 0 0; }
+}
+
+/* (padding, not margin: the slide measures the wrapper's height) */
+.parts{ display:grid; grid-template-columns:auto 1fr auto; gap:9px 12px; align-items:center; padding:6px 0 4px; font-size:13px; }
 .parts .nm{ color:var(--ink-2); }
 .parts .bar{ height:4px; border-radius:2px; background:var(--surface-2); overflow:hidden; }
 .parts .bar i{ display:block; height:100%; background:var(--accent); border-radius:2px; }
 .parts .pt{ font-variant-numeric:tabular-nums; color:var(--ink-3); font-size:12.5px; min-width:3ch; text-align:right; }
-
-.seed-line{ display:flex; align-items:center; gap:6px; margin-top:14px; font-size:12.5px; color:var(--ink-3); }
-.seed-line code{ font:inherit; font-variant-numeric:tabular-nums; color:var(--ink-2); }
-.seed-line .icon-btn{ width:32px; height:32px; }
-.seed-line .icon-btn svg{ width:16px; height:16px; }
-
 
 /* ---------- about dialog ---------- */
 dialog.about{
@@ -317,17 +448,20 @@ dialog.about::backdrop{ background:rgb(0 0 0 / .45); }
     grid-template-rows:auto minmax(0,1fr) auto;
     grid-template-areas:"stage top" "stage ." "stage dock";
   }
-  .topbar{ padding:8px 10px 0 0; gap:6px; }
-  .brand{ font-size:14px; gap:6px; }
+  /* the rail's tiles, one under another: Pangaea, the icons, the board type */
+  .topbar{ padding:var(--card-gap) 10px 0 0; gap:6px; grid-template-columns:minmax(0,1fr); grid-template-areas:"brand" "tools" "mode"; }
+  .brand, .tools, .topbar .mode .segmented{ border-radius:12px; }
+  .brand{ padding:4px 10px; font-size:14px; column-gap:6px; }
   .brand svg{ width:16px; height:16px; }
-  .topbar .mode{ order:3; }
-  .topbar .segmented{ padding:2px; border-radius:9px; }
-  .topbar .mode .seg{ min-height:30px; padding:0 6px; border-radius:7px; font-size:12.5px; }
-  .tools{ flex:1 1 100%; justify-content:space-between; gap:0; }   /* icons span the rail, lined up with the buttons below */
+  .topbar .mode .segmented{ padding:2px; }
+  .topbar .mode .seg{ min-height:30px; padding:0 6px; border-radius:9px; font-size:12.5px; }
+  .tools{ justify-self:stretch; justify-content:space-between; gap:0; padding:1px; }   /* icons span the rail, lined up with the buttons below */
   .tools .icon-btn{ height:34px; flex-basis:34px; border-radius:8px; }
   .tools .icon-btn svg{ width:18px; height:18px; }
-  .dock{ flex-direction:column; gap:6px; padding:0 10px calc(8px + env(safe-area-inset-bottom)) 0; }
-  .dock .btn{ min-height:38px; padding:0 12px; gap:6px; border-radius:10px; font-size:13.5px; }
+  /* Settings and Tracker side by side, New map under them: the rail's tiles and buttons fit above the mini bar */
+  .dock{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:6px; padding:0 10px calc(8px + env(safe-area-inset-bottom)) 0; }
+  .dock .btn{ min-height:36px; padding:0 6px; gap:5px; border-radius:10px; font-size:13px; }
+  .dock .primary{ grid-column:1 / -1; min-height:38px; }
   .dock .btn svg{ width:16px; height:16px; }
   /* (.app pads the notch's side; the home bar is under the mini bar when the music's closed — its height counts it) */
   .stage{ margin:var(--card-gap) var(--card-gap) max(var(--card-gap), env(safe-area-inset-bottom) - var(--music-h)) var(--card-gap); padding:3px; }
@@ -350,23 +484,60 @@ dialog.about::backdrop{ background:rgb(0 0 0 / .45); }
     grid-template-rows:auto minmax(0,1fr) auto;
     grid-template-areas:"top top" "stage panel" "stage dock";
   }
-  .topbar{ flex-wrap:nowrap; padding:12px 20px; border-bottom:1px solid var(--line); }
-  .brand{ flex:1; margin-right:0; }
-  .topbar .mode{ order:0; flex:0 0 280px; }
-  .tools{ flex:1; justify-content:flex-end; }
+  /* the top bar: tiles, 50 px tall. Over the map, three — Pangaea on the left, the board type in the
+     middle (centred with the map), who's signed in at the right; over the settings column, the icons,
+     the same width as it. A map too narrow for the three in a row (the tracker or the music beside
+     it) puts the board type on a row of its own, centred under the other two (.top-tile is a
+     container: its own width decides) */
+  .topbar{
+    grid-template-columns:minmax(0,1fr) var(--panel-w, 340px); grid-template-areas:"tile tools"; gap:0;
+    align-items:start; padding:var(--card-gap) 0 0;
+  }
+  .top-tile{ grid-area:tile; display:block; container-type:inline-size; min-width:0; margin:0 var(--card-gap); }
+  /* (a longer name than usual: the board type gives way, then narrows — never under a tile beside it) */
+  .top-tile-in{
+    display:grid; grid-template-columns:minmax(max-content, 1fr) minmax(0, 280px) minmax(max-content, 1fr);
+    grid-template-areas:"brand mode account"; align-items:stretch; gap:12px;
+  }
+  .top-tile .brand{ display:contents; }
+  .top-tile .brand-mark, .top-tile .account{
+    min-height:50px; background:var(--surface); border:1px solid var(--accent-line); border-radius:var(--card-radius);
+  }
+  .top-tile .brand-mark{ grid-area:brand; justify-self:start; padding:0 18px 0 14px; }
+  .top-tile .account{ grid-area:account; justify-self:end; align-items:center; padding:0 16px; }
+  .topbar .mode{ grid-area:mode; width:auto; min-width:0; }
+  .topbar .mode .segmented{ height:100%; min-height:50px; padding:4px; }
+  .topbar .mode .seg{ border-radius:11px; }
+  @container (max-width:599px){
+    /* (narrower still — a 900 px window with the tracker open — both give way, the names cut short, never overlapping) */
+    .top-tile-in{
+      grid-template-columns:minmax(0, max-content) minmax(0, max-content); justify-content:space-between;
+      grid-template-areas:"brand account" "mode mode"; row-gap:8px;
+    }
+    .top-tile .brand-mark, .top-tile .account{ max-width:100%; }
+    .top-tile-in .mode{ justify-self:center; width:min(280px, 100%); }
+  }
+  /* (the narrowest — a 900 px window with the tracker open: the logo steps aside, as on a narrow phone) */
+  @container (max-width:299px){
+    .top-tile-in{ column-gap:8px; }
+    .top-tile .brand svg{ display:none; }
+    .top-tile .brand-mark, .top-tile .account{ padding:0 8px; }
+  }
+  .tools{ justify-self:stretch; min-height:50px; margin:0 var(--card-gap) 0 0; padding:4px 6px; justify-content:space-evenly; }
   .stage{ margin:var(--card-gap); padding:12px; }
   .board{ border-radius:calc(var(--card-radius) - 13px); }
 
+  /* the settings column: a tile too, beside the map's (the gap between them is the map's margin) */
   .panel{
     position:static; transform:none; visibility:visible; transition:none;
-    max-height:none; border-radius:0; box-shadow:none;
-    background:transparent; border:0; border-left:1px solid var(--line);
-    padding:8px 22px 8px;
+    max-height:none; box-shadow:none; border-radius:var(--card-radius);
+    margin:var(--card-gap) var(--card-gap) 0 0;
+    padding:4px 18px 8px;
   }
-  .dock{ border-left:1px solid var(--line); padding:12px 22px 22px; }
+  .dock{ padding:var(--card-gap) var(--card-gap) var(--card-gap) 0; }
 
   .sheet-head .icon-btn, #settingsBtn, .scrim{ display:none !important; }
-  .sheet-head{ position:static; padding-top:12px; background:transparent; }
+  .sheet-head{ position:static; padding-top:10px; background:transparent; }
 
   dialog.about{
     width:min(720px, calc(100% - 48px)); height:auto; max-height:calc(100% - 48px);

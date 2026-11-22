@@ -106,16 +106,21 @@ All weights live in `PENALTY` in `src/engine/objective.js`. Lower is better:
 | **Coastline** *(Advanced)* | Loose 0.80 · Standard 0.90 · Tight 0.95 of `Smax` |
 | **Optimiser** *(Advanced)* | Quick 6k · Standard 12k · Thorough 20k annealing steps |
 | **Replay a seed** *(Advanced)* | Same seed + same settings = the identical board |
-| **Accent color** | Graphite (the original black and white), Sea, Harbor, Forest, Wheat, Brick, Plum or Rose: buttons, outlines, whatever's picked or playing |
-| **Theme** | Match device, or Light, Sand, Mist, Dark, Hearth, Midnight (the top bar's light / dark button swaps to the partner theme) |
+| **Accent color** *(Player Settings)* | Graphite (the original black and white), Sea, Harbor, Forest, Wheat, Brick, Plum, Rose or a custom color: buttons, outlines, whatever's picked or playing |
+| **Theme** *(Player Settings)* | Light, Sand, Mist, Dark, Hearth, Midnight or a custom color (never picked: Light or Dark as the device is set; the top bar's light / dark button swaps to the partner theme) |
+| **Map animations** *(Player Settings)* | Off: a new map just appears on your devices |
+| **Sound effects** *(Player Settings)* | Off: no sound effects on your devices (never the music) |
 
-**New map** always rolls a fresh seed. The current seed is shown under the
-score, and settings are remembered on the device. **Accent color** and
-**Theme** are each person's own: signed in, the pick is saved with the
-profile, so the phone, the laptop and the TV all switch to it. A new map builds itself in
-on every phone at once — tiles flying in, numbers flipping over, ports
-popping on — with sound effects in step on every open phone; the volume
-button in the map's bottom corner mutes them on yours.
+**New map** always rolls a fresh seed. The score sits at the top of
+Settings as one line — the total, a dot per part and the current seed (tap
+the score for its four parts) — and settings are remembered on the device. **Player Settings**
+(accent color, theme, custom colors off a color wheel with the five most
+recent ones, map animations, sound effects) are each person's own: signed
+in, a pick is saved with the profile, so the phone, the laptop and the TV
+all switch to it. A new map builds itself in on every phone at once —
+tiles flying in, numbers flipping over, ports popping on — with sound
+effects in step on every open phone; Player Settings turns either off for
+you.
 
 ## Game tracker
 
@@ -181,9 +186,10 @@ catan-pangea/                 deployed as-is to GitHub Pages
     seaLanes.js vertexModel.js objective.js Annealer.js scoring.js Board.js
     generators/               BoardGenerator (template method) + OpenSea + SeaLanes + registry
   src/app/                    App controller, Settings value object, safe storage,
-                              LookSync (whose theme shows, saved per profile)
-  src/ui/                     BoardView (SVG), SettingsPanel, LookPanel, controls, ScoreCard,
-                              Sheet, ThemeController, imageExport, palette
+                              LookSync (whose Player Settings apply, saved per profile)
+  src/game/looks.js colors.js Player Settings: ids and validation; custom color math
+  src/ui/                     BoardView (SVG), SettingsPanel, PlayerSettings, ColorPicker,
+                              controls, ScoreCard, Sheet, ThemeController, imageExport, palette
 tests/                        node:test suite for the engine
 scripts/serve.js              zero-dependency local server
 ```
