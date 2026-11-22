@@ -259,6 +259,29 @@ test("a win records everyone's points at that moment; winHistory lists the wins 
   assert.deepEqual((await state()).winHistory().map(x => x.source), ["admin"]);
 });
 
+test("look: saved on the profile (every device signed in to it reads it), merged field by field; same value is a no-op", async () => {
+  const laptop = new GameService(store, { deviceId:"dev-a-laptop", now:() => NOW + 5 });   /* Alice's second device */
+  assert.equal(await alice.setLook(ids.alice, { theme:"hearth" }), true);
+  assert.equal(await laptop.setLook(ids.alice, { accent:"rose", theme:"hearth" }), true);
+  const p = (await state()).profile(ids.alice);
+  assert.deepEqual(p.look, { theme:"hearth", accent:"rose", at:NOW + 5 });
+  assert.equal(p.name, "Alice");
+  assert.equal(p.deviceId, "dev-a", "the profile still belongs to the device that made it");
+  assert.equal(await alice.setLook(ids.alice, { theme:"hearth", accent:"rose" }), false, "nothing to change");
+  assert.equal((await state()).profile(ids.bob).look, undefined, "nobody else's");
+});
+
+test("look: unknown ids are refused or dropped; a removed profile isn't brought back", async () => {
+  await assert.rejects(alice.setLook(ids.alice, { theme:"neon" }), e => e instanceof GameError && e.code === "bad-look");
+  await assert.rejects(alice.setLook(ids.alice, {}), e => e.code === "bad-look");
+  await alice.setLook(ids.alice, { theme:"sand", accent:"tartan" });
+  assert.deepEqual((await state()).profile(ids.alice).look, { theme:"sand", at:NOW });
+  await alice.removeProfile(ids.carol);
+  await assert.rejects(carol.setLook(ids.carol, { theme:"mist" }), e => e.code === "no-profile");
+  assert.equal((await state()).profile(ids.carol), null);
+  assert.equal(await store.get("v1/profiles/" + ids.carol), null);
+});
+
 test("watch() emits a GameState once everything has loaded, then on each change", async () => {
   const seen = [];
   const off = alice.watch(st => seen.push(st.counters.karma));

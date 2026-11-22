@@ -106,9 +106,13 @@ All weights live in `PENALTY` in `src/engine/objective.js`. Lower is better:
 | **Coastline** *(Advanced)* | Loose 0.80 · Standard 0.90 · Tight 0.95 of `Smax` |
 | **Optimiser** *(Advanced)* | Quick 6k · Standard 12k · Thorough 20k annealing steps |
 | **Replay a seed** *(Advanced)* | Same seed + same settings = the identical board |
+| **Accent color** | Graphite (the original black and white), Sea, Harbor, Forest, Wheat, Brick, Plum or Rose: buttons, outlines, whatever's picked or playing |
+| **Theme** | Match device, or Light, Sand, Mist, Dark, Hearth, Midnight (the top bar's light / dark button swaps to the partner theme) |
 
 **New map** always rolls a fresh seed. The current seed is shown under the
-score, and settings are remembered on the device. A new map builds itself in
+score, and settings are remembered on the device. **Accent color** and
+**Theme** are each person's own: signed in, the pick is saved with the
+profile, so the phone, the laptop and the TV all switch to it. A new map builds itself in
 on every phone at once — tiles flying in, numbers flipping over, ports
 popping on — with sound effects in step on every open phone; the volume
 button in the map's bottom corner mutes them on yours.
@@ -169,15 +173,16 @@ changelog — is [`context.md`](../context.md) at the repo root.
 ```
 catan-pangea/                 deployed as-is to GitHub Pages
   index.html                  markup shell + "How it works" dialog
-  css/tokens.css              color tokens (light + dark)
+  css/tokens.css              color tokens (six themes, eight accent colors)
   css/app.css                 layout (phone portrait / landscape / desktop) + components
   src/main.js                 entry point
   src/engine/                 pure, DOM-free map engine (runs in browser + Node)
     hex.js shapes.js topology.js continent.js tileSet.js ports.js
     seaLanes.js vertexModel.js objective.js Annealer.js scoring.js Board.js
     generators/               BoardGenerator (template method) + OpenSea + SeaLanes + registry
-  src/app/                    App controller, Settings value object, safe storage
-  src/ui/                     BoardView (SVG), SettingsPanel, controls, ScoreCard,
+  src/app/                    App controller, Settings value object, safe storage,
+                              LookSync (whose theme shows, saved per profile)
+  src/ui/                     BoardView (SVG), SettingsPanel, LookPanel, controls, ScoreCard,
                               Sheet, ThemeController, imageExport, palette
 tests/                        node:test suite for the engine
 scripts/serve.js              zero-dependency local server

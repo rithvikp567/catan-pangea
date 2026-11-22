@@ -16,12 +16,12 @@ body[data-desk] dialog.about{
   width:min(720px, calc(100% - var(--left-w) - 48px));
   margin-left:calc(var(--left-w) + max(24px, (100% - var(--left-w) - 720px) / 2)); margin-right:auto;
 }
-body[data-desk] #trackerBtn[aria-pressed="true"]{ background:var(--surface-2); }
+body[data-desk] #trackerBtn[aria-pressed="true"]{ background:var(--accent-soft); color:var(--accent-text); }
 
 /* ---------- the tracker docks at the top of the column (all of it without music) ---------- */
 body[data-desk] .screen[data-screen="tracker"]{
   left:0; right:auto; top:0; bottom:auto; width:var(--left-w); height:var(--split);
-  padding:0; border-right:1px solid var(--line);
+  padding:0;                     /* (no line beside it: its cards, the music's and the map's mark the column) */
   container-type:size;           /* the seat rows share the column's height, not the window's */
 }
 
@@ -29,13 +29,14 @@ body[data-desk] .screen[data-screen="tracker"]{
    middle of its space when it's shorter, and scrolls from the top when it isn't */
 body[data-desk] .screen .screen-inner{ min-height:100%; display:flex; flex-direction:column; justify-content:center; }
 
-/* ---------- the music: the bottom of the column (all of it without the tracker) ---------- */
+/* ---------- the music: a card at the bottom of the column (all of it without the tracker) ---------- */
 body[data-desk] .music{
-  left:0; right:auto; top:var(--music-top, 0px); bottom:0; width:var(--left-w);
-  padding:12px; gap:12px; overflow:hidden;
-  border-top:0; border-right:1px solid var(--line); box-shadow:none;
+  left:max(var(--card-gap), env(safe-area-inset-left)); right:auto;
+  top:calc(var(--music-top, 0px) + var(--card-gap)); bottom:max(var(--card-gap), env(safe-area-inset-bottom));
+  width:calc(var(--left-w) - 2 * var(--card-gap));
+  padding:10px; gap:12px; overflow:hidden;
 }
-body[data-desk][data-left="both"] .music{ border-top:1px solid var(--line); }
+body[data-desk][data-left="both"] .music{ top:var(--music-top); }   /* (under the tracker, its own bottom padding is the gap) */
 
 /* the left column: the 200 × 200 player with its controls beside it —
    compact (under the tracker): songs open as a sheet beside the column;
@@ -51,7 +52,7 @@ body[data-desk] .music[data-dock="column"] .music-video{ width:200px; height:200
 
 /* the song list inside the column dock */
 body[data-desk] .music[data-dock="column"] > .music-songs{
-  position:static; grid-column:1 / -1; flex:1 1 auto; min-height:0; height:auto; width:auto; margin:0 -8px -8px;
+  position:static; grid-column:1 / -1; flex:1 1 auto; min-height:0; height:auto; width:auto; margin:0 -6px -6px;
   border:0; border-top:1px solid var(--line); border-radius:0; box-shadow:none; background:transparent;
 }
 body[data-desk] .music[data-dock="column"] .songs-head{ padding:10px 8px 4px; }
@@ -65,7 +66,7 @@ body[data-desk] .music[data-state="setup"] > .music-songs{ display:none; }
 body[data-desk] .music-sheet,
 body[data-desk] .music[data-dock="compact"] > .music-songs{
   position:fixed; z-index:74; left:calc(var(--left-w) + 16px); right:auto; top:auto; bottom:calc(16px + var(--music-h));   /* (above the mini bar: the songs from it) */
-  width:420px; border:1px solid var(--line); border-radius:16px;
+  width:420px;
 }
 body[data-desk] .music-songs{ height:min(560px, calc(100% - 32px - var(--music-h))); }
 body[data-desk] .music-pop{ max-height:calc(100% - 32px - var(--music-h)); }

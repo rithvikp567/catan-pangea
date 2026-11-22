@@ -18,22 +18,29 @@
  * the sounds on every open device (unless it's muted: the volume button on
  * the map). Every page load opens with the intro (Splash); signing in ends
  * with "Welcome, Lord …".
+ *
+ * The look (theme + accent color) is each person's own: LookSync decides
+ * whose shows and saves picks on the signed-in profile, so it follows them
+ * to every device; ThemeController paints it.
  */
 import { Annealer, AbortError, GENERATORS, randomSeedName, restoreBoard } from "../engine/index.js";
 import { Settings } from "./Settings.js";
 import { SafeStorage } from "./storage.js";
 import { Identity } from "./Identity.js";
 import { GameController } from "./GameController.js";
+import { LookSync } from "./LookSync.js";
 import { Router } from "./Router.js";
 import { InstallHelper, IOS_STEPS } from "./InstallHelper.js";
 import { createStore } from "../sync/createStore.js";
 import { COUNTERS, colorById } from "../game/rules.js";
+import { flipTheme } from "../game/looks.js";
 import { SegmentedControl } from "../ui/controls.js";
 import { BoardView } from "../ui/BoardView.js";
 import { ScoreCard } from "../ui/ScoreCard.js";
 import { SettingsPanel } from "../ui/SettingsPanel.js";
 import { Sheet } from "../ui/Sheet.js";
 import { ThemeController } from "../ui/ThemeController.js";
+import { LookPanel } from "../ui/LookPanel.js";
 import { Toast } from "../ui/Toast.js";
 import { VictoryOverlay } from "../ui/VictoryOverlay.js";
 import { MusicBar } from "../ui/MusicBar.js";
@@ -81,7 +88,13 @@ export class App {
     this.identity = new Identity();
     this.game = new GameController({ identity:this.identity, toast:this.toast });
 
-    this.theme = new ThemeController(this.storage);
+    this.theme = new ThemeController();          /* the look index.html's head script painted, kept up to date */
+    /* whose look shows here (the signed-in person's follows them to every device) — each
+       ?device= tab on localhost is a device of its own, so it keeps Identity's storage */
+    this.look = new LookSync({ game:this.game, storage:this.identity.storage, apply:look => this.theme.set(look) });
+    /* a pick waiting to be saved goes now if the page is hidden or closed (a locked phone, the app swiped away) */
+    addEventListener("pagehide", () => this.look.flush());
+    document.addEventListener("visibilitychange", () => { if(document.visibilityState === "hidden") this.look.flush(); });
     this.boardView = new BoardView(this.dom.board);
     this.sheet = new Sheet($("panel"), $("scrim"), { opener:$("settingsBtn"), closer:$("sheetClose") });
     this.scoreCard = new ScoreCard($("scoreCard"));
@@ -90,6 +103,8 @@ export class App {
       onChange:patch => this.update(patch),
       onReplaySeed:seed => { this.sheet.close(); this.newGame({ seed }); },
     });
+    this.lookPanel = new LookPanel($("look"), { onPick:patch => this.look.pick(patch) });
+    this.look.onChange((look, owner) => this.lookPanel.sync(look, owner));
     this.modeSwitch = new SegmentedControl({
       label:"Board type", value:this.settings.mode,
       options:GENERATORS.map(g => ({ value:g.id, label:g.name })),
@@ -354,8 +369,22 @@ export class App {
     this.install.onChange(syncFullscreen);
     syncFullscreen();
     fsBtn.addEventListener("click", () => this.install.toggleFullscreen());
-    $("themeBtn").addEventListener("click", () => this.theme.toggle());
-    this.theme.onChange(() => { this.#render(); this.winter.refreshTheme(); });
+    /* the top bar's light / dark switch: the theme's partner in the other family (Sand ⇄ Hearth) —
+       a pick like any other, so it's saved for whoever's signed in */
+    const themeBtn = $("themeBtn");
+    const syncThemeBtn = () => {
+      const to = this.theme.scheme === "dark" ? "light" : "dark";
+      themeBtn.setAttribute("aria-label", `Switch to the ${to} theme`);
+      themeBtn.title = `Switch to the ${to} theme — more themes in Settings`;
+    };
+    themeBtn.addEventListener("click", () => this.look.pick({ theme:flipTheme(this.look.current.theme, this.theme.systemDark) }));
+    /* the board bakes its colors in: recolor it in place (a new map's build animation carries on),
+       and the snow has a palette for each family */
+    this.theme.onChange(({ colors }) => {
+      if(colors){ this.boardView.recolor(readBoardPalette()); this.winter.refreshTheme(); }
+      syncThemeBtn();
+    });
+    syncThemeBtn();
     $("shareBtn").addEventListener("click", () => this.#saveImage());
     /* the map's volume button: the sound effects on / off on this device (not the music) */
     const muteBtn = $("muteBtn");

@@ -4,7 +4,8 @@
  * two phones tapping at once never lose an update or break a limit.
  *
  * Data layout (under `root`, default "v1"):
- *   profiles/{profileId}  { name, createdAt, deviceId }
+ *   profiles/{profileId}  { name, createdAt, deviceId, look? }  — look: { theme?, accent?, at } (game/looks.js),
+ *                           the person's theme and accent, on every device they sign in on
  *   session               { meta, board, settings, seats/{s0…}, counters }  — the one active game
  *   wins/{season}/{entryId} { profileId, delta, source, sessionId?, at, scores? }  — the wins ledger
  *                           (scores: { profileId: { vp, color } } — everyone's points when a game was won)
@@ -22,6 +23,7 @@
 import { GameState } from "./GameState.js";
 import { parsePlaylist } from "../music/playlist.js";
 import { COMMANDS as PLAYBACK } from "../music/playback.js";
+import { cleanLook } from "./looks.js";
 import {
   MAX_VP, COUNTERS, clampVP, stepCounter, abstainKarma, robKarma, newSession, carrySeats, validateName,
 } from "./rules.js";
@@ -94,6 +96,31 @@ export class GameService {
       for(const [eid, e] of Object.entries(entries)) if(e.profileId === profileId) patch[`wins/${season}/${eid}`] = null;
     }
     await this.store.update(this.root, patch);
+  }
+
+  /**
+   * Save a person's look — theme and / or accent (game/looks.js) — on their
+   * profile, so it follows them to every device they sign in on. One
+   * transaction on the profile: it merges with what's there (a theme from
+   * the phone and an accent from the laptop at the same moment both stick;
+   * for the same field the last write wins), leaves the name and deviceId
+   * alone, and never brings back a profile that was removed.
+   * @param {string} profileId
+   * @param {{ theme?:string, accent?:string }} patch
+   * @returns {Promise<boolean>} whether it changed anything
+   */
+  async setLook(profileId, patch){
+    const clean = cleanLook(patch);
+    if(!Object.keys(clean).length) throw new GameError("bad-look", "That theme isn't available.");
+    let outcome = null;
+    const res = await this.store.transact(this.#p("profiles", profileId), p => {
+      if(!p?.name){ outcome = "no-profile"; return undefined; }
+      if(Object.entries(clean).every(([k, v]) => p.look?.[k] === v)){ outcome = "same"; return undefined; }
+      outcome = "ok";
+      return { ...p, look:{ ...p.look, ...clean, at:this.now() } };
+    });
+    if(!res.committed && outcome === "no-profile") throw new GameError("no-profile", "That profile was removed.");
+    return res.committed;
   }
 
   /* ---------------- session ---------------- */

@@ -1,7 +1,7 @@
 /**
  * Zero-dependency static server for local development.
  *
- *   npm start                     -> http://localhost:8000
+ *   npm start                     -> http://localhost:8000/?store=local (this device only)
  *   PORT=9000 npm start           -> another port
  *   HOST=0.0.0.0 npm start        -> also reachable from a phone on the same Wi-Fi
  *
@@ -39,10 +39,12 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`Catan Pangea → http://localhost:${PORT}`);
+  /* ?store=local: this device only — a plain local run reads and writes the live game's data */
+  console.log(`Catan Pangea → http://localhost:${PORT}/?store=local`);
+  console.log(`  (without ?store=local it plays with the live game's data)`);
   if(HOST === "0.0.0.0"){
     for(const addrs of Object.values(networkInterfaces())){
-      for(const a of addrs || []) if(a.family === "IPv4" && !a.internal) console.log(`  on your network → http://${a.address}:${PORT}`);
+      for(const a of addrs || []) if(a.family === "IPv4" && !a.internal) console.log(`  on your network → http://${a.address}:${PORT}/?store=local`);
     }
   }
 });

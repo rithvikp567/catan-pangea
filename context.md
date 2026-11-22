@@ -63,15 +63,17 @@ HOST=0.0.0.0 npm start   # also reachable from a phone on the same Wi-Fi
 
 - ES modules don't load from `file://` — always serve the folder.
 - **The service worker runs on localhost too** (`sw.js`, network first, so
-  you always get your latest files while the server is up). Add `?nosw` to
-  skip registering it; to drop one that's installed, use the browser's
+  you always get your latest files while the server is up). Add `&nosw`
+  (after `?store=local`) to skip registering it; to drop one that's installed, use the browser's
   DevTools → Application → Service workers → Unregister.
 - **⚠ Localhost talks to the live database.** The committed Firebase config
-  is the real game's, so a plain `npm start` session reads and writes the
-  same data as everyone's phones. **When testing, add `?store=local`** — it
-  forces the "this device only" store (`createStore.js`) and the pill shows
-  *This device only*.
-- **Several "phones" on one computer:** on localhost, add `?device=<name>`
+  is the real game's, so a page opened without `?store=local` reads and
+  writes the same data as everyone's phones. **Keep `?store=local` in the
+  URL** (`npm start` prints the address that way) — it forces the "this
+  device only" store (`createStore.js`) and the pill shows *This device
+  only*. Add more parameters with `&`: a second `?` turns `store` into
+  something else (`local?nosw`), and the page quietly goes live.
+- **Several "phones" on one computer:** on localhost, add `&device=<name>`
   too (e.g. `http://localhost:8000/?store=local&device=alice`, another tab
   with `?store=local&device=bob`). Each tab gets its own identity and the
   tabs share one device-only store, so the whole multiplayer flow can be
@@ -126,8 +128,8 @@ first).
   (keep both changelog entries, newest first) and push. A pull request
   whose base was changed to `main` afterwards gets no run: push a new
   commit, or close and reopen it.
-- **Test the app with `?store=local`** (above): a plain local run plays
-  with the real game's data. Contributors and their agents never write to
+- **Test the app with `?store=local`** (above): a page opened without it
+  plays with the real game's data. Contributors and their agents never write to
   the live database by any route (§7).
 - **Don't change `firebaseConfig.js` in a pull request:** merged, it would
   point the live site at another database. A fork that runs its own copy
@@ -205,8 +207,57 @@ on the tracker): everything works, but nothing is shared between phones.
     one pop, so you know they work.
 - *Advanced* in Settings slides open and shut (its + turns into ×).
 - Save / share the board as a PNG (share sheet on phones, download on desktop).
-- Light / dark theme (follows the system until toggled).
+- **Themes and accent colors** — each person's own, following them to
+  every device they sign in on (*The look*, next).
 - "How it works" dialog explaining the math.
+
+### The look: themes, accent colors, cards
+
+- **Settings → Accent color and Theme** (the bottom of Settings,
+  `ui/LookPanel.js`). Eight accent colors — **Graphite** (the ink color:
+  the original black-and-white look, the default), Sea, Harbor, Forest,
+  Wheat, Brick, Plum, Rose — color the filled buttons (New map, play, Rob),
+  the outlines (cards, buttons, fields), whatever's picked or playing (a
+  switch's choice, the song playing, a pressed button) and the focus ring.
+  Six themes in two families — **Light**, **Sand** (warm, like an old
+  map), **Mist** (cool grey-blue); **Dark**, **Hearth** (warm, firelit),
+  **Midnight** (deep blue) — plus **Match device** (the default: Light or
+  Dark as the device is set, following a change). Each swatch and theme
+  preview is drawn in its own colors.
+- **The top bar's light / dark button** swaps to the theme's partner in
+  the other family (Light ⇄ Dark, Sand ⇄ Hearth, Mist ⇄ Midnight; from
+  Match device, the opposite of what shows) — a pick like any other.
+- **It follows the person, not the device.** Signed in, a pick is saved on
+  the profile (`profiles/{id}/look`, a transaction that merges the field)
+  and every device signed in to that profile switches to it a moment later
+  — change it on the phone and the laptop follows. Signed out, a device
+  keeps its own (`theme` / `accent` in its storage); signing in shows the
+  person's own look instead (the device's isn't copied to the profile),
+  and signing out brings the device's back, so a shared laptop or TV
+  doesn't keep someone's look. The hint under the themes says which
+  applies. What the
+  person never picked shows the default, so all their devices look the
+  same. A pick shows at once and belongs to whoever made it: a run of
+  picks (arrow keys through the themes) is saved once, 400 ms after it
+  settles — or straight away when they sign out (or someone else signs in)
+  first, or the page is hidden. `app/LookSync.js` decides whose look
+  shows, `ui/ThemeController.js` paints it as `data-scheme` / `data-theme`
+  / `data-accent` on `<html>`, and `css/tokens.css` turns those into
+  colors (§9).
+- **No flash on load:** a script in the head of `index.html` paints the
+  look this device showed last (`lastLook`) — and the browser bar's color
+  — before the first frame; the person's own arrives with the game data.
+- **The board follows the theme:** the sea, the gutters between the hexes
+  (the map card's color), the tokens and the ports are recolored in place
+  (`BoardView.recolor`), so a new map building in carries on; the saved
+  image has the theme's colors. The snow has a palette for each family.
+- **Cards everywhere:** the map and the music sit in cards like the
+  tracker's sections — rounded, outlined in the accent's tint, a gap from
+  the screen's edges (`--card-gap`: 12 px; 8 px under 370 px wide; 6 px on
+  a phone on its side) — in every layout: the map; the music's player, its
+  mini bar and its landscape column; the desktop column's music; the music
+  half of the music & tracker view. The settings sheet, the song list and
+  the playlist pop-up float above the music the same way.
 
 ### Game tracker (multiplayer)
 - **The intro** (`ui/Splash.js`, markup in `index.html` so it's there from
@@ -249,14 +300,16 @@ on the tracker): everything works, but nothing is shared between phones.
     size container, so the music bar, the mini bar and the browser's bars
     all count): `--tracker-chrome` in `screens.css` is the measured height
     of everything else (404 px since the walker row). When even 42 px rows
-    don't fit (a phone with the music player open: ~440 px in Brave or
+    don't fit (a phone with the music player open: ~430 px in Brave or
     Safari), `TrackerScreen` sets `data-fit="tight"`: the card titles step
     aside (still read by screen readers — the tiles name themselves), the
     two shared cards merge into one, the counters drop to 36 px and the
     seed / "Playing as" line moves below the cards
-    (`--tracker-chrome-tight`, 252 px). Measured in Brave on an iPhone
-    (393 × 656): 3–4 players fit with the music open, up to 4 roomy with
-    it closed; 5–6 scroll a little with it open.
+    (`--tracker-chrome-tight`, 290 px — re-measured in 2.12.0: it said
+    252, so the tight layout always scrolled ~38 px). Measured in headless
+    Brave at 393 × 656: up to 4 players fit roomy with the music closed;
+    with it open (its card takes 230 px) 3 fit, and 4 scroll ~30 px (5–6 a
+    little more).
   - Victory points & honor — one row per seat (seat count = the map's
     player count): that player's honor coin in their color (only the owner
     can flip it; "Honorable" / "Dishonorable" under the name), then VP
@@ -341,7 +394,7 @@ on the tracker): everything works, but nothing is shared between phones.
 
 ### Music (YouTube playlist)
 
-- **Closed, it's a mini bar** along the bottom of every screen (phones
+- **Closed, it's a mini bar** (a card) along the bottom of every screen (phones
   either way up, and desktop): the artwork and **Songs** (the song list,
   as a sheet above the bar) on the left, the title and artist **centred**
   in the middle under a small grip, and **⏮ ▶ ⏭** on the right (on a wide
@@ -373,15 +426,17 @@ on the tracker): everything works, but nothing is shared between phones.
   Premium removes ads *in this player* only when the embed can see you're
   signed in — works on Android Chrome; iPhone Safari's cross-site tracking
   protection usually hides the sign-in.
-- **Docked on every screen:** a bar along the bottom in portrait, a column
-  on the right in phone landscape (the best way to cast to a 16:9 TV: the
-  200 × 200 player with previous / play / next stacked beside it and the
-  song and other buttons in one row under it, 277 px wide, so it fits a
-  browser's short landscape view), the left column on desktop (see
+- **Docked on every screen,** in a card: along the bottom in portrait, a
+  column on the right in phone landscape (the best way to cast to a 16:9
+  TV: the 200 × 200 player with previous / play / next stacked beside it
+  and the song and other buttons in one row under it, 270 px wide, so it
+  fits a browser's short landscape view), the left column on desktop (see
   Desktop), or half the window in the music & tracker view (see below).
-  The map and every screen shrink to make room — `MusicBar` measures the
-  bar (or the mini bar, when closed) into `--music-h` / `--music-w` and
-  `css/music.css` applies them.
+  The map and every screen shrink to make room — `MusicBar` measures how
+  much of the window the card takes (the mini bar's, when closed): its
+  size plus the gap between it and the edge (`footprint`), into
+  `--music-h` / `--music-w`, and `css/music.css` applies them. On a narrow
+  phone its buttons shrink a little to stay inside the card.
 - **One shared playlist link** (`/v1/music`): paste a YouTube or YouTube
   Music playlist link once and every phone has it; anyone can change it
   from the 🔗 pop-up, and it switches for everyone (re-pasting the same
@@ -479,13 +534,15 @@ on the tracker): everything works, but nothing is shared between phones.
 
 ### Desktop (≥ 900 × 560)
 
-- A **left column** holds the tracker and the music. The music is the
+- A **left column** holds the tracker and the music (in a card, like the
+  map's; no line beside the column — the cards mark it). The music is the
   200 × 200 player with its controls beside it (YouTube's minimum size, so
   the song list gets the room): alone it fills the column with the whole
   song list underneath; with the tracker open the column splits —
   **tracker on top, music below** (`compact`: the songs open as a sheet
-  beside the column, until the music is dragged to ≥ 380 px tall —
-  `SONGS_FROM` — and the list moves in under the player, `column`). The
+  beside the column, until the music is dragged to ≥ 392 px tall (its
+  card 380 px plus the gap under it) — `SONGS_FROM` — and the list moves
+  in under the player, `column`). The
   map and the settings column sit to the right, and the map stays usable
   while the tracker is open (the **Tracker** button opens and closes it).
 - **Centred vertically:** every screen on desktop — the tracker in its
@@ -514,20 +571,28 @@ on the tracker): everything works, but nothing is shared between phones.
   music, half each** — opening either one if it was closed. Side by side
   when the window is wider than tall, **tracker on top and music below** in
   a portrait window.
-- **The music half** (`wide` dock): the YouTube player at 16:9 across the
+- **The music half** (`wide` dock), a card like the tracker's: the YouTube player at 16:9 across the
   half (capped so the songs keep ~170 px; never under 200 px tall — on a
   narrow half it letterboxes rather than shrink), the song and the controls
   in one row under it (slightly smaller buttons on a half under 560 px —
   a container query on `.music`), then the song list filling the rest.
   The playlist pop-up and toasts open over the tracker half; the victory
   screen covers just the tracker half.
-- **The tracker half** stays one column, centred both ways (max 640 px
-  wide, in the middle of its half's height), whatever its width — the
-  table prefers its vertical phone layout everywhere.
+- **The tracker half** stays one column — the table prefers its vertical
+  phone layout everywhere — and **grows to fill its half** (2.12.0, it
+  used to sit at 640 px with wide margins): `TrackerScreen#grow` measures
+  it at its own size and zooms it (CSS `zoom`, `--grow`, up to 2×) as far
+  as the half's height allows, or its width at the narrowest, makes the
+  column as wide as the half then leaves (`--grow-w`, up to 720 px) and
+  keeps a small margin from the edges (`GROW` at the top of
+  `TrackerScreen.js`). Dragging the bar between the halves regrows it;
+  with no room to grow (tight) it stays a 640 px column in the middle of
+  its half.
 - **The bar between them** drags (mouse or touch; arrow keys when focused,
   Shift for bigger steps; double-click resets to half and half) and always
   shows a grip, since phones can't hover. The music half never gets smaller
-  than its player needs (400 px wide side by side, 320 px tall stacked);
+  than its player needs (424 px wide side by side, 346 px tall stacked —
+  its card included);
   the tracker's minimum (300 / 200 px) gives way first on a small screen.
   Side by side and stacked each keep their own share (`halves` /
   `halvesY` in the saved layout).
@@ -641,7 +706,7 @@ catan-pangea/                       ← deployed as-is to GitHub Pages
   manifest.webmanifest              installable app: name, icons, full screen
   sw.js                             service worker: fresh files online, the last good copy offline
   icons/                            app icons (192, 512, maskable 512, apple-touch-icon 180)
-  css/tokens.css                    color tokens (light + dark)
+  css/tokens.css                    color tokens: six themes in two families, eight accent colors, card sizes
   css/app.css                       map layout (phone portrait / landscape / desktop)
   css/screens.css                   join / tracker / wins / admin / victory / toast
   css/music.css                     music bar + how everything else makes room for it
@@ -673,6 +738,7 @@ catan-pangea/                       ← deployed as-is to GitHub Pages
     rules.js                        limits, colors, robber cycle, newSession(), validateName
     GameState.js                    read-only view: seats, winners, taken colors, wins tally
     GameService.js                  every operation as store transactions
+    looks.js                        the themes and accent colors (ids, names, families); clean / resolve a look
   src/music/playlist.js             pure: parsePlaylist (links → list id), player error meanings
   src/music/playback.js             pure: the shared playback — clock, speaker, commands (play, skip, seek, shuffle…)
   src/sync/                         STORE ADAPTERS (same contract, see MemoryStore.js)
@@ -686,6 +752,7 @@ catan-pangea/                       ← deployed as-is to GitHub Pages
     GameController.js               tracker facade for screens (state, me, intents, toasts)
     Settings.js                     immutable settings value object + UI presets
     Identity.js                     device id + current profile (localStorage)
+    LookSync.js                     whose look shows here, and where a pick is saved (the profile, or this device)
     InstallHelper.js                install button / iPhone how-to; registers sw.js
     Router.js                       hash routes: "" (map), join, tracker, wins, admin
     storage.js                      SafeStorage (never-throwing localStorage)
@@ -693,7 +760,8 @@ catan-pangea/                       ← deployed as-is to GitHub Pages
     BoardView.js                    SVG board renderer (concrete colors → exportable)
     SettingsPanel.js, controls.js   settings form; SegmentedControl, Stepper, CounterControl, holdRepeat
     ScoreCard.js, Sheet.js          score card (settings); settings bottom-sheet / drawer
-    ThemeController.js, palette.js  theme; board colors
+    ThemeController.js, palette.js  paints the look on <html> (and the browser bar); board colors
+    LookPanel.js                    Settings → Accent color and Theme
     imageExport.js, Toast.js, dom.js  PNG/share; toasts; h()/s() DOM builders
     VictoryOverlay.js               victory / defeat screen
     Splash.js                       the intro ("Settlers of Catan") and "Welcome, Lord …"
@@ -774,7 +842,8 @@ ui/  ──intent──▶  app/  ──▶  engine/        (map)
 
 ```
 v1/
-  profiles/{profileId}:  { name, createdAt (ms), deviceId }
+  profiles/{profileId}:  { name, createdAt (ms), deviceId, look? }
+              (look: { theme?, accent?, at (ms) } — the person's theme / accent ids, game/looks.js; 2.12.0+)
   session:                                   ← the ONE active game
     meta:     { id, seed, players, createdAt, createdBy?, buildAt?, season }
               (buildAt: ms, server clock — when a New map starts building in on every device; 2.11.0+)
@@ -822,6 +891,12 @@ v1/
   admin removes it, the device may create another.
 - Current profile: `pangaea:profileId`. Clicking another profile on the join
   screen switches to it (no passwords — trusted group).
+- The look on this device: `pangaea:theme` / `pangaea:accent` (this
+  device's own, shown while nobody's signed in — before 2.12.0 `theme` was
+  the light / dark toggle's `"light"` / `"dark"`, which carry over as
+  themes; signed in, the person's own look shows instead) and `pangaea:lastLook` (the look shown last, which index.html's
+  head script paints before the first frame). With `?device=` on localhost
+  they sit under that device's prefix, like the rest.
 
 ---
 
@@ -837,7 +912,25 @@ v1/
   profiles, seats/colors, VP + win record/revoke, coins, knights, karma,
   robber (abstain: karma +1 and the robber up to 3; rob and reset),
   session rotation (with `buildAt`), admin, the points recorded with a win
-  and `winHistory` (the calendar).
+  and `winHistory` (the calendar), and the look saved on a profile
+  (merged by field, never bringing back a removed profile).
+- `look.test.js` — the themes and accent colors: the lists, cleaning and
+  resolving a look, the light / dark switch; every theme and accent has
+  its block in `tokens.css`, every combination keeps 4.5:1 contrast (text
+  on the accent, the accent as text, the song playing — each color read
+  from `tokens.css` the way the browser resolves it, `var()` and
+  `color-mix()` included), and the accent's tints are mixed only inside
+  `@supports`; `index.html`'s head script lists the same ids and each
+  theme's `--bg` (the browser bar); and LookSync over GameController on
+  one store: a pick on the phone shows on the laptop signed in as the same
+  person, signed-out devices keep their own, what the person never picked
+  shows the default, a run of picks is saved once, a pick is saved for
+  whoever made it even if they sign out (or someone else signs in) within
+  the wait — or while it's still on its way (never mixed into the next
+  person's pick), a second pick during a save stays on screen and both are
+  saved, `flush()`, the last look shows before the data arrives and a pick
+  then waits for it, a removed profile isn't brought back (no toast; the
+  pick stays on the device).
 - `music.test.js` — playlist links (YouTube, YouTube Music, share links,
   private lists), player error handling, the shared playlist, and the
   shared playback: the clock, who's the speaker (play from a remote, Play
@@ -896,6 +989,15 @@ your run created afterwards — never `DELETE /v1` once real data exists.
 - **New screen:** subclass `Screen` (build once in `build()`, update in
   `render(state)`), register it in `App` (`this.screens`), navigate with
   `router.go(name)`.
+- **New theme or accent color:** add it to `THEMES` / `ACCENTS` in
+  `game/looks.js` (a theme needs a family and a partner in the other
+  one), its block in `css/tokens.css` (`[data-theme="…"]`: the colors that
+  differ from its family; `[data-accent="…"]`: `--accent-l` and
+  `--accent-d`, plain hex), and in `index.html`'s head script: a theme's
+  id and family in `FAM` and its `--bg` (the same hex as in its
+  `tokens.css` block) in `BG`; an accent's id in `ACC`.
+  `tests/look.test.js` checks that they all agree and that every
+  combination keeps 4.5:1 contrast.
 - **New store backend:** implement the contract documented at the top of
   `sync/MemoryStore.js` and choose it in `createStore.js`.
 - **Schema change:** keep old readers working or bump the root (`v1` → `v2`)
@@ -910,7 +1012,7 @@ your run created afterwards — never `DELETE /v1` once real data exists.
   or a fork and open a pull request. The owner's own pull requests merge
   with `gh pr merge <n> --merge --admin`, which skips only the approval
   (the admin may bypass *Protect main* only on a pull request; *Require
-  tests* has no bypass, so the merge waits for a green check). The
+  tests* has no bypass, so the merge is refused until the check is green). The
   required check is matched by its name, *npm test* — the `name:` of the
   job in `test.yml` — and by the GitHub Actions app (id 15368), so renaming
   that job (or giving the workflow path filters, so it doesn't run on every
@@ -922,7 +1024,37 @@ your run created afterwards — never `DELETE /v1` once real data exists.
   this repository's secrets and without the first-time-contributor
   approval). A pull request runs its own copy of `test.yml`, `package.json`
   and `tests/`, so it could turn its check green by editing them: review
-  changes there closely.
+  changes there closely. A pull request whose latest commit message
+  contains `[skip ci]`, `[ci skip]`, `[no ci]`, `[skip actions]` or
+  `[actions skip]` gets no run either — the required check never comes, so
+  it can't merge: push a new commit without it.
+- **Colors are tokens behind three switches** (`css/tokens.css`):
+  `data-scheme` (light / dark) picks the family, `data-theme` a variant on
+  top of it, `data-accent` the accent. The selectors are bare attributes,
+  so an element carrying its own (the previews in Settings) shows that
+  look inside it. `--primary` is gone (2.12.0): a filled button is
+  `--accent` / `--accent-ink`, picked text `--accent-text`, the background
+  of what's pressed or playing `--accent-soft`, outlines `--accent-line`.
+  Graphite sets no `data-accent`, so those fall back to the original
+  neutral look. The accent's tints (`--accent-soft`, `--accent-line`) are
+  `color-mix()`, set inside `@supports`: a browser without it (iOS
+  16.0–16.1, Chrome before 111) keeps the neutral ones, where an
+  unparsable custom property would drop every outline and highlight. The
+  board copies plain colors into its SVG (no `var()`, no
+  `color-mix`). `index.html`'s head script must set `data-scheme` every
+  time — nothing in `tokens.css` falls back on the system's dark mode — and
+  read the same storage as LookSync (Identity's: `pangaea:`, or
+  `pangaea:dev-<name>:` with `?device=` on localhost); its lists (themes'
+  families, accents, each theme's `--bg` for the browser bar) are checked
+  against `looks.js` and `tokens.css` by `tests/look.test.js`.
+- **The music's size is its footprint:** `--music-h` / `--music-w` are the
+  card's size plus its gap to the edge (computed `bottom` / `right`), from
+  offset sizes, so the slide-in's transform never skews them. Anything
+  docked at the bottom or right uses them, plus `--card-gap` for its own
+  gap. The music's buttons size with container units (`.music-side` is an
+  inline-size container), so they shrink on a 360 px phone instead of
+  spilling out of the card; in phone landscape `.music-side` is
+  `display:contents` (no container) and the fixed sizes there take over.
 - **The database is open** (no auth): anyone who finds the project URL
   could edit or wipe data. Acceptable for a friends-only tool; if that
   changes, add Firebase Anonymous Auth and per-path rules.
@@ -1090,6 +1222,30 @@ your run created afterwards — never `DELETE /v1` once real data exists.
 ## 10. Changelog
 
 Keep newest first. Every feature PR adds an entry and updates the sections above.
+
+- **2.12.0 — Themes and accent colors that follow you; the map and the
+  music in cards; a fuller split view.** Settings gets two new sections:
+  **Accent color** (Graphite — the original look — Sea, Harbor, Forest,
+  Wheat, Brick, Plum, Rose: buttons, outlines, what's picked or playing)
+  and **Theme** (Match device, Light, Sand, Mist, Dark, Hearth, Midnight).
+  Signed in, a pick is saved on the profile (`profiles/{id}/look`), so
+  every device signed in as that person switches to it — the phone, the
+  laptop, the TV; signed out, a device keeps its own. The top bar's light /
+  dark button now swaps to the partner theme (Sand ⇄ Hearth), and is saved
+  the same way. A pick is saved for whoever made it, even if they sign out
+  within the moment it waits. The last look (and the browser bar's color)
+  is painted before the first frame (no flash), and the board recolors in
+  place. The map and the music player (open,
+  mini bar, landscape column, desktop column, split view) sit in cards like
+  the tracker's, and the settings sheet, songs and playlist pop-up float
+  above the music. In the music & tracker view the tracker grows to fill
+  its half (zoom) instead of a 640 px column with wide margins. The
+  settings sheet is called Settings. Fixed: the tracker's tight layout (a
+  phone with the music open) always scrolled ~38 px — its measured height
+  was stale; 3 players now fit with the music open. Repo: `npm start`
+  prints the `?store=local` address; docs say the merge is refused until
+  the check is green, and that `[skip ci]` leaves a pull request unable to
+  merge.
 
 - **Repo — `main` is protected; tests on every pull request** (no change
   to the app — still 2.11.1). Two repository rulesets: *Protect main*

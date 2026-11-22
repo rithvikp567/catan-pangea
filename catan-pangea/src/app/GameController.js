@@ -5,6 +5,7 @@
  * re-render from `onChange`.
  */
 import { GameService, GameError } from "../game/GameService.js";
+import { cleanLook } from "../game/looks.js";
 
 export class GameController {
   /**
@@ -67,6 +68,9 @@ export class GameController {
   /** Forget the profile on this device (its seat stays: picking it again is straight back in). */
   signOut(){ this.selectProfile(null); }
 
+  /** My saved look — theme / accent ids (game/looks.js) — or null when nobody's signed in here. */
+  get myLook(){ return this.me ? cleanLook(this.me.look) : null; }
+
   /* ---------- intents ---------- */
 
   async #run(fn){
@@ -119,6 +123,25 @@ export class GameController {
     });
   }
   adjustWins(profileId, season, delta){ return this.#run(() => this.service.adjustWins(profileId, season, delta)); }
+
+  /**
+   * Save a theme / accent on a profile — mine, or that of whoever made the
+   * pick (every device they're signed in on follows). Never throws; a
+   * failure toasts, except a removed profile, which the caller handles.
+   * @param {{ theme?:string, accent?:string }} patch
+   * @param {string} [profileId]
+   * @returns {Promise<"saved"|"same"|"gone"|"failed">}
+   */
+  async saveLook(patch, profileId = this.me?.id){
+    if(!profileId || !this.service) return "failed";
+    try{ return await this.service.setLook(profileId, patch) ? "saved" : "same"; }
+    catch(err){
+      if(err instanceof GameError && err.code === "no-profile") return "gone";
+      if(!(err instanceof GameError)) console.error(err);
+      this.toast.show(err instanceof GameError ? err.message : "That didn't sync — check your connection.");
+      return "failed";
+    }
+  }
 
   /* music: one playlist for the table, any player may change it */
   /** @returns {Promise<string|undefined>} the playlist id, or undefined if the link was rejected */

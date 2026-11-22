@@ -13,6 +13,9 @@ own) merge with `gh pr merge <n> --merge --admin`, which skips only the
 approval. Work on a branch or a fork — never push to `main`, and don't
 change `firebaseConfig.js` in a pull request.
 
-Never write to the live database. When you run the app, add `?store=local`
-to the URL: a plain local run reads and writes the live game's data. No
-REST or curl calls to it either.
+Never write to the live database. When you run the app, keep `?store=local`
+in the URL (`npm start` prints it that way; add other parameters with `&`):
+without it, the page reads and writes the live game's data. No
+REST or curl calls to it either — the one exception is an end-to-end check
+of the real database that the owner asks for in so many words (context.md
+§7 says how, and what to clean up).

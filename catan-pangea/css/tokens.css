@@ -1,10 +1,22 @@
 /* ==========================================================================
    Design tokens. A quiet, near-monochrome UI so the board carries the
-   color. Light and dark are both first-class (dark suits game night).
-   The board renderer reads the board-* tokens at draw time, so exported
-   images match the theme on screen.
+   color — in six themes and eight accent colors, each person's own pick
+   (src/game/looks.js lists them; Settings → Accent color / Theme).
+   <html> carries the pick (ui/ThemeController.js — and index.html's head
+   script, before the first frame):
+     data-scheme  light | dark: the family, which sets every color below
+     data-theme   sand, mist, hearth or midnight: a few colors on top of
+                  their family (Light and Dark are the families themselves)
+     data-accent  the accent's fill for each family (none: Graphite, the
+                  ink color — the app's original look)
+   The selectors are bare attributes, so an element with its own
+   data-scheme / data-theme / data-accent (the previews in Settings) shows
+   that look inside it. The board renderer reads the board-* tokens at draw
+   time: plain colors only (they're copied into the SVG and the saved image).
    ========================================================================== */
-:root{
+
+/* ---------- the light family: Light (Sand and Mist build on it) ---------- */
+:root, [data-scheme="light"]{
   color-scheme: light;
 
   --bg:        #F5F4F0;
@@ -16,22 +28,21 @@
   --ink-3:     #95928B;
   --line:      #E2DFD8;
 
-  --primary:     #1B1B19;
-  --primary-ink: #FFFFFF;
-  --focus:       #2C6E8E;
+  --accent:     var(--accent-l, var(--ink));   /* the accent's fill (Graphite: the ink) */
+  --accent-ink: #FFFFFF;                       /* text on it */
+  --focus-ring: #2C6E8E;                       /* the focus ring with Graphite */
 
   --good: #3D7A52;
   --ok:   #A8741F;
   --bad:  #B4483A;
 
-  --board-gap:      #F5F4F0;   /* gutter between tiles */
   --board-sea:      #DCE5E8;
   --board-token:    #FBF8F1;
   --board-token-ink:#22211F;
   --board-red:      #B3382C;
   --board-port:     #8B8579;
   --board-port-3:   #F1EDE3;
-  --board-label:    #5E5C57;
+  --board-label:    var(--ink-2);
 
   --ice:      #2A74B4;          /* WALKER letters */
   --ice-glow: rgb(70 160 245 / .55);
@@ -41,37 +52,90 @@
   --wing:  rgb(110 135 160 / .9);
   --stink: #5F8F1C;             /* the stink */
 
-  --radius: 12px;
   --shadow: 0 1px 2px rgb(0 0 0 / .05), 0 10px 30px -12px rgb(0 0 0 / .22);
-
-  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI",
-          system-ui, Roboto, "Helvetica Neue", sans-serif;
 }
 
-/* dark — once for "follow the system", once for an explicit choice */
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){
-    color-scheme: dark;
-    --bg:#121211; --surface:#1B1B19; --surface-2:#262522; --raised:#33322E;
-    --ink:#ECEAE4; --ink-2:#A8A59E; --ink-3:#6F6C66; --line:#2C2B28;
-    --primary:#ECEAE4; --primary-ink:#121211; --focus:#7DB6D2;
-    --good:#6DB088; --ok:#D9A350; --bad:#E07A68;
-    --board-gap:#121211; --board-sea:#1B2529; --board-token:#F1EDE4; --board-token-ink:#1D1C1A;
-    --board-red:#B3382C; --board-port:#8E897F; --board-port-3:#E9E4D8; --board-label:#A8A59E;
-    --shadow: 0 1px 2px rgb(0 0 0 / .4), 0 12px 34px -14px rgb(0 0 0 / .8);
-    --ice:#D2EEFF; --ice-glow:rgb(110 190 255 / .75);
-    --spark:#FFE07A; --fly:#B9B5AC; --wing:rgb(200 225 245 / .85); --stink:#AEDB5E;
-  }
-}
-:root[data-theme="dark"]{
+/* ---------- the dark family: Dark (Hearth and Midnight build on it) ---------- */
+[data-scheme="dark"]{
   color-scheme: dark;
   --bg:#121211; --surface:#1B1B19; --surface-2:#262522; --raised:#33322E;
   --ink:#ECEAE4; --ink-2:#A8A59E; --ink-3:#6F6C66; --line:#2C2B28;
-  --primary:#ECEAE4; --primary-ink:#121211; --focus:#7DB6D2;
+  --accent:var(--accent-d, var(--ink)); --accent-ink:var(--bg); --focus-ring:#7DB6D2;
   --good:#6DB088; --ok:#D9A350; --bad:#E07A68;
-  --board-gap:#121211; --board-sea:#1B2529; --board-token:#F1EDE4; --board-token-ink:#1D1C1A;
-  --board-red:#B3382C; --board-port:#8E897F; --board-port-3:#E9E4D8; --board-label:#A8A59E;
+  --board-sea:#1B2529; --board-token:#F1EDE4; --board-token-ink:#1D1C1A;
+  --board-red:#B3382C; --board-port:#8E897F; --board-port-3:#E9E4D8; --board-label:var(--ink-2);
   --shadow: 0 1px 2px rgb(0 0 0 / .4), 0 12px 34px -14px rgb(0 0 0 / .8);
   --ice:#D2EEFF; --ice-glow:rgb(110 190 255 / .75);
   --spark:#FFE07A; --fly:#B9B5AC; --wing:rgb(200 225 245 / .85); --stink:#AEDB5E;
 }
+
+/* ---------- the other four themes: what they change in their family ---------- */
+/* Sand: warm, like an old map */
+[data-theme="sand"]{
+  --bg:#F3ECDE; --surface:#FCF8F0; --surface-2:#EAE1CF; --raised:#FFFDF8;
+  --ink:#2A2118; --ink-2:#665847; --ink-3:#998A74; --line:#E0D5C0; --ok:#A06D19;
+  --board-sea:#D2E1DE; --board-token:#FCF8EE; --board-token-ink:#2A2118; --board-port:#8D806C; --board-port-3:#F6F0E3;
+}
+/* Mist: cool grey-blue */
+[data-theme="mist"]{
+  --bg:#EEF2F5; --surface:#FFFFFF; --surface-2:#E3E9EE; --raised:#FFFFFF;
+  --ink:#16202A; --ink-2:#4E5A66; --ink-3:#8692A0; --line:#D8E0E7;
+  --board-sea:#D0E1EC; --board-token:#FBFAF6; --board-token-ink:#1D2329; --board-port:#7D8893; --board-port-3:#EEF2F5;
+}
+/* Hearth: warm, firelit (Sand's partner) */
+[data-theme="hearth"]{
+  --bg:#16110D; --surface:#1F1914; --surface-2:#2A221B; --raised:#362C23;
+  --ink:#F1E9DD; --ink-2:#B7A994; --ink-3:#7F715E; --line:#31281F;
+  --board-sea:#1C2A2A; --board-token:#F1EBDD; --board-token-ink:#1F1A14; --board-port:#958877; --board-port-3:#EDE4D3;
+}
+/* Midnight: deep blue (Mist's partner) */
+[data-theme="midnight"]{
+  --bg:#0E131B; --surface:#151C26; --surface-2:#1E2733; --raised:#29333F;
+  --ink:#E6EBF1; --ink-2:#9EA9B6; --ink-3:#66727F; --line:#232D39;
+  --board-sea:#172739; --board-port:#8690A0; --board-port-3:#E3E8EE;
+}
+
+/* ---------- accent colors: a fill for each family (the text on it is white /
+   the dark background; every pair is at least 4.5:1, tests/look.test.js) ---------- */
+[data-accent="graphite"]{ --accent-l:initial; --accent-d:initial; }   /* (only on Settings' swatch: the ink) */
+[data-accent="sea"]{    --accent-l:#2A5F9E; --accent-d:#82B4F0; }
+[data-accent="harbor"]{ --accent-l:#0C6A65; --accent-d:#5CC5BC; }
+[data-accent="forest"]{ --accent-l:#2D6844; --accent-d:#7DC48F; }
+[data-accent="wheat"]{  --accent-l:#805B0E; --accent-d:#E5B24A; }
+[data-accent="brick"]{  --accent-l:#A3412A; --accent-d:#F0906F; }
+[data-accent="plum"]{   --accent-l:#6A48AE; --accent-d:#B9A2F2; }
+[data-accent="rose"]{   --accent-l:#A33361; --accent-d:#F28DB6; }
+
+/* ---------- the same in every theme ---------- */
+:root{
+  /* what the accent drives — with Graphite, the app's original look:
+     neutral pressed states and outlines, the blue focus ring */
+  --accent-text: var(--accent);       /* what's picked or playing, as text */
+  --accent-soft: var(--surface-2);    /* behind what's pressed or playing */
+  --accent-line: var(--line);         /* the outline of cards, buttons and fields */
+  --focus:       var(--focus-ring);
+
+  /* cards — the tracker's sections, the map and the music: a gap from the
+     screen's edges and from each other */
+  --card-radius: 16px;
+  --card-gap:    12px;
+  --map-bg:      var(--surface);      /* the map's card */
+  --board-gap:   var(--map-bg);       /* the gutter between the hexes: the card behind them */
+
+  --radius: 12px;
+
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI",
+          system-ui, Roboto, "Helvetica Neue", sans-serif;
+}
+:root[data-accent]{ --focus: var(--accent); }
+/* a browser without color-mix() (iOS 16.0–16.1, Chrome before 111) keeps the neutral ones above —
+   an unparsable value here would drop every outline and highlight */
+@supports (color: color-mix(in srgb, red, blue)){
+  :root[data-accent]{
+    --accent-soft: color-mix(in srgb, var(--accent) 12%, var(--surface));
+    --accent-line: color-mix(in srgb, var(--accent) 35%, var(--line));
+  }
+}
+/* tighter gaps where every pixel counts: a phone on its side (~300 px tall), a small phone */
+@media (orientation:landscape) and (max-height:559px){ :root{ --card-gap:6px; } }
+@media (max-width:370px){ :root{ --card-gap:8px; } }

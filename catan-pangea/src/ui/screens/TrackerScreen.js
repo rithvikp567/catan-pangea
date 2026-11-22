@@ -38,6 +38,15 @@ const JITTER = Object.freeze({
 /** A seat row's smallest height (px): below this for every seat, the screen goes tight (screens.css). */
 const ROW_MIN = 42;
 
+/**
+ * The music & tracker view (split.css) gives the tracker half the window,
+ * and the tracker grows to fill it — zoomed, so the rows, buttons and
+ * numbers all grow together — `mx` / `my` px from the half's edges (plus
+ * its own padding). Before the zoom the column is `minW`–`maxW` px wide;
+ * it grows at most `maxZoom` times.
+ */
+const GROW = Object.freeze({ mx:8, my:12, minW:440, maxW:720, maxZoom:2 });
+
 export class TrackerScreen extends Screen {
   constructor(deps){
     super("tracker", "Tracker", deps);
@@ -180,6 +189,28 @@ export class TrackerScreen extends Screen {
     const chrome = parseFloat(getComputedStyle(this.vpList).getPropertyValue("--tracker-chrome")) || 404;
     const seats = this.vpControls?.size ?? 4;
     this.el.dataset.fit = room < chrome + seats * ROW_MIN ? "tight" : "roomy";
+    this.#grow();
+  }
+
+  /**
+   * In the music & tracker view, fill the half (GROW): measure the tracker
+   * at its own size, zoom it as far as the half's height allows (or its
+   * width, at the narrowest column), and make the column as wide as the
+   * half then leaves. Never when tight (no room to grow), nor anywhere else.
+   */
+  #grow(){
+    const s = this.el.style;
+    s.removeProperty("--grow");
+    s.removeProperty("--grow-w");
+    if(document.body.dataset.view !== "split" || this.el.dataset.fit !== "roomy") return;
+    const inner = this.el.firstElementChild, cs = getComputedStyle(this.el), ci = getComputedStyle(inner);
+    const w = this.el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 2 * GROW.mx;
+    const h = this.el.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - 2 * GROW.my;
+    const tall = [...inner.children].reduce((sum, el) => sum + el.offsetHeight, parseFloat(ci.paddingTop) + parseFloat(ci.paddingBottom));
+    const zoom = Math.min(GROW.maxZoom, (h - 1) / tall, w / GROW.minW);
+    if(!(zoom > 1.02)) return;
+    s.setProperty("--grow", zoom.toFixed(3));
+    s.setProperty("--grow-w", `${Math.floor(Math.min(GROW.maxW, w / zoom))}px`);
   }
 
   #buildSeats(seats, mySeat){

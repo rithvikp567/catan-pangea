@@ -1,11 +1,11 @@
 name: Tests
 
 # Every pull request into main runs the test suite, so a change shows pass /
-# fail before anyone merges it. "npm test" (the job's name below) is a
-# required check in the "Protect main" ruleset — rename the job and the
-# ruleset must be updated too, or pull requests wait for a check that never
-# comes. No path filters, for the same reason. The deploy
-# (deploy-pages.yml) runs the tests again after the merge.
+# fail before anyone merges it. "npm test" (the job's name below) is the
+# required check of the "Require tests" ruleset (no bypass, the owner
+# included) — rename the job and update that ruleset too, or pull requests
+# wait for a check that never comes. No path filters, for the same reason.
+# The deploy (deploy-pages.yml) runs the tests again after the merge.
 #
 # Deliberately `pull_request`, never `pull_request_target`: code from a fork
 # runs with a read-only token and no secrets.
