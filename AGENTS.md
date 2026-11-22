@@ -12,9 +12,10 @@ structure, the data model, how to extend, and the changelog.
   merges once its "npm test" check passes (nobody can skip that) and the
   owner approves it. Merging deploys the live site. Work on a branch or a
   fork — never push to `main`.
-- Never write to the live database. When you run the app, add
-  `?store=local` to the URL (a plain local run reads and writes the live
-  game's data); no REST or curl calls to `catan-pangea-default-rtdb`
+- Never write to the live database. When you run the app, keep
+  `?store=local` in the URL (`npm start` prints it that way; add other
+  parameters with `&`) — without it, the page reads and writes the live
+  game's data; no REST or curl calls to `catan-pangea-default-rtdb`
   either, unless the owner asks for an end-to-end check of the real
   database in so many words (context.md §7). The tests use an in-memory
   store.

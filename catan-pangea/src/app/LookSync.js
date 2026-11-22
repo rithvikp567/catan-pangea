@@ -4,11 +4,16 @@
  *
  *  - Signed in: the person's own, saved on their profile — it follows them
  *    to every device they sign in on (a pick on the phone shows on the
- *    laptop a moment later). A field they never picked falls back to this
- *    device's own, then the default.
+ *    laptop a moment later). What they never picked shows the default, so
+ *    all their devices look the same.
  *  - Signed out (or the profile was removed): this device's own look, kept
  *    on the device only. Signing out brings it back, so a shared laptop or
  *    TV never keeps someone else's look.
+ *
+ * A pick belongs to whoever was signed in when it was made. It shows at
+ * once and is saved on their profile when a run of picks settles — or
+ * straight away if they sign out (or someone else signs in) first, or the
+ * page is hidden (`flush`, from App).
  *
  * It only decides; `apply(look)` (ui/ThemeController) paints. The look it
  * showed last is kept on the device as `lastLook`, which index.html's head
@@ -32,12 +37,14 @@ export class LookSync {
   constructor({ game, storage, apply }){
     Object.assign(this, { game, storage, apply });
     this.listeners = new Set();
-    this.pending = null;       /* a signed-in pick not saved yet: it shows here meanwhile */
+    /** @type {{ id:string, look:{ theme?:string, accent?:string } }|null}  a pick not saved yet, and whose it is */
+    this.pending = null;
+    this.saving = null;        /* the pending pick being saved right now */
     this.timer = null;
     this.look = null;
     this.owner = undefined;
     this.#show(resolveLook(null, storage.get("lastLook") ?? this.device));
-    game.onChange(() => this.#sync());
+    game.onChange(() => this.#changed());
   }
 
   /** The look showing now. */
@@ -58,15 +65,19 @@ export class LookSync {
 
   /**
    * A pick (Settings, or the top bar's light / dark switch): it shows at
-   * once, and is saved on the profile when someone's signed in here (once
-   * a run of picks settles), on this device otherwise.
+   * once, and is saved on the profile of whoever's signed in here (once a
+   * run of picks settles), on this device when nobody is.
    * @param {{ theme?:string, accent?:string }} patch
    */
   pick(patch){
     const clean = cleanLook(patch);
     if(!Object.keys(clean).length) return;
-    if(this.#signedIn){
-      this.pending = { ...this.pending, ...clean };
+    const id = this.#signedIn;
+    if(id){
+      if(this.pending && this.pending.id !== id) this.flush();   /* (the last person's pick: saved for them first) */
+      /* on top of my own pick still waiting — never someone else's (theirs may still be on its way) */
+      const mine = this.pending?.id === id ? this.pending.look : null;
+      this.pending = { id, look:{ ...mine, ...clean } };
       clearTimeout(this.timer);
       this.timer = setTimeout(() => this.#save(), SAVE_AFTER_MS);
     }else{
@@ -76,31 +87,47 @@ export class LookSync {
     else this.#show({ ...this.look, ...clean });        /* (still loading: on top of what shows) */
   }
 
-  /** Someone is signed in here (their profile may still be loading). */
-  get #signedIn(){ return this.game.ready ? !!this.game.me : !!this.game.identity?.profileId; }
+  /** Save a pick that's waiting, now — the page is being hidden or closed. */
+  flush(){
+    if(!this.pending) return;
+    clearTimeout(this.timer);
+    this.timer = null;
+    this.#save();
+  }
+
+  /** Who's signed in here: their profile id (it may still be loading), or null. */
+  get #signedIn(){ return (this.game.ready ? this.game.me?.id : this.game.identity?.profileId) ?? null; }
+
+  #changed(){
+    /* signed out, or someone else signed in, with a pick of the last person's waiting: theirs, saved now */
+    if(this.pending && this.game.ready && this.game.me?.id !== this.pending.id) this.flush();
+    this.#sync();
+  }
 
   async #save(){
     this.timer = null;
+    const pending = this.pending;
+    if(!pending || this.saving === pending) return;
     if(!this.game.ready){ this.timer = setTimeout(() => this.#save(), SAVE_AFTER_MS); return; }
-    const patch = this.pending;
-    if(!patch) return;
-    if(!this.game.me){                                   /* signed out (or removed) meanwhile: it's this device's */
-      for(const [key, value] of Object.entries(patch)) this.storage.set(key, value);
-      this.pending = null;
-      this.#sync();
-      return;
+    this.saving = pending;
+    /* never throws: a failure toasts, and the saved look shows again */
+    const result = await this.game.saveLook(pending.look, pending.id);
+    if(this.saving === pending) this.saving = null;     /* (a newer save may have started meanwhile) */
+    if(this.pending === pending) this.pending = null;   /* (a newer pick waits for its own save) */
+    /* their profile was removed meanwhile: the pick stays on this device, where it was made —
+       unless someone else is signed in here by now */
+    if(result === "gone" && !this.game.me){
+      for(const [key, value] of Object.entries(pending.look)) this.storage.set(key, value);
     }
-    await this.game.saveLook(patch);                     /* never throws — a failure toasts, and the saved look shows again */
-    if(this.pending === patch) this.pending = null;      /* (a newer pick keeps showing until it's saved too) */
     this.#sync();
   }
 
   #sync(){
     if(!this.game.ready) return;                         /* until the game data arrives, keep what's showing */
     const me = this.game.me;
-    /* a pick not saved yet shows on top either way (signed out meanwhile, it's about to be this device's) */
-    this.#show(me ? resolveLook({ ...this.game.myLook, ...this.pending }, this.device)
-                  : resolveLook(null, { ...this.device, ...this.pending }), me?.name ?? null);
+    if(!me){ this.#show(resolveLook(null, this.device), null); return; }
+    const mine = this.pending?.id === me.id ? this.pending.look : null;   /* my pick, not saved yet */
+    this.#show(resolveLook({ ...this.game.myLook, ...mine }, null), me.name);
   }
 
   #show(look, owner = this.owner ?? null){

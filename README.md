@@ -37,7 +37,8 @@ below). To try it on your phone on the same Wi-Fi:
 HOST=0.0.0.0 npm start
 ```
 
-and open the network address it prints, plus `/?store=local`.
+and open the "on your network" address it prints (it already ends in
+`/?store=local`).
 
 To try several "phones" on one computer without touching the live game,
 open tabs with `http://localhost:8000/?store=local&device=alice`,
@@ -47,9 +48,10 @@ open tabs with `http://localhost:8000/?store=local&device=alice`,
 
 The tracker syncs through the Firebase Realtime Database configured in
 `catan-pangea/src/sync/firebaseConfig.js` — the same database the live
-site uses, **including when you run it on localhost**. Add `?store=local`
-to the URL while testing so you don't edit the real game. A fork can point
-at its own project (setup takes about five minutes — see
+site uses, **including when you run it on localhost**. Keep `?store=local`
+in the URL while testing (`npm start` prints it that way) so you don't
+edit the real game. A fork can point at its own project (setup takes
+about five minutes — see
 [context.md → Firebase setup](context.md#firebase-setup-needed-for-phones-to-sync))
 or set the config to `null` for "this device only" mode.
 
@@ -72,8 +74,9 @@ it); it merges once they pass and the owner approves it. If the check
 fails, open **Details** beside it for the log, fix it, run `npm test` and
 push to the same branch. Read [context.md](context.md) first — it's the
 handover doc, for people and coding agents alike — and update it in the
-same change. When you run the app locally, add `?store=local` to the URL:
-a plain `npm start` reads and writes the live game. Don't change
+same change. When you run the app locally, keep `?store=local` in the URL
+(`npm start` prints it that way): without it, the page reads and writes the
+live game. Don't change
 `firebaseConfig.js` in a pull request (merged, it would point the live
 site at another database).
 

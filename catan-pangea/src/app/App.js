@@ -92,6 +92,9 @@ export class App {
     /* whose look shows here (the signed-in person's follows them to every device) — each
        ?device= tab on localhost is a device of its own, so it keeps Identity's storage */
     this.look = new LookSync({ game:this.game, storage:this.identity.storage, apply:look => this.theme.set(look) });
+    /* a pick waiting to be saved goes now if the page is hidden or closed (a locked phone, the app swiped away) */
+    addEventListener("pagehide", () => this.look.flush());
+    document.addEventListener("visibilitychange", () => { if(document.visibilityState === "hidden") this.look.flush(); });
     this.boardView = new BoardView(this.dom.board);
     this.sheet = new Sheet($("panel"), $("scrim"), { opener:$("settingsBtn"), closer:$("sheetClose") });
     this.scoreCard = new ScoreCard($("scoreCard"));

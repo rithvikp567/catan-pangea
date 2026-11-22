@@ -1,7 +1,7 @@
 /**
  * Zero-dependency static server for local development.
  *
- *   npm start                     -> http://localhost:8000
+ *   npm start                     -> http://localhost:8000/?store=local (this device only)
  *   PORT=9000 npm start           -> another port
  *   HOST=0.0.0.0 npm start        -> also reachable from a phone on the same Wi-Fi
  *

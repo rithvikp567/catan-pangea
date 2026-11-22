@@ -149,7 +149,9 @@ body[data-music="open"] dialog.about::backdrop{ background:transparent; }
 @media (orientation:landscape) and (max-height:559px){
   .music{
     left:auto; top:max(var(--card-gap), env(safe-area-inset-top)); width:270px;   /* 1 + 8 + 116 + 8 + 76 + 8 + 44 + 8 + 1 */
-    grid-template-columns:116px 76px 44px; grid-template-rows:200px auto; align-content:center; gap:6px 8px;
+    grid-template-columns:116px 76px 44px; grid-template-rows:200px auto; gap:6px 8px;
+    /* centred when it fits; too short a screen scrolls from the top (plain center would cut the player's top off) */
+    align-content:start; align-content:safe center;
     padding:6px 8px;
     overflow-y:auto; overscroll-behavior:contain;
   }
@@ -284,7 +286,7 @@ body[data-music-away] :is(.music, .music-mini, .music-songs, .music-pop){ displa
 @media (orientation:landscape) and (max-height:559px){
   .music-sheet{ left:auto; width:min(380px, 60vw); }
   .music-songs{ top:max(var(--card-gap), env(safe-area-inset-top)); }
-  .music-pop{ max-height:calc(100% - 2 * var(--card-gap) - var(--music-h)); }
+  .music-pop{ max-height:calc(100% - max(var(--music-h), env(safe-area-inset-bottom)) - env(safe-area-inset-top) - 2 * var(--card-gap)); }
 }
 @media (min-width:900px){
   .music-sheet{ left:auto; right:calc(var(--music-w) + 16px); width:420px; bottom:calc(var(--music-h) + 16px); }

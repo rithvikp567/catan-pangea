@@ -125,13 +125,22 @@ export class GameController {
   adjustWins(profileId, season, delta){ return this.#run(() => this.service.adjustWins(profileId, season, delta)); }
 
   /**
-   * Save my theme / accent on my profile (every device I'm signed in on follows).
-   * @returns {Promise<boolean>} whether it changed anything
+   * Save a theme / accent on a profile — mine, or that of whoever made the
+   * pick (every device they're signed in on follows). Never throws; a
+   * failure toasts, except a removed profile, which the caller handles.
+   * @param {{ theme?:string, accent?:string }} patch
+   * @param {string} [profileId]
+   * @returns {Promise<"saved"|"same"|"gone"|"failed">}
    */
-  saveLook(patch){
-    const me = this.me;
-    if(!me || !this.service) return Promise.resolve(false);
-    return this.#run(() => this.service.setLook(me.id, patch)).then(Boolean);
+  async saveLook(patch, profileId = this.me?.id){
+    if(!profileId || !this.service) return "failed";
+    try{ return await this.service.setLook(profileId, patch) ? "saved" : "same"; }
+    catch(err){
+      if(err instanceof GameError && err.code === "no-profile") return "gone";
+      if(!(err instanceof GameError)) console.error(err);
+      this.toast.show(err instanceof GameError ? err.message : "That didn't sync — check your connection.");
+      return "failed";
+    }
   }
 
   /* music: one playlist for the table, any player may change it */

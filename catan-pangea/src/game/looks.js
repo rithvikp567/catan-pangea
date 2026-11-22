@@ -6,9 +6,10 @@
  * Only ids, names and families live here (DOM-free: GameService validates
  * with it, the UI lists from it). The colors are in css/tokens.css,
  * selected by data-scheme / data-theme / data-accent on <html>
- * (ui/ThemeController.js); index.html's head script repeats the theme →
- * family list below to paint the first frame — keep them in step (the
- * tests check).
+ * (ui/ThemeController.js). index.html's head script paints the first
+ * frame from copies: the theme → family map (FAM) and the accent ids (ACC)
+ * below, and each theme's --bg from css/tokens.css (BG, for the browser
+ * bar) — keep them in step (tests/look.test.js checks).
  */
 
 /**

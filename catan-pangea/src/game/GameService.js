@@ -119,9 +119,7 @@ export class GameService {
       outcome = "ok";
       return { ...p, look:{ ...p.look, ...clean, at:this.now() } };
     });
-    if(!res.committed && outcome === "no-profile"){
-      throw new GameError("no-profile", "Your profile was removed — pick it again to save your theme.");
-    }
+    if(!res.committed && outcome === "no-profile") throw new GameError("no-profile", "That profile was removed.");
     return res.committed;
   }
 

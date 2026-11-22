@@ -25,7 +25,7 @@ export class LookPanel {
       label:"Accent color", value:null,
       options:ACCENTS.map(a => ({ value:a.id, label:a.label })),
       className:"accent-grid", optionClass:"accent-choice",
-      attrs:o => ({ "aria-label":o.label, title:o.label, "data-accent":o.value, "aria-describedby":"lookWhere" }),
+      attrs:o => ({ "aria-label":o.label, title:o.label, "data-accent":o.value }),
       render:() => h("span", { class:"accent-dot", "aria-hidden":"true" }),
       onChange:accent => onPick({ accent }),
     });
@@ -34,7 +34,7 @@ export class LookPanel {
       options:THEMES.map(t => ({ value:t.id, label:t.label, scheme:t.scheme })),
       className:"theme-grid", optionClass:"theme-choice",
       attrs:o => ({
-        "data-theme-id":o.value, "aria-describedby":"lookWhere",
+        "data-theme-id":o.value,
         "aria-label":o.scheme ? null : `${o.label}: Light or Dark, as this device is set`,
       }),
       render:o => [
@@ -44,6 +44,8 @@ export class LookPanel {
       ],
       onChange:theme => onPick({ theme }),
     });
+    /* where picks are saved: read once per group, not on every swatch */
+    for(const group of [this.accent.el, this.theme.el]) group.setAttribute("aria-describedby", "lookWhere");
     root.replaceChildren(
       h("div", { class:"group look-group" },
         h("div", { class:"look-head" }, h("h3", { class:"section-title" }, "Accent color"), this.accentName),
@@ -64,9 +66,11 @@ export class LookPanel {
     this.theme.set(look.theme);
     this.accentName.textContent = accentById(look.accent)?.label ?? "";
     this.themeName.textContent = themeById(look.theme)?.label ?? "";
+    /* signed out, a pick stays on this device; signing in shows the person's own look instead
+       (it never takes this device's along — app/LookSync) */
     this.where.textContent = owner
       ? `Saved for ${owner} — it follows you to every device you sign in on.`
-      : "This device only — sign in to take your theme and accent to your other devices.";
+      : "Saved on this device only. Signed in, you get your own theme and accent instead — saved with your profile, the same on every device.";
   }
 }
 

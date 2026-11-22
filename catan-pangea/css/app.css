@@ -329,14 +329,15 @@ dialog.about::backdrop{ background:rgb(0 0 0 / .45); }
   .dock{ flex-direction:column; gap:6px; padding:0 10px calc(8px + env(safe-area-inset-bottom)) 0; }
   .dock .btn{ min-height:38px; padding:0 12px; gap:6px; border-radius:10px; font-size:13.5px; }
   .dock .btn svg{ width:16px; height:16px; }
-  .stage{ margin:max(var(--card-gap), env(safe-area-inset-top)) var(--card-gap) max(var(--card-gap), env(safe-area-inset-bottom)) max(var(--card-gap), env(safe-area-inset-left)); padding:3px; }
+  /* (.app pads the notch's side; the home bar is under the mini bar when the music's closed — its height counts it) */
+  .stage{ margin:var(--card-gap) var(--card-gap) max(var(--card-gap), env(safe-area-inset-bottom) - var(--music-h)) var(--card-gap); padding:3px; }
   .board{ border-radius:calc(var(--card-radius) - 4px); }
   .panel{
     top:var(--card-gap); left:auto; width:min(380px, 88vw);
     max-height:none; height:auto;
     border-radius:20px;
     padding-top:calc(6px + env(safe-area-inset-top));
-    transform:translateX(calc(100% + 40px));
+    transform:translateX(calc(100% + max(var(--music-w), env(safe-area-inset-right)) + var(--card-gap) + 24px));   /* (past the music column too) */
   }
 }
 

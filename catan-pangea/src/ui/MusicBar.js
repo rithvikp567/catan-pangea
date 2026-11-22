@@ -102,6 +102,8 @@ function songInfo(videoId){
 }
 
 const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+/** Where the open bar is a column on the right (a phone on its side) — css/music.css's own query. */
+const SIDE_QUERY = "(orientation:landscape) and (max-height:559px)";
 
 /**
  * How far a card docked to an edge of the window reaches in from it: its
@@ -908,7 +910,7 @@ export class MusicBar {
   /* ---------------- paint ---------------- */
 
   /** Publish how much of the window the bar takes (its card and the gap round it); a column
-      (taller than wide) takes width, a bottom bar height. */
+      (phone landscape) takes width, a bottom bar height. */
   #measure(){
     const root = document.documentElement.style;
     if(this.isAway){                                  /* nothing shows */
@@ -921,8 +923,9 @@ export class MusicBar {
       root.setProperty("--music-w", "0px");
       return;
     }
-    /* in desktop's left column the layout makes room itself (DesktopLayout) */
-    const open = this.dock === "bar", side = this.el.offsetHeight > this.el.offsetWidth;
+    /* in desktop's left column the layout makes room itself (DesktopLayout); a column or a bar by
+       the CSS's own media query — the card's shape can't tell on a short phone (~280 px tall) */
+    const open = this.dock === "bar", side = matchMedia(SIDE_QUERY).matches;
     root.setProperty("--music-h", open && !side ? `${footprint(this.el, "bottom")}px` : "0px");
     root.setProperty("--music-w", open && side ? `${footprint(this.el, "right")}px` : "0px");
   }

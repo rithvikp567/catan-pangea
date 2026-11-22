@@ -15,8 +15,9 @@
   <title>Pangaea — Catan map generator</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2l8.66 5v10L12 22l-8.66-5V7z' fill='%233E6B48'/%3E%3C/svg%3E">
   <!-- the look, before the first frame: the one this device showed last (app/LookSync keeps it as
-       "lastLook", in Identity's storage), so nobody's own theme flashes the default first. The two
-       lists repeat game/looks.js — keep them in step (tests/look.test.js checks) -->
+       "lastLook", in Identity's storage), so nobody's own theme flashes the default first — the
+       browser's bar too. The lists repeat game/looks.js and each theme's --bg in css/tokens.css:
+       keep them in step (tests/look.test.js checks) -->
   <script>
     (function(){
       var root = document.documentElement, dark = false;
@@ -25,6 +26,7 @@
       try{
         var FAM = { light:"light", sand:"light", mist:"light", dark:"dark", hearth:"dark", midnight:"dark" };
         var ACC = ["sea", "harbor", "forest", "wheat", "brick", "plum", "rose"];   /* (Graphite: no attribute) */
+        var BG = { light:"#F5F4F0", sand:"#F3ECDE", mist:"#EEF2F5", dark:"#121211", hearth:"#16110D", midnight:"#0E131B" };
         var dev = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) && new URLSearchParams(location.search).get("device");
         var pre = dev ? "pangaea:dev-" + dev + ":" : "pangaea:";
         var read = function(key){ try{ return JSON.parse(localStorage.getItem(pre + key)); }catch(e){ return null; } };
@@ -35,6 +37,8 @@
           scheme = FAM[theme];
         }
         if(typeof accent === "string" && ACC.indexOf(accent) >= 0) root.setAttribute("data-accent", accent);
+        var bar = document.querySelector('meta[name="theme-color"]');
+        if(bar) bar.setAttribute("content", BG[root.getAttribute("data-theme") || scheme]);
       }catch(e){}
       root.setAttribute("data-scheme", scheme);
     })();

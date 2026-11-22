@@ -63,15 +63,17 @@ HOST=0.0.0.0 npm start   # also reachable from a phone on the same Wi-Fi
 
 - ES modules don't load from `file://` — always serve the folder.
 - **The service worker runs on localhost too** (`sw.js`, network first, so
-  you always get your latest files while the server is up). Add `?nosw` to
-  skip registering it; to drop one that's installed, use the browser's
+  you always get your latest files while the server is up). Add `&nosw`
+  (after `?store=local`) to skip registering it; to drop one that's installed, use the browser's
   DevTools → Application → Service workers → Unregister.
 - **⚠ Localhost talks to the live database.** The committed Firebase config
-  is the real game's, so a plain `npm start` session reads and writes the
-  same data as everyone's phones. **When testing, add `?store=local`** — it
-  forces the "this device only" store (`createStore.js`) and the pill shows
-  *This device only*.
-- **Several "phones" on one computer:** on localhost, add `?device=<name>`
+  is the real game's, so a page opened without `?store=local` reads and
+  writes the same data as everyone's phones. **Keep `?store=local` in the
+  URL** (`npm start` prints the address that way) — it forces the "this
+  device only" store (`createStore.js`) and the pill shows *This device
+  only*. Add more parameters with `&`: a second `?` turns `store` into
+  something else (`local?nosw`), and the page quietly goes live.
+- **Several "phones" on one computer:** on localhost, add `&device=<name>`
   too (e.g. `http://localhost:8000/?store=local&device=alice`, another tab
   with `?store=local&device=bob`). Each tab gets its own identity and the
   tabs share one device-only store, so the whole multiplayer flow can be
@@ -126,8 +128,8 @@ first).
   (keep both changelog entries, newest first) and push. A pull request
   whose base was changed to `main` afterwards gets no run: push a new
   commit, or close and reopen it.
-- **Test the app with `?store=local`** (above): a plain local run plays
-  with the real game's data. Contributors and their agents never write to
+- **Test the app with `?store=local`** (above): a page opened without it
+  plays with the real game's data. Contributors and their agents never write to
   the live database by any route (§7).
 - **Don't change `firebaseConfig.js` in a pull request:** merged, it would
   point the live site at another database. A fork that runs its own copy
@@ -229,17 +231,22 @@ on the tracker): everything works, but nothing is shared between phones.
   the profile (`profiles/{id}/look`, a transaction that merges the field)
   and every device signed in to that profile switches to it a moment later
   — change it on the phone and the laptop follows. Signed out, a device
-  keeps its own (`theme` / `accent` in its storage); signing out brings it
-  back, so a shared laptop or TV doesn't keep someone's look. A field the
-  person never picked falls back to the device's, then the default. A pick
-  shows at once; a run of them (arrow keys through the themes) is saved
-  once, 400 ms after it settles. `app/LookSync.js` decides whose look
+  keeps its own (`theme` / `accent` in its storage); signing in shows the
+  person's own look instead (the device's isn't copied to the profile),
+  and signing out brings the device's back, so a shared laptop or TV
+  doesn't keep someone's look. The hint under the themes says which
+  applies. What the
+  person never picked shows the default, so all their devices look the
+  same. A pick shows at once and belongs to whoever made it: a run of
+  picks (arrow keys through the themes) is saved once, 400 ms after it
+  settles — or straight away when they sign out (or someone else signs in)
+  first, or the page is hidden. `app/LookSync.js` decides whose look
   shows, `ui/ThemeController.js` paints it as `data-scheme` / `data-theme`
   / `data-accent` on `<html>`, and `css/tokens.css` turns those into
   colors (§9).
 - **No flash on load:** a script in the head of `index.html` paints the
-  look this device showed last (`lastLook`) before the first frame; the
-  person's own arrives with the game data.
+  look this device showed last (`lastLook`) — and the browser bar's color
+  — before the first frame; the person's own arrives with the game data.
 - **The board follows the theme:** the sea, the gutters between the hexes
   (the map card's color), the tokens and the ports are recolored in place
   (`BoardView.recolor`), so a new map building in carries on; the saved
@@ -533,8 +540,9 @@ on the tracker): everything works, but nothing is shared between phones.
   the song list gets the room): alone it fills the column with the whole
   song list underneath; with the tracker open the column splits —
   **tracker on top, music below** (`compact`: the songs open as a sheet
-  beside the column, until the music is dragged to ≥ 380 px tall —
-  `SONGS_FROM` — and the list moves in under the player, `column`). The
+  beside the column, until the music is dragged to ≥ 392 px tall (its
+  card 380 px plus the gap under it) — `SONGS_FROM` — and the list moves
+  in under the player, `column`). The
   map and the settings column sit to the right, and the map stays usable
   while the tracker is open (the **Tracker** button opens and closes it).
 - **Centred vertically:** every screen on desktop — the tracker in its
@@ -583,7 +591,7 @@ on the tracker): everything works, but nothing is shared between phones.
 - **The bar between them** drags (mouse or touch; arrow keys when focused,
   Shift for bigger steps; double-click resets to half and half) and always
   shows a grip, since phones can't hover. The music half never gets smaller
-  than its player needs (400 px wide side by side, 346 px tall stacked —
+  than its player needs (424 px wide side by side, 346 px tall stacked —
   its card included);
   the tracker's minimum (300 / 200 px) gives way first on a small screen.
   Side by side and stacked each keep their own share (`halves` /
@@ -886,7 +894,7 @@ v1/
 - The look on this device: `pangaea:theme` / `pangaea:accent` (this
   device's own, shown while nobody's signed in — before 2.12.0 `theme` was
   the light / dark toggle's `"light"` / `"dark"`, which carry over as
-  themes) and `pangaea:lastLook` (the look shown last, which index.html's
+  themes; signed in, the person's own look shows instead) and `pangaea:lastLook` (the look shown last, which index.html's
   head script paints before the first frame). With `?device=` on localhost
   they sit under that device's prefix, like the rest.
 
@@ -909,12 +917,20 @@ v1/
 - `look.test.js` — the themes and accent colors: the lists, cleaning and
   resolving a look, the light / dark switch; every theme and accent has
   its block in `tokens.css`, every combination keeps 4.5:1 contrast (text
-  on the accent, the accent as text, the song playing); `index.html`'s
-  head script lists the same ids; and LookSync over GameController on one
-  store: a pick on the phone shows on the laptop signed in as the same
-  person, signed-out devices keep their own, a run of picks is saved once,
-  the last look shows before the data arrives, a removed profile isn't
-  brought back.
+  on the accent, the accent as text, the song playing — each color read
+  from `tokens.css` the way the browser resolves it, `var()` and
+  `color-mix()` included), and the accent's tints are mixed only inside
+  `@supports`; `index.html`'s head script lists the same ids and each
+  theme's `--bg` (the browser bar); and LookSync over GameController on
+  one store: a pick on the phone shows on the laptop signed in as the same
+  person, signed-out devices keep their own, what the person never picked
+  shows the default, a run of picks is saved once, a pick is saved for
+  whoever made it even if they sign out (or someone else signs in) within
+  the wait — or while it's still on its way (never mixed into the next
+  person's pick), a second pick during a save stays on screen and both are
+  saved, `flush()`, the last look shows before the data arrives and a pick
+  then waits for it, a removed profile isn't brought back (no toast; the
+  pick stays on the device).
 - `music.test.js` — playlist links (YouTube, YouTube Music, share links,
   private lists), player error handling, the shared playlist, and the
   shared playback: the clock, who's the speaker (play from a remote, Play
@@ -977,9 +993,11 @@ your run created afterwards — never `DELETE /v1` once real data exists.
   `game/looks.js` (a theme needs a family and a partner in the other
   one), its block in `css/tokens.css` (`[data-theme="…"]`: the colors that
   differ from its family; `[data-accent="…"]`: `--accent-l` and
-  `--accent-d`, plain hex), and its id in the two lists in `index.html`'s
-  head script. `tests/look.test.js` checks that the three agree and that
-  every combination keeps 4.5:1 contrast.
+  `--accent-d`, plain hex), and in `index.html`'s head script: a theme's
+  id and family in `FAM` and its `--bg` (the same hex as in its
+  `tokens.css` block) in `BG`; an accent's id in `ACC`.
+  `tests/look.test.js` checks that they all agree and that every
+  combination keeps 4.5:1 contrast.
 - **New store backend:** implement the contract documented at the top of
   `sync/MemoryStore.js` and choose it in `createStore.js`.
 - **Schema change:** keep old readers working or bump the root (`v1` → `v2`)
@@ -1018,11 +1036,17 @@ your run created afterwards — never `DELETE /v1` once real data exists.
   `--accent` / `--accent-ink`, picked text `--accent-text`, the background
   of what's pressed or playing `--accent-soft`, outlines `--accent-line`.
   Graphite sets no `data-accent`, so those fall back to the original
-  neutral look. The board copies plain colors into its SVG (no `var()`, no
+  neutral look. The accent's tints (`--accent-soft`, `--accent-line`) are
+  `color-mix()`, set inside `@supports`: a browser without it (iOS
+  16.0–16.1, Chrome before 111) keeps the neutral ones, where an
+  unparsable custom property would drop every outline and highlight. The
+  board copies plain colors into its SVG (no `var()`, no
   `color-mix`). `index.html`'s head script must set `data-scheme` every
   time — nothing in `tokens.css` falls back on the system's dark mode — and
   read the same storage as LookSync (Identity's: `pangaea:`, or
-  `pangaea:dev-<name>:` with `?device=` on localhost).
+  `pangaea:dev-<name>:` with `?device=` on localhost); its lists (themes'
+  families, accents, each theme's `--bg` for the browser bar) are checked
+  against `looks.js` and `tokens.css` by `tests/look.test.js`.
 - **The music's size is its footprint:** `--music-h` / `--music-w` are the
   card's size plus its gap to the edge (computed `bottom` / `right`), from
   offset sizes, so the slide-in's transform never skews them. Anything
@@ -1208,8 +1232,10 @@ Keep newest first. Every feature PR adds an entry and updates the sections above
   every device signed in as that person switches to it — the phone, the
   laptop, the TV; signed out, a device keeps its own. The top bar's light /
   dark button now swaps to the partner theme (Sand ⇄ Hearth), and is saved
-  the same way. The last look is painted before the first frame (no flash),
-  and the board recolors in place. The map and the music player (open,
+  the same way. A pick is saved for whoever made it, even if they sign out
+  within the moment it waits. The last look (and the browser bar's color)
+  is painted before the first frame (no flash), and the board recolors in
+  place. The map and the music player (open,
   mini bar, landscape column, desktop column, split view) sit in cards like
   the tracker's, and the settings sheet, songs and playlist pop-up float
   above the music. In the music & tracker view the tracker grows to fill

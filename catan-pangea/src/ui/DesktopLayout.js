@@ -53,7 +53,7 @@ const MIN = Object.freeze({ left:380, panel:280, map:420, tracker:200, music:236
 /* the music & tracker view: the music half always fits a 16:9 player at least 200 tall
    (356 wide, or 200 tall plus its controls, in its card) — it wins over the tracker on a small screen */
 const HALF_MIN = Object.freeze({
-  x:{ tracker:300, music:400 },
+  x:{ tracker:300, music:424 },
   y:{ tracker:200, music:346 },
 });
 const MAX_PANEL = 560;

@@ -127,10 +127,14 @@
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI",
           system-ui, Roboto, "Helvetica Neue", sans-serif;
 }
-:root[data-accent]{
-  --accent-soft: color-mix(in srgb, var(--accent) 12%, var(--surface));
-  --accent-line: color-mix(in srgb, var(--accent) 35%, var(--line));
-  --focus:       var(--accent);
+:root[data-accent]{ --focus: var(--accent); }
+/* a browser without color-mix() (iOS 16.0–16.1, Chrome before 111) keeps the neutral ones above —
+   an unparsable value here would drop every outline and highlight */
+@supports (color: color-mix(in srgb, red, blue)){
+  :root[data-accent]{
+    --accent-soft: color-mix(in srgb, var(--accent) 12%, var(--surface));
+    --accent-line: color-mix(in srgb, var(--accent) 35%, var(--line));
+  }
 }
 /* tighter gaps where every pixel counts: a phone on its side (~300 px tall), a small phone */
 @media (orientation:landscape) and (max-height:559px){ :root{ --card-gap:6px; } }
