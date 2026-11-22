@@ -14,6 +14,31 @@
   <meta name="description" content="Random-continent Catan map generator with fairness-optimised numbers and ports.">
   <title>Pangaea — Catan map generator</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2l8.66 5v10L12 22l-8.66-5V7z' fill='%233E6B48'/%3E%3C/svg%3E">
+  <!-- the look, before the first frame: the one this device showed last (app/LookSync keeps it as
+       "lastLook", in Identity's storage), so nobody's own theme flashes the default first. The two
+       lists repeat game/looks.js — keep them in step (tests/look.test.js checks) -->
+  <script>
+    (function(){
+      var root = document.documentElement, dark = false;
+      try{ dark = matchMedia("(prefers-color-scheme: dark)").matches; }catch(e){}
+      var scheme = dark ? "dark" : "light";
+      try{
+        var FAM = { light:"light", sand:"light", mist:"light", dark:"dark", hearth:"dark", midnight:"dark" };
+        var ACC = ["sea", "harbor", "forest", "wheat", "brick", "plum", "rose"];   /* (Graphite: no attribute) */
+        var dev = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) && new URLSearchParams(location.search).get("device");
+        var pre = dev ? "pangaea:dev-" + dev + ":" : "pangaea:";
+        var read = function(key){ try{ return JSON.parse(localStorage.getItem(pre + key)); }catch(e){ return null; } };
+        var last = read("lastLook"), look = last != null ? last : { theme:read("theme"), accent:read("accent") };
+        var theme = look && look.theme, accent = look && look.accent;
+        if(typeof theme === "string" && Object.prototype.hasOwnProperty.call(FAM, theme)){
+          root.setAttribute("data-theme", theme);
+          scheme = FAM[theme];
+        }
+        if(typeof accent === "string" && ACC.indexOf(accent) >= 0) root.setAttribute("data-accent", accent);
+      }catch(e){}
+      root.setAttribute("data-scheme", scheme);
+    })();
+  </script>
   <link rel="stylesheet" href="css/tokens.css">
   <link rel="stylesheet" href="css/app.css">
   <link rel="stylesheet" href="css/screens.css">
@@ -54,7 +79,7 @@
         <button class="icon-btn" id="aboutBtn" type="button" aria-label="How it works" title="How it works">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.4"/><circle cx="12" cy="17" r=".6" fill="currentColor"/></svg>
         </button>
-        <button class="icon-btn" id="themeBtn" type="button" aria-label="Switch light / dark theme" title="Light / dark">
+        <button class="icon-btn" id="themeBtn" type="button" aria-label="Switch between the light and dark theme" title="Light / dark — more themes in Settings">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/></svg>
         </button>
         <button class="icon-btn" id="shareBtn" type="button" aria-label="Save map image" title="Save map image">
@@ -72,15 +97,17 @@
       </button>
     </main>
 
-    <aside class="panel" id="panel" aria-label="Map settings">
+    <aside class="panel" id="panel" aria-labelledby="panelTitle">
       <div class="sheet-head">
-        <h2>Map</h2>
+        <h2 id="panelTitle">Settings</h2>
         <button class="icon-btn" id="sheetClose" type="button" aria-label="Close settings">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
         </button>
       </div>
       <section class="score-card" id="scoreCard" aria-live="polite"></section>
       <section id="settings"></section>
+      <!-- Accent color and Theme: each person's own, and it follows them to every device they sign in on (ui/LookPanel.js) -->
+      <section class="look" id="look" aria-label="Look"></section>
     </aside>
     <div class="scrim" id="scrim" hidden></div>
 
@@ -164,6 +191,7 @@ v1 = 3A − S + 3 − 3L      (the generator fills lakes, so L = 0)</pre>
       <p>Just want full screen without installing? On Android (and iPad) the <b>full-screen</b> icon at the top hides the browser bars. iPhone browsers — Safari, Brave and the rest — don't let a website do that; there, the installed app (added from Safari) is the full-screen version.</p>
 
       <h3>Settings</h3>
+      <p><b>Accent color</b> and <b>Theme</b> (at the bottom of Settings) are yours, not the table's: signed in, your pick is saved with your profile, so the phone, the laptop and the TV all switch to it — change it on one and the others follow a moment later. Signed out, a device keeps its own.</p>
       <div class="table-wrap"><table>
         <tbody>
           <tr><td>Players</td><td>How many seats the fairness simulation optimises for.</td></tr>
@@ -173,6 +201,8 @@ v1 = 3A − S + 3 − 3L      (the generator fills lakes, so L = 0)</pre>
           <tr><td>Coastline</td><td>Loose 0.80 · Standard 0.90 · Tight 0.95 of Smax — directly sets how many 3-spots you get.</td></tr>
           <tr><td>Optimiser</td><td>How long to anneal. Thorough is tighter but slower on a phone.</td></tr>
           <tr><td>Replay a seed</td><td>Same seed + same settings = the identical board.</td></tr>
+          <tr><td>Accent color</td><td>The color of the buttons, outlines and whatever's picked or playing. Graphite is the original black-and-white look.</td></tr>
+          <tr><td>Theme</td><td>Light, Sand or Mist; Dark, Hearth or Midnight — or Match device, which follows the phone's own light / dark setting. The light / dark button at the top swaps to the partner theme (Sand ⇄ Hearth, Mist ⇄ Midnight).</td></tr>
         </tbody>
       </table></div>
     </div>

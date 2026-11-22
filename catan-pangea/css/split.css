@@ -7,13 +7,13 @@
      axis y (a portrait window) — the tracker on top, the music below.
    (The safe-area insets and touch-sized grip are kept: tablets count as
    desktop at 900 × 560 and up.)
-   The music half is the YouTube player at 16:9 (never under 200 px tall),
-   its controls in a row and the time under them, then the songs; nothing
-   is ever drawn over it.
+   The music half is a card like the tracker's: the YouTube player at 16:9
+   (never under 200 px tall), its controls in a row and the time under
+   them, then the songs; nothing is ever drawn over it.
    ========================================================================== */
 body[data-view="split"] .app{ display:none; }
 
-/* ---------- the tracker half: one column, centred both ways ---------- */
+/* ---------- the tracker half: one column, grown to fill the half ---------- */
 body[data-view="split"] .screen[data-screen="tracker"]{
   container-type:size;           /* the seat rows share the half's height, not the window's */
 }
@@ -23,8 +23,12 @@ body[data-view="split"][data-axis="x"] .screen[data-screen="tracker"]{
 body[data-view="split"][data-axis="y"] .screen[data-screen="tracker"]{
   top:0; left:0; right:0; bottom:auto; height:var(--half); padding-bottom:0;
 }
+/* TrackerScreen#grow sets --grow (a zoom: every row, button and number
+   grows together) and --grow-w (the column's width before it) so the
+   tracker fills its half, a small margin from the edges; without room to
+   grow it stays a 640 px column, in the middle of the half */
 body[data-view="split"] .screen[data-screen="tracker"] .screen-inner{
-  max-width:640px;
+  max-width:var(--grow-w, 640px); zoom:var(--grow, 1);
   min-height:100%; display:flex; flex-direction:column; justify-content:center;   /* in the middle of its half when shorter */
 }
 body[data-view="split"] .tracker-grid{ grid-template-columns:minmax(0,1fr); grid-template-rows:none; }
@@ -33,17 +37,13 @@ body[data-view="split"] .tracker-grid > :first-child{ grid-row:auto; }
 /* ---------- the music half ---------- */
 body[data-view="split"] .music{
   display:flex; flex-direction:column; gap:12px; overflow:hidden; overscroll-behavior:auto;
-  width:auto; border:0; box-shadow:none;
+  width:auto;
+  top:max(var(--card-gap), env(safe-area-inset-top)); bottom:max(var(--card-gap), env(safe-area-inset-bottom));
+  left:max(var(--card-gap), env(safe-area-inset-left)); right:max(var(--card-gap), env(safe-area-inset-right));
   container-type:size;           /* the player sizes itself to leave the songs some room */
 }
-body[data-view="split"][data-axis="x"] .music{
-  top:0; bottom:0; right:0; left:var(--half); border-left:1px solid var(--line);
-  padding:calc(16px + env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) 20px;
-}
-body[data-view="split"][data-axis="y"] .music{
-  top:var(--half); bottom:0; left:0; right:0; border-top:1px solid var(--line);
-  padding:12px max(12px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
-}
+body[data-view="split"][data-axis="x"] .music{ left:calc(var(--half) + var(--card-gap)); padding:16px 20px 12px; }
+body[data-view="split"][data-axis="y"] .music{ top:calc(var(--half) + var(--card-gap)); padding:12px 12px 8px; }
 /* 16:9 across the half, but never so tall that the songs lose all their room;
    at least 200 × 200 whatever happens (YouTube's minimum — it letterboxes) */
 body[data-view="split"] .music-video{
@@ -81,9 +81,7 @@ body[data-view="split"] .music[data-state="setup"] > .music-songs{ display:none;
 
 /* ---------- over the tracker half only, never the music ---------- */
 /* the playlist pop-up */
-body[data-view="split"] .music-pop{
-  position:fixed; z-index:74; top:auto; border:1px solid var(--line); border-radius:16px;
-}
+body[data-view="split"] .music-pop{ position:fixed; z-index:74; top:auto; }
 body[data-view="split"][data-axis="x"] .music-pop{
   left:auto; right:calc(100% - var(--half) + 16px); bottom:calc(16px + env(safe-area-inset-bottom));
   width:min(420px, calc(var(--half) - 32px)); max-height:calc(100% - 32px);

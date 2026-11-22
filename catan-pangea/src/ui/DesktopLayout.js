@@ -46,21 +46,22 @@ import { h } from "./dom.js";
 import { DESKTOP_QUERY } from "./Sheet.js";
 
 /* halves / halvesY: the tracker's share of the music & tracker view, side by side / stacked */
-const DEFAULTS = Object.freeze({ left:420, panel:340, music:224, halves:0.5, halvesY:0.5 });
-/* left ≥ 380: the 200 × 200 player and its controls side by side */
-const MIN = Object.freeze({ left:380, panel:280, map:420, tracker:200, music:224 });
+const DEFAULTS = Object.freeze({ left:420, panel:340, music:236, halves:0.5, halvesY:0.5 });
+/* left ≥ 380: the 200 × 200 player and its controls side by side (they shrink a little to fit, css/music.css);
+   music ≥ 236: the player in its card (padding, borders) and the gap under it */
+const MIN = Object.freeze({ left:380, panel:280, map:420, tracker:200, music:236 });
 /* the music & tracker view: the music half always fits a 16:9 player at least 200 tall
-   (356 wide, or 200 tall plus its controls) — it wins over the tracker on a small screen */
+   (356 wide, or 200 tall plus its controls, in its card) — it wins over the tracker on a small screen */
 const HALF_MIN = Object.freeze({
   x:{ tracker:300, music:400 },
-  y:{ tracker:200, music:320 },
+  y:{ tracker:200, music:346 },
 });
 const MAX_PANEL = 560;
 /* the tracker turns two-column at 760 px (@container in screens.css): the column stops just short,
    so the tracker always keeps its one-column phone layout here */
 const MAX_LEFT = 759;
-/* under the tracker, the song list shows once the music is this tall (player, padding, ~3 songs) */
-const SONGS_FROM = 380;
+/* under the tracker, the song list shows once the music is this tall (player, its card, ~3 songs) */
+const SONGS_FROM = 392;
 const DESK_VARS = ["--left-w", "--split", "--panel-w", "--music-top", "--top-h"];
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -86,7 +87,7 @@ export class DesktopLayout {
     this.handles = {
       left:  this.#handle("left", "Resize the tracker and music column"),
       split: this.#handle("split", "Resize the tracker and the music"),
-      panel: this.#handle("panel", "Resize the map settings"),
+      panel: this.#handle("panel", "Resize the settings"),
       halves:this.#handle("halves", "Resize the tracker and the music"),
     };
     this.mq.addEventListener("change", () => { this.update(); this.router.refresh(); });

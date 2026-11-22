@@ -102,6 +102,19 @@ function songInfo(videoId){
 }
 
 const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/**
+ * How far a card docked to an edge of the window reaches in from it: its
+ * size plus the gap between it and that edge (css/music.css: --card-gap,
+ * or the safe area). Layout sizes and offsets only — never the slide-in's
+ * transform — so it's right mid-animation too.
+ * @param {HTMLElement} el
+ * @param {"bottom"|"right"} edge
+ */
+function footprint(el, edge){
+  const gap = parseFloat(getComputedStyle(el)[edge]) || 0;
+  return Math.ceil((edge === "bottom" ? el.offsetHeight : el.offsetWidth) + gap);
+}
 const SWIPE_PX = 44;          /* a sideways swipe this far on the mini bar's song changes it */
 
 /** "phone", "tablet" or "computer" — for "On Sam's phone". */
@@ -186,8 +199,9 @@ export class MusicBar {
   /** Put away for now (the season wins screen, the intro): nothing of the music shows. */
   get isAway(){ return this.away.size > 0; }
 
-  /** Height of the mini bar along the bottom (0 while the player is open, or the music is away). */
-  get miniHeight(){ return this.isOpen || this.isAway ? 0 : this.mini.offsetHeight; }
+  /** How much of the window's height the mini bar takes along the bottom — its card and the gap
+      under it (0 while the player is open, or the music is away). */
+  get miniHeight(){ return this.isOpen || this.isAway ? 0 : footprint(this.mini, "bottom"); }
 
   /** A button elsewhere (map toolbar, tracker header) that opens / closes the bar. */
   addOpener(button){
@@ -893,7 +907,8 @@ export class MusicBar {
 
   /* ---------------- paint ---------------- */
 
-  /** Publish the bar's size; a column (taller than wide) takes width, a bottom bar height. */
+  /** Publish how much of the window the bar takes (its card and the gap round it); a column
+      (taller than wide) takes width, a bottom bar height. */
   #measure(){
     const root = document.documentElement.style;
     if(this.isAway){                                  /* nothing shows */
@@ -902,14 +917,14 @@ export class MusicBar {
       return;
     }
     if(!this.isOpen){                                 /* the mini bar: always along the bottom */
-      root.setProperty("--music-h", `${this.mini.offsetHeight}px`);
+      root.setProperty("--music-h", `${footprint(this.mini, "bottom")}px`);
       root.setProperty("--music-w", "0px");
       return;
     }
     /* in desktop's left column the layout makes room itself (DesktopLayout) */
-    const open = this.dock === "bar", w = this.el.offsetWidth, ht = this.el.offsetHeight, side = ht > w;
-    root.setProperty("--music-h", open && !side ? `${ht}px` : "0px");
-    root.setProperty("--music-w", open && side ? `${w}px` : "0px");
+    const open = this.dock === "bar", side = this.el.offsetHeight > this.el.offsetWidth;
+    root.setProperty("--music-h", open && !side ? `${footprint(this.el, "bottom")}px` : "0px");
+    root.setProperty("--music-w", open && side ? `${footprint(this.el, "right")}px` : "0px");
   }
 
   #paintOpeners(){

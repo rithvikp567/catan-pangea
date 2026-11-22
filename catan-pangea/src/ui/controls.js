@@ -15,7 +15,12 @@ function stepButton(delta, ariaLabel, cls){
   return b;
 }
 
-/** A row of mutually exclusive options (an ARIA radiogroup). */
+/**
+ * A row of mutually exclusive options (an ARIA radiogroup): one tab stop,
+ * the arrow keys pick the next or previous one. By default a segmented
+ * row of labels; `className` / `optionClass` / `render` / `attrs` make it
+ * something else with the same behavior (Settings' swatches and themes).
+ */
 export class SegmentedControl {
   /**
    * @param {object} p
@@ -23,24 +28,28 @@ export class SegmentedControl {
    * @param {{value:any, label:string}[]} p.options
    * @param {any} p.value
    * @param {(value:any) => void} [p.onChange]
+   * @param {string} [p.className]    the group's class
+   * @param {string} [p.optionClass]  each option's class
+   * @param {(o:object) => any} [p.render]  an option's content (default: its label)
+   * @param {(o:object) => object} [p.attrs]  more attributes for an option's button
    */
-  constructor({ label, options, value, onChange = () => {} }){
+  constructor({ label, options, value, onChange = () => {}, className = "segmented", optionClass = "seg", render = o => o.label, attrs = () => ({}) }){
     this.options = options;
     this.onChange = onChange;
     this.buttons = options.map(o => h("button", {
-      type:"button", class:"seg", role:"radio",
+      type:"button", class:optionClass, role:"radio", ...attrs(o),
       onClick:() => this.#choose(o.value),
-    }, o.label));
-    this.el = h("div", { class:"segmented", role:"radiogroup", "aria-label":label, onKeydown:e => this.#onKey(e) }, this.buttons);
+    }, render(o)));
+    this.el = h("div", { class:className, role:"radiogroup", "aria-label":label, onKeydown:e => this.#onKey(e) }, this.buttons);
     this.set(value);
   }
 
   set(value){
     this.value = value;
+    const at = Math.max(0, this.options.findIndex(o => o.value === value));   /* (an unknown value: the first keeps the tab stop) */
     this.options.forEach((o, i) => {
-      const on = o.value === value;
-      this.buttons[i].setAttribute("aria-checked", String(on));
-      this.buttons[i].tabIndex = on ? 0 : -1;   /* roving tabindex */
+      this.buttons[i].setAttribute("aria-checked", String(o.value === value));
+      this.buttons[i].tabIndex = i === at ? 0 : -1;   /* roving tabindex */
     });
   }
 
@@ -55,7 +64,7 @@ export class SegmentedControl {
     if(!dir) return;
     e.preventDefault();
     const i = this.options.findIndex(o => o.value === this.value);
-    const next = (i + dir + this.options.length) % this.options.length;
+    const next = i < 0 ? (dir > 0 ? 0 : this.options.length - 1) : (i + dir + this.options.length) % this.options.length;
     this.#choose(this.options[next].value);
     this.buttons[next].focus();
   }

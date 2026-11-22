@@ -5,6 +5,7 @@
  * re-render from `onChange`.
  */
 import { GameService, GameError } from "../game/GameService.js";
+import { cleanLook } from "../game/looks.js";
 
 export class GameController {
   /**
@@ -67,6 +68,9 @@ export class GameController {
   /** Forget the profile on this device (its seat stays: picking it again is straight back in). */
   signOut(){ this.selectProfile(null); }
 
+  /** My saved look — theme / accent ids (game/looks.js) — or null when nobody's signed in here. */
+  get myLook(){ return this.me ? cleanLook(this.me.look) : null; }
+
   /* ---------- intents ---------- */
 
   async #run(fn){
@@ -119,6 +123,16 @@ export class GameController {
     });
   }
   adjustWins(profileId, season, delta){ return this.#run(() => this.service.adjustWins(profileId, season, delta)); }
+
+  /**
+   * Save my theme / accent on my profile (every device I'm signed in on follows).
+   * @returns {Promise<boolean>} whether it changed anything
+   */
+  saveLook(patch){
+    const me = this.me;
+    if(!me || !this.service) return Promise.resolve(false);
+    return this.#run(() => this.service.setLook(me.id, patch)).then(Boolean);
+  }
 
   /* music: one playlist for the table, any player may change it */
   /** @returns {Promise<string|undefined>} the playlist id, or undefined if the link was rejected */

@@ -68,9 +68,9 @@ export class BoardView {
     this.bounds = { minX:Infinity, minY:Infinity, maxX:-Infinity, maxY:-Infinity };
 
     const water = s("g"), land = s("g"), tokens = s("g"), ports = s("g");
-    for(const k of board.waterHexes) water.append(this.#hex(k, pal.sea, pal.gap));
+    for(const k of board.waterHexes) water.append(this.#hex(k, pal.sea, pal.gap, "fill:sea stroke:gap"));
     for(const t of board.tiles.values()){
-      land.append(this.#hex(t.key, TERRAIN_COLOR[t.terrain], pal.gap));
+      land.append(this.#hex(t.key, TERRAIN_COLOR[t.terrain], pal.gap, "stroke:gap"));
       if(t.num) tokens.append(this.#token(t, pal, animate));
     }
     board.portSlots.forEach(slot => ports.append(this.#port(slot, board.isShipOnly(slot), pal)));
@@ -78,6 +78,20 @@ export class BoardView {
     svg.append(water, land, ports, tokens);
     this.#fit();
     if(build) this.#build({ water, land, tokens, ports }, build);
+  }
+
+  /**
+   * The theme changed: repaint the board's theme colors in place — a New
+   * map building in carries on (render() would start it over).
+   * @param {ReturnType<import("./palette.js").readBoardPalette>} pal
+   */
+  recolor(pal){
+    for(const el of this.svg.querySelectorAll("[data-paint]")){
+      for(const pair of el.dataset.paint.split(" ")){
+        const [attr, key] = pair.split(":");
+        if(pal[key]) el.setAttribute(attr, pal[key]);
+      }
+    }
   }
 
   /** Stop a build under way: its animations and the sounds still to come. */
@@ -190,31 +204,32 @@ export class BoardView {
     b.minY = Math.min(b.minY, y); b.maxY = Math.max(b.maxY, y);
   }
 
-  #hex(k, fill, gap){
+  /** @param {string} paint  which attributes follow the theme ("attr:paletteKey …", for recolor) */
+  #hex(k, fill, gap, paint){
     const [q, r] = unhk(k);
     for(const v of hexVerts(q, r)) this.#grow(...vertexToPixel(v, R));
     const [x, y] = hexToPixel(q, r, R);
-    return s("polygon", { points:hexPoints(k), fill, stroke:gap, "stroke-width":3, "stroke-linejoin":"round", "data-x":x.toFixed(1), "data-y":y.toFixed(1) });
+    return s("polygon", { points:hexPoints(k), fill, stroke:gap, "stroke-width":3, "stroke-linejoin":"round", "data-x":x.toFixed(1), "data-y":y.toFixed(1), "data-paint":paint });
   }
 
   /** A number token; animated, it also gets a grey back (face down) on top of its face. */
   #token(tile, pal, withBack = false){
     const [cx, cy] = hexToPixel(...unhk(tile.key), R);
     const red = tile.num === 6 || tile.num === 8;
-    const ink = red ? pal.red : pal.tokenInk;
+    const ink = red ? pal.red : pal.tokenInk, inkPaint = red ? "fill:red" : "fill:tokenInk";
     const tok = s("g", { class:"tok", "data-x":cx.toFixed(1), "data-y":cy.toFixed(1) });
     const g = s("g", { class:"tok-face" });
     tok.append(g);
-    g.append(s("circle", { cx, cy, r:TOKEN_R, fill:pal.token }));
+    g.append(s("circle", { cx, cy, r:TOKEN_R, fill:pal.token, "data-paint":"fill:token" }));
     const label = s("text", {
       x:cx, y:cy + R*0.09, "text-anchor":"middle", "font-size":R*0.42,
-      "font-weight":red ? 750 : 650, fill:ink,
+      "font-weight":red ? 750 : 650, fill:ink, "data-paint":inkPaint,
     });
     label.textContent = tile.num;
     g.append(label);
     const n = PIPS[tile.num], gap = 3.8;
     for(let i = 0; i < n; i++){
-      g.append(s("circle", { cx:cx + (i - (n-1)/2) * gap, cy:cy + R*0.2, r:1.4, fill:ink }));
+      g.append(s("circle", { cx:cx + (i - (n-1)/2) * gap, cy:cy + R*0.2, r:1.4, fill:ink, "data-paint":inkPaint }));
     }
     if(withBack){
       const back = s("g", { class:"tok-back" });
@@ -238,15 +253,17 @@ export class BoardView {
     const g = s("g", { class:"port" });
 
     for(const end of [a, b]){
-      g.append(s("line", { x1:end[0], y1:end[1], x2:px, y2:py, stroke:pal.port, "stroke-width":2, "stroke-linecap":"round" }));
+      g.append(s("line", { x1:end[0], y1:end[1], x2:px, y2:py, stroke:pal.port, "stroke-width":2, "stroke-linecap":"round", "data-paint":"stroke:port" }));
     }
     g.append(s("circle", {
       cx:px, cy:py, r:PORT_R,
       fill: isTwo ? RESOURCE_COLOR[slot.port.res] : pal.port3,
       stroke: pal.port, "stroke-width": shipOnly ? 2 : 1.2,
       "stroke-dasharray": shipOnly ? "3 2.5" : null,
+      "data-paint": isTwo ? "stroke:port" : "fill:port3 stroke:port",
     }));
-    const ratio = s("text", { x:px, y:py + 3.6, "text-anchor":"middle", "font-size":10.5, "font-weight":700, fill: isTwo ? "#FFFFFF" : pal.tokenInk });
+    const ratio = s("text", { x:px, y:py + 3.6, "text-anchor":"middle", "font-size":10.5, "font-weight":700, fill: isTwo ? "#FFFFFF" : pal.tokenInk,
+      "data-paint": isTwo ? null : "fill:tokenInk" });
     ratio.textContent = isTwo ? "2:1" : "3:1";
     g.append(ratio);
     this.#grow(px - PORT_R, py - PORT_R); this.#grow(px + PORT_R, py + PORT_R);
@@ -260,7 +277,7 @@ export class BoardView {
       const lx = px + (sideways ? Math.sign(nx) * out : nx * out);
       const ly = py + ny * out + 3.5;
       const anchor = sideways ? (nx > 0 ? "start" : "end") : "middle";
-      const name = s("text", { x:lx, y:ly, "text-anchor":anchor, "font-size":10, "font-weight":550, fill:pal.label });
+      const name = s("text", { x:lx, y:ly, "text-anchor":anchor, "font-size":10, "font-weight":550, fill:pal.label, "data-paint":"fill:label" });
       name.textContent = RES_LABEL[slot.port.res];
       g.append(name);
       const x0 = anchor === "start" ? lx : anchor === "end" ? lx - LABEL_W : lx - LABEL_W/2;

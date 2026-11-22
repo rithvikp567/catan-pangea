@@ -22,7 +22,7 @@ export function readBoardPalette(root = document.documentElement){
   const cs = getComputedStyle(root);
   const v = name => cs.getPropertyValue(name).trim();
   return {
-    background: v("--bg"),
+    background: v("--map-bg"),     /* the map's card, behind the board (the saved image too) */
     gap:        v("--board-gap"),
     sea:        v("--board-sea"),
     token:      v("--board-token"),

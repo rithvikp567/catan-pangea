@@ -6,7 +6,7 @@
 import { MAX_VP, COUNTERS, colorById, seatKey, seasonOf } from "./rules.js";
 
 /**
- * @typedef {{ id:string, name:string, createdAt:number, deviceId:string }} Profile
+ * @typedef {{ id:string, name:string, createdAt:number, deviceId:string, look?:{ theme?:string, accent?:string, at?:number } }} Profile
  * @typedef {object} Seat
  * @property {string} key       "s0"…
  * @property {number} index
