@@ -64,6 +64,10 @@ import { AdminScreen } from "../ui/screens/AdminScreen.js";
 import { readBoardPalette } from "../ui/palette.js";
 import { saveBoardImage } from "../ui/imageExport.js";
 
+/** The screens the music is put away on (MusicBar.setAway), and why: Season wins, signing in, and the
+    lobby — today's games, a new game, picking a color (the music comes back in a game). */
+const MUSIC_AWAY = Object.freeze({ wins:"wins", join:"join", rooms:"lobby", mods:"lobby", seat:"lobby" });
+
 /** How long to wait for the shared game before showing a local map. */
 const CONNECT_TIMEOUT_MS = 6000;
 /** A new map starts building this long after it's published, so it has reached every device by then. */
@@ -217,14 +221,15 @@ export class App {
     return seat ? { name:seat.profile.name, note:`You're ${colorById(seat.color)?.label ?? "seated"}` } : null;
   }
 
-  /** Every route change: the desktop layout, and the music is put away while the season wins or the sign-in screen are up (the frost too, on season wins). */
+  /** Every route change: the desktop layout, and the music is put away while the season wins, the sign-in
+      screen or the lobby (today's games, a new game, picking a color) are up (the frost too, on season wins). */
   #routed(route){
     this.layout?.routed(route);
     /* the new reason first, then the old one off — so going from one to the other never lets the music
        go for a moment in between (an unhold, then a hold again) */
-    const away = route === "wins" || route === "join" ? route : null;
+    const away = MUSIC_AWAY[route] ?? null;
     if(away) this.music?.setAway(away, true);
-    for(const r of ["wins", "join"]) if(r !== away) this.music?.setAway(r, false);
+    for(const r of new Set(Object.values(MUSIC_AWAY))) if(r !== away) this.music?.setAway(r, false);
     this.winter?.setAway("wins", route === "wins");     /* season wins show without the frost */
     document.getElementById("winsBtn")?.setAttribute("aria-pressed", String(route === "wins"));
   }

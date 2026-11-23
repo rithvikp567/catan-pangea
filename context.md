@@ -422,6 +422,12 @@ on the tracker): everything works, but nothing is shared between phones.
   **Join game** — *You're Blue in Sam's game* and the map (or the tracker,
   for someone changing color). A full room offers **Watch**. Colors are
   per room: Sam can be blue in one and red in another.
+- **No music in the lobby** (3.0.1): on Today's games, New game and Pick
+  your color the music is put away — no player, no mini bar, on a phone or
+  in the desktop column (`setAway("lobby")`) — and held like on the
+  sign-in screen: a play from another phone waits (*Sam's computer is
+  picking a game — the music plays as soon as they leave it*) and plays
+  once they're in a game.
 - **A room's game = its map's seed.** Making a room publishes its map as
   that room's game; every phone in it shows that exact board. **New map**
   starts a new game for everyone in the room (after a confirm if anything
@@ -1145,7 +1151,7 @@ v1/
     queue:  { listId, setAt, songs:[videoId…] (the playlist's own order), order:[videoId…] (play order), shuffle }
     now:    { index (into order), videoId, playing, pos (s), at (ms, server clock), duration?,
               speaker? (deviceId), speakerName?, speakerKind? ("phone"|"tablet"|"computer"),
-              held? (the speaker's deviceId), heldFor? ("wins"|"join"|"splash"|"welcome"), resume? (play once unheld), rev, by (deviceId) }
+              held? (the speaker's deviceId), heldFor? ("wins"|"join"|"lobby"|"splash"|"welcome"), resume? (play once unheld), rev, by (deviceId) }
     beat:   ms                               ← the speaker's last "still here" (every 20 s; gone after 70 s)
   listening/{profileId}:   (before 2.7.0: per-profile music spots; no longer written — removing a profile still clears it)
 ```
@@ -1248,8 +1254,8 @@ v1/
   (once), seek, shuffle (stored order, the song carries on), re-reading a
   playlist, the speaker's reports, holding the music while the speaker's
   player is put away (a remote's play waits, its pause takes it back, Play
-  here moves it — on Season wins, the sign-in screen and the welcome after
-  it), and two phones on one store.
+  here moves it — on Season wins, the sign-in screen, the welcome after
+  it and the lobby), and two phones on one store.
 
 **In CI:** every pull request into `main` runs `npm test` on Node 22
 (`.github/workflows/test.yml`, the check *npm test*), and the pull request
@@ -1530,7 +1536,9 @@ your run created afterwards — never `DELETE /v1` once real data exists.
 - **`seekTo` on a cued video starts it** — to move a paused, cued song the
   speaker cues it again at the new time instead.
 - **Putting the music away** (`MusicBar.setAway(reason, on)`, reasons
-  `"wins"`, `"join"` (the sign-in screen, from the route), `"splash"` and
+  `"wins"`, `"join"` (the sign-in screen), `"lobby"` (Today's games, New
+  game, Pick your color — 3.0.1; the route's reasons are `MUSIC_AWAY` in
+  `App.js`), `"splash"` and
   `"welcome"` (the intro and the welcome, which cover the whole window);
   `heldFor` is the screen's reason before the intro's or the welcome's,
   and going from one screen's reason to the other's adds the new one
@@ -1753,6 +1761,11 @@ shared crown in Season wins for a Dawn win. With the recommended clock,
 ## 11. Changelog
 
 Keep newest first. Every feature PR adds an entry and updates the sections above.
+
+- **3.0.1 — No music in the lobby.** Today's games, New game and Pick
+  your color no longer show the music — neither the mini bar nor the
+  player (on desktop, its column): it's put away and held like on the
+  sign-in screen, and comes back once you're in a game.
 
 - **3.0.0 — Today's games, mods and Battle.** Several games at once: after
   *Welcome, Lord …* everyone lands on **Today's games** — every open room

@@ -169,6 +169,20 @@ test("playback: the sign-in screen holds the music the same way, and the welcome
   assert.deepEqual([pb.now.playing, isHeld(pb)], [true, false], "the welcome over: it plays");
 });
 
+test("playback: the lobby (today's games, a new game, picking a color) keeps holding it until a game opens", () => {
+  let pb = play(load(null, { listId:"PL", setAt:1, songs:SONGS }, ctx(0)), {}, ctx(0, "dev-tv"));
+  pb = hold(pb, { why:"welcome" }, ctx(10_000, "dev-tv"));        /* signed in: the welcome… */
+  pb = hold(pb, { why:"lobby" }, ctx(12_000, "dev-tv"));          /* …then today's games */
+  assert.deepEqual([pb.now.heldFor, pb.now.resume, pb.now.playing], ["lobby", true, false], "the play still waits");
+  assert.equal(hold(pb, { why:"lobby" }, ctx(13_000, "dev-tv")), undefined, "a new game, then picking a color: still the lobby");
+  pb = pause(pb, null, ctx(13_500, "dev-alex"));
+  assert.deepEqual([pb.now.resume, pb.now.held], [false, "dev-tv"], "a remote's pause takes the waiting play back");
+  pb = play(pb, {}, ctx(14_000, "dev-alex"));
+  assert.deepEqual([pb.now.playing, pb.now.resume, pb.now.held], [false, true, "dev-tv"], "a remote's play waits for the lobby too");
+  pb = unhold(pb, null, ctx(15_000, "dev-tv"));                   /* into a game */
+  assert.deepEqual([pb.now.playing, isHeld(pb)], [true, false]);
+});
+
 test("playback: next, previous and a song ending go round the playlist — a song's end counts once", () => {
   let pb = play(load(null, { listId:"PL", setAt:1, songs:SONGS }, ctx(0)), {}, ctx(0));
   pb = skip(pb, -1, ctx(1000, "dev-alex"));
