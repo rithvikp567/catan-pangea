@@ -1439,9 +1439,165 @@ your run created afterwards — never `DELETE /v1` once real data exists.
 
 ---
 
-## 10. Changelog
+## 10. Future expansions
+
+An open list of ideas the group is discussing — **not house rules yet, and
+not built**. Add new ideas here as they come up. When one is adopted, move
+it into the house rules (§1) or the features (§3) and give it a changelog
+entry.
+
+### The Long Night (a rework of WALKER's special barbarians)
+
+**Today's rule.** WALKER lights a letter for every 7 rolled with the
+barbarian ship. Once all six are lit, the next barbarian landing is
+*special*: a skill check of 3 × cities + off-island knights + |negative
+karma|. Pass: the top knight contributor gets a dev card and a VP, second
+gets a dev card, third nothing. Fail: everyone loses a city, and the
+dishonorable get no commodities until the next barbarians. The table's
+complaints: it has never triggered, and when it does it's just a skill
+check. Theme: Game of Thrones — the long winter, when the White Walkers
+come.
+
+**1. Make WALKER actually arrive.** A 7 with the ship is 1 roll in 12, so
+six letters plus the wait for the next landing takes about 75 rolls.
+Simulated over 200,000 three-player games (Cities & Knights dice: three of
+the event die's six faces are the ship, seven steps to land):
+
+| Rule | Long Night starts (rounds, middle 80% of games) | Median | Started by round 20 |
+|---|---|---|---|
+| Today: a 7 with the ship lights a letter | 16–39 | 25 | 27% |
+| **Also light a letter each time the barbarians land** | **12–23** | **17** | **76%** |
+| Any 7 lights a letter | 9–21 | 14 | 87% |
+
+Recommended: the middle rule. Landings are the steady drumbeat ("every wave
+is a warning") and the 7s are the surprise that can bring it 3–4 rounds
+early. It still arrives at a different point each game, but it arrives. At
+the table the only change is pressing **+** when the barbarians land.
+
+**2. The Long Night replaces the skill check.** When WALKER is full, the
+next landing isn't an attack: the Long Night begins and the game becomes a
+semi-cooperative endgame — the living share an enemy but each still wants
+to win.
+
+- **The Night King.** The player with the most VP turns. On a tie,
+  whoever's honor coin shows tails turns (the dishonorable fall first);
+  still tied, roll. Their knights become **wights**:
+  - *The dead don't eat:* wights activate for free.
+  - *The dead don't build:* the Night King can't build roads, settlements,
+    cities or improvements; everything goes into knights.
+  - *The dead march anywhere:* wights move along any road.
+  - It doubles as a catch-up rule: the runaway leader stops racing to 13
+    and becomes everyone's problem.
+- **The long winter** (everyone, until it ends):
+  - *Frozen sea:* knights and wights can walk across the water between the
+    islands (a crossing is one road step), so off-island knights matter.
+  - *Hunger:* activating a living knight costs 2 grain.
+  - *Banners united:* living knights can move along any living player's
+    roads, never the Night King's.
+  - *Cold shoulder:* anyone whose coin shows tails gets no commodities —
+    today's failure penalty as a standing rule.
+- **Waves.** Each barbarian landing is a wave of the dead. Afterward the
+  ship goes back only halfway (4 steps from landing), so waves come about
+  every 3 rounds (8 rolls on average).
+  1. The Night King secretly picks a living player to strike (one of
+     their roads hidden in a fist).
+  2. Dead strength = the Night King's active wights + 1 per city the dead
+     hold. Living strength = all living players' active knights.
+  3. Each side may add one duel card (below): one from the Night King,
+     one from each living player. Target and cards are revealed together.
+  4. Living ≥ dead: the wave breaks and two WALKER letters go dark;
+     today's reward stays (most strength: VP + dev card; second: dev
+     card).
+  5. Dead > living: the target's city falls (a settlement if they have no
+     city). It no longer counts for its owner, and the Night King raises a
+     free wight beside it.
+
+  Nobody knows who's targeted, so everyone has a reason to defend — and
+  the one who keeps their knights home might be the one who pays.
+- **How it ends:**
+  - *The Night King wins alone* when the dead hold as many cities as there
+    are living players (2 in a 3-player game).
+  - *The living win together at Dawn*, when all six letters are dark.
+  - *Any living player wins alone* by reaching 13 VP before Dawn — the
+    selfish road: build while the others hold the walls, and hope they
+    hold.
+- **Optional extras:**
+  - *Turncloak:* once per game, a losing player can bend the knee and join
+    the dead; they win if the Night King wins.
+  - *Dawn pact:* at Dawn the living secretly reveal their honor coins. All
+    heads: a shared win. Exactly one tails: that player takes the glory
+    alone. Two or more tails: the realm turns on itself and the Night King
+    wins.
+
+### Knight duels (the old "war" card rule, rebuilt)
+
+The group used to give each player a suit of cards and play war with
+chosen cards (no reuse until the whole suit was spent), so knights of
+equal power could fight with mind games. Proposed version:
+
+- **All game:**
+  - Each player holds Ace–6 of one suit. Six, not thirteen, so a hand runs
+    out and refreshes within a game and counting what's left is realistic.
+  - When your knight tries to bump another player's knight, it's a duel
+    instead of the usual strength rule, so any level can challenge any
+    level.
+  - Both pick a card face down and reveal together. Score = card + knight
+    level (basic 1, strong 2, mighty 3). Higher wins: the loser is bumped
+    as usual and both knights go inactive. Tie: both go inactive and
+    nobody moves.
+  - Played cards stay face up until all six are played, then the player
+    picks them all back up. Everyone sees what's left — that's the mind
+    game ("they've burned their 5 and 6, do I push now?").
+  - *Yield:* before cards are picked, the defender can back off: the
+    knight retreats but stays active, and no card is spent — how you show,
+    or fake, how badly you want a spot.
+  - *Ambush:* challenging an inactive knight is allowed, but you flip your
+    coin to dishonorable.
+- **During the Long Night:**
+  - *The dead rise:* a knight that loses to a wight dies, and a basic wight
+    takes its place.
+  - *Dragonglass:* beating a wight with your 6 destroys it and darkens one
+    letter; a win with any other card only pushes it back. The 6 is both
+    the best card in a wave and the only way to kill.
+  - *Fight together:* another living player's active knight next to the
+    fight lets its owner add a card too.
+  - *Kinslaying:* dueling another living player during the Long Night makes
+    you dishonorable (and so frozen out of commodities).
+
+### What to adjust after the first try
+
+- Night comes too early or too late: whether landings light a letter.
+- The Night King wins too easily: one more fallen city, or drop the +1 per
+  dead city.
+- Dawn comes too easily: a broken wave darkens one letter instead of two.
+- The Long Night drags: send the ship back to step 5 instead of halfway.
+
+### What the app would need
+
+Once the rules settle: a Long Night mode on the tracker — a Night King
+badge, WALKER letters going dark one by one, a fallen-cities count, and a
+shared crown in Season wins for a Dawn win. With the recommended clock,
+**+** on WALKER also gets pressed when the barbarians land (no app change).
+
+### Other app ideas (offered, not built)
+
+- Keep the screen awake during a game.
+- A TV "table view" with the map and a scoreboard together, for casting.
+- Swipe between the map and the tracker on phones.
+- A floating 200 × 200 player for the mini bar's play button (declined
+  for now).
+
+---
+
+## 11. Changelog
 
 Keep newest first. Every feature PR adds an entry and updates the sections above.
+
+- **Docs — Future expansions (§10).** A new section, kept open for ideas
+  the group is discussing: the Long Night (a rework of WALKER's special
+  barbarians, with a simulation of when WALKER arrives), knight duels,
+  what to adjust after a first try, and app ideas offered but not built.
+  The changelog is now §11. No app change.
 
 - **2.15.0 — No frost on Season wins; crowns and turds on the victory
   screen.** WALKER's winter frost and snow no longer cover Season wins or
