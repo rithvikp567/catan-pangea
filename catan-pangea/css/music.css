@@ -251,6 +251,8 @@ body[data-view="split"] .music.is-entering{ animation-name:music-fade; }
 
 /* ---------- put away (season wins, the sign-in screen, the intro, the welcome): nothing of the music shows ---------- */
 body[data-music-away] :is(.music, .music-mini, .music-songs, .music-pop){ display:none !important; }
+/* the victory screen: just the mini bar goes (MusicBar.setMiniAway) — an open player stays as it is */
+body[data-mini-away] .music-mini{ display:none !important; }
 
 /* ---------- sheets (songs, playlist): floating cards above the bar (beside it in landscape), never over the player ---------- */
 .music-sheet{

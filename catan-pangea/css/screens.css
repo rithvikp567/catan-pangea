@@ -543,15 +543,14 @@ body[data-desk] .wins-pop{ left:var(--left-w); }
   width:min(420px, 100%); padding:30px 22px 22px; text-align:center;
   background:var(--surface); border:1px solid var(--accent-line); border-radius:24px; box-shadow:var(--shadow);
 }
-.victory-badge{
-  display:block; width:64px; height:64px; margin:0 auto 12px; border-radius:50%;
-  background:var(--winner); box-shadow:0 0 0 8px color-mix(in srgb, var(--winner) 24%, transparent), inset 0 0 0 1px rgb(0 0 0 / .12);
-}
+/* the season badges (ui/badges.js): a big crown over Victory, a big turd over Defeat — 1.5× (3 px art pixels) */
+.victory-badge{ display:grid; place-items:center; width:60px; height:66px; margin:0 auto 12px; }
+.victory-badge .badge{ transform:scale(1.5); }
 .victory-title{ margin:6px 0 4px; font-size:48px; line-height:1; font-weight:800; letter-spacing:-.03em; }
 .victory[data-kind="loss"] .victory-title{ color:var(--ink-2); }
 .victory-sub{ margin:0 0 16px; color:var(--ink-2); }
 .victory-standings{ list-style:none; margin:0 0 18px; padding:0; text-align:left; }
-.victory-standings li{ display:grid; grid-template-columns:14px 1fr auto; align-items:center; gap:10px; min-height:40px; border-top:1px solid var(--line); }
+.victory-standings li{ display:grid; grid-template-columns:40px 1fr auto; align-items:center; gap:10px; min-height:44px; border-top:1px solid var(--line); }
 .victory-standings li[data-winner="true"]{ font-weight:700; }
 .victory-card .btn{ width:100%; }
 
