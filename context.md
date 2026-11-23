@@ -527,17 +527,31 @@ on the tracker): everything works, but nothing is shared between phones.
     challenger's side calls it off (*The battle was called off.* on the
     other's).
   - **Fight** opens the duel on both phones: the foe's cards (what they've
-    spent), your **knight** — three circles in your color, one to three
-    pips (basic, strong, mighty): the one you tap moves to the middle and
+    spent), your **knight** — three circles ringed in your color, each with
+    an 8-bit knight in your colors and one to three pips (3.1.0,
+    `ui/knights.js` — original art: **basic** in an open-faced helmet,
+    **strong** in a great helm with a plume, **mighty** in a great helm with
+    a gold crown; every player color works — a light one, white, gets a
+    darker ring and pips so they show on the card): the one you tap moves
+    to the middle and
     the other two fold in under it; tap it again and they spread out —
     and your cards (the spent ones can't be picked). **Battle** readies
     you (it reads *Ready*); the foe's avatar rings once they're ready. A
     duel left unfinished for 3 minutes lapses; × calls it off.
-  - Both ready: a quick **scuffle** (the two knights charge and clash,
-    crossed swords, dust — 1.5 s; skipped under *reduce motion*), then the
-    **result** — *Rithvik wins* (or *Standoff*) over each side's knight,
-    card, name and total, a crown for the winner and a turd for the loser
-    (Season wins' badges). × or it closes by itself after **5 s**.
+  - Both ready: **the charge** (3.1.0, 2.4 s): each side's knight — the
+    tier they picked — gallops in on a horse in their colors (a bay horse;
+    a pale grey one for a color too close to its brown, so brown's cloth
+    stands out; two leg
+    frames, a bob), lance forward, yours from the left, theirs mirrored
+    from the right; they collide in a **cloud of dust** with stars in it
+    that puffs up and shakes, and the dust fades into the **result**,
+    which is laid out under it from the start so the card keeps its size
+    (`CHARGE_MS`; skipped under *reduce motion*). The result: *Rithvik
+    wins* (or *Standoff*) over each side's knight, card, name and total —
+    the **winner's knight triumphant** (sword raised, sparkles, a little
+    cheer) and the **loser's bandaged** (head wrapped, arm in a sling, a
+    broken sword, a cracked shield, stars round the head, wobbling); in a
+    standoff both just stand. × or it closes by itself after **5 s**.
   - A card is spent once played in a finished duel, until all six are —
     then they all come back (worked out from the room's battle history,
     so it can't be double-spent). One open battle per player; a new map
@@ -1035,13 +1049,15 @@ catan-pangea/                       ← deployed as-is to GitHub Pages
     ColorPicker.js                  the color wheel pop-up (brightness, opacity, hex, preview, recent colors)
     imageExport.js, Toast.js, dom.js  PNG/share; toasts; h()/s() DOM builders
     VictoryOverlay.js               victory / defeat screen (crown / turd badges; no mini bar or frost while it's up)
-    BattleOverlay.js                knight duels: who to battle, the challenge, the duel, the scuffle, the result
+    BattleOverlay.js                knight duels: who to battle, the challenge, the duel, the charge, the result
+    knights.js                      the battle's 8-bit knights: three tiers, standing (ready / victory / wounded), riding, the dust
     Splash.js                       the intro ("Settlers of Catan") and "Welcome, Lord …"
     Sound.js                        sound effects made with Web Audio (tile clack, flip, pop, fanfare): timelines, mute (Player Settings), restarts after interruptions
     AccountLine.js                  "Sam · Sign out" in the top bar
     MusicBar.js                     docked YouTube player (IFrame API) following the shared playback: speaker / remote, songs sheet, playlist pop-up
     WinterEffect.js                 8-bit snow + frost that build up as WALKER fills
     badges.js                       8-bit season badges: the crown (first place) and the turd (everyone else)
+    pixelArt.js                     8-bit art as SVG: letter grids → crisp <rect>s, outlines, layers (badges and knights)
     DesktopLayout.js                desktop left column (the tracker fitted over the music) + its drag handles; the music & tracker view
     screens/Screen.js               base class for full-screen views
     screens/JoinScreen.js, RoomsScreen.js, ModsScreen.js, SeatScreen.js   who's playing; today's games; new game; pick a color
@@ -1761,6 +1777,17 @@ shared crown in Season wins for a Dawn win. With the recommended clock,
 ## 11. Changelog
 
 Keep newest first. Every feature PR adds an entry and updates the sections above.
+
+- **3.1.0 — Knights you can see.** The Battle pop-up's knight circles
+  show an 8-bit knight in your colors for each tier — basic (open-faced
+  helmet), strong (a great helm with a plume), mighty (a great helm with
+  a gold crown) — original art in the app's pixel style
+  (`ui/knights.js`), checked in all six player colors, light and dark
+  (white gets a darker ring; brown rides a grey horse). The scuffle is now a charge: each side's knight
+  gallops in on a horse in their colors, they collide in a cloud of dust,
+  and the dust fades into the result, where the winner's knight stands
+  triumphant and the loser's is bandaged up. The pixel-art drawing moved
+  out of `badges.js` into `ui/pixelArt.js`, shared by both.
 
 - **3.0.1 — No music in the lobby.** Today's games, New game and Pick
   your color no longer show the music — neither the mini bar nor the
