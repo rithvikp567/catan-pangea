@@ -278,9 +278,15 @@ on the tracker): everything works, but nothing is shared between phones.
   picked choice on this theme; a theme: a little page with a card and a
   button in the person's accent, worked out for that theme), and the
   person's **five most recent custom colors** (tap one to start from it).
-  *Use color* picks it; Cancel, ×, Esc or a tap outside (pressed and let
-  go outside the card — a drag that ends there doesn't count) leaves
-  things as they were. Beside the open music player it narrows rather
+  **Tried on as it's picked** (2.14.0): each time a color is settled on —
+  the wheel or a slider let go, a hex entered, a recent color tapped, the
+  arrow keys let go — the whole app shows it (not while dragging); it's
+  saved nowhere until *Use color* picks it — not on the profile, not as
+  `lastLook` / `lastPaint`, and Player Settings still shows what's picked
+  (`LookSync.preview`, `ThemeController.set(look, { keep:false })`). A
+  pick from another device meanwhile shows under it. Cancel, ×, Esc or a
+  tap outside (pressed and let go outside the card — a drag that ends
+  there doesn't count) puts back what was there. Beside the open music player it narrows rather
   than cover it. The custom swatch and tile show the person's custom color (a
   rainbow until they have one). The colors are worked out from the one
   picked (`game/colors.js`):
@@ -443,8 +449,11 @@ on the tracker): everything works, but nothing is shared between phones.
     flakes with each letter, plus pixel frost creeping in from the screen
     edges (deeper in the corners, icicles along the top) and a faint cold
     tint. Going back down thins the snow and melts the frost; back to 0 it
-    all fades out over ~3 s. How strong it gets is one knob: `STRENGTH` at
-    the top of `WinterEffect.js` (snow, frost depth, frost opacity, tint). Drawn over the **whole window** —
+    all fades out over ~3 s. How strong it gets: `STRENGTH` at the top of
+    `WinterEffect.js` (snow, frost depth, frost opacity, tint), and `PEAK`,
+    how far it goes by the last letter — 4/6 since 2.14.0, what the 4th
+    letter used to show (at the 5th and 6th the frost crept in so far the
+    tracker's buttons were hard to hit), each letter an even share of it. Drawn over the **whole window** —
     the frost frames every edge, the music bar and the mini bar included —
     with a hole cut exactly where the YouTube player is (`keepClear`, a
     clip-path: nothing may cover the player). Never takes a tap. Reduced
@@ -1412,6 +1421,14 @@ your run created afterwards — never `DELETE /v1` once real data exists.
 ## 10. Changelog
 
 Keep newest first. Every feature PR adds an entry and updates the sections above.
+
+- **2.14.0 — Custom colors tried on as they're picked; a gentler winter.**
+  In the color wheel (a custom accent or theme), letting go of the wheel —
+  or a slider, a hex, a recent color — shows the color on the whole app at
+  once; it's saved, and follows the person, only with **Use color**, and
+  Cancel puts back what was there. WALKER's winter now goes as far by the
+  last letter as it used to by the 4th, each letter a third less than
+  before, so the frost no longer creeps over the tracker's buttons.
 
 - **2.13.0 — Player Settings with custom colors; tiles on top; smaller
   − / +.** Settings' color sections move into a **Player Settings**

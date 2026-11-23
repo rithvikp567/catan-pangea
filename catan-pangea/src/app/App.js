@@ -96,8 +96,8 @@ export class App {
     if(this.storage.get("soundOff") === true && this.identity.storage.get("sounds") == null) this.identity.storage.set("sounds", false);
     /* whose Player Settings apply here (the signed-in person's follow them to every device) — each
        ?device= tab on localhost is a device of its own, so it keeps Identity's storage */
-    this.look = new LookSync({ game:this.game, storage:this.identity.storage, apply:look => {
-      this.theme.set(look);
+    this.look = new LookSync({ game:this.game, storage:this.identity.storage, apply:(look, { trying = false } = {}) => {
+      this.theme.set(look, { keep:!trying });
       this.sound.setMuted(!look.sounds);
     } });
     /* a pick waiting to be saved goes now if the page is hidden or closed (a locked phone, the app swiped away) */
@@ -116,7 +116,8 @@ export class App {
         this.look.pick(patch);
         if(patch.sounds === true) this.sound.preview();     /* a pop: this is what it sounds like (and that it works) */
       },
-      scheme:() => this.theme.scheme,
+      onTry:patch => this.look.preview(patch),            /* the color wheel: shown, not saved, until Use color */
+      scheme:() => this.theme.systemDark ? "dark" : "light",   /* (the device's, not a color being tried on) */
     });
     this.look.onChange(look => this.playerSettings.sync(look));
     this.modeSwitch = new SegmentedControl({

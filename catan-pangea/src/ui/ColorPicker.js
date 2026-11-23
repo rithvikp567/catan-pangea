@@ -4,7 +4,9 @@
  * Brightness slider under it, an Opacity slider (how see-through the color
  * is), the color as hex, a preview, and the person's last five custom
  * colors (tap one to start from it). `open()` resolves with the color
- * picked ("#rrggbbaa") or null.
+ * picked ("#rrggbbaa") or null. Each time a color is settled on — the
+ * wheel or a slider let go, a hex entered, a recent color tapped, the arrow
+ * keys let go — `onTry` hears it, so the app can show it before Use color.
  *
  * It's a modal <dialog>, laid out around the open music player like every
  * overlay (css/app.css "color picker"): never over the YouTube player.
@@ -23,6 +25,8 @@ export class ColorPicker {
     this.alpha = 1;
     this.resolve = null;
     this.paintPreview = () => {};
+    this.onTry = () => {};
+    this.tried = null;
 
     this.title = h("h2", { class:"picker-title", id:"pickerTitle" });
     const close = h("button", { type:"button", class:"icon-btn", "aria-label":"Close", onClick:() => this.#finish(null) });
@@ -32,15 +36,16 @@ export class ColorPicker {
     this.knob = h("span", {
       class:"picker-knob", role:"slider", tabindex:"0", "aria-label":"Color wheel: hue and saturation",
       "aria-valuemin":"0", "aria-valuemax":"360", onKeydown:e => this.#wheelKey(e),
+      onKeyup:e => { if(e.key.startsWith("Arrow")) this.#try(); },
     });
     this.shade = h("span", { class:"picker-shade", "aria-hidden":"true" });
     this.wheel = h("div", { class:"picker-wheel" }, this.shade, this.knob);
     this.wheel.addEventListener("pointerdown", e => this.#wheelDown(e));
 
     this.bright = h("input", { type:"range", min:"0", max:"100", step:"1", class:"picker-range picker-bright", "aria-label":"Brightness",
-      onInput:() => { this.hsv.v = this.bright.value / 100; this.#paint(); } });
+      onInput:() => { this.hsv.v = this.bright.value / 100; this.#paint(); }, onChange:() => this.#try() });
     this.opacity = h("input", { type:"range", min:"5", max:"100", step:"1", class:"picker-range picker-alpha", "aria-label":"Opacity",
-      onInput:() => { this.alpha = this.opacity.value / 100; this.#paint(); } });
+      onInput:() => { this.alpha = this.opacity.value / 100; this.#paint(); }, onChange:() => this.#try() });
     this.alphaOut = h("output", { class:"picker-alpha-out num" });
 
     this.hex = h("input", {
@@ -83,23 +88,35 @@ export class ColorPicker {
    * @param {string|null} [p.value]     the color to start from ("#rrggbbaa")
    * @param {string[]} [p.recent]       the person's last custom colors, newest first
    * @param {(el:HTMLElement, hex:string) => void} [p.preview]  draw the preview of a color
+   * @param {(hex:string) => void} [p.onTry]  a color settled on (not picked yet: that's Use color)
    * @returns {Promise<string|null>}
    */
-  open({ title, value = null, recent = [], preview = () => {} }){
+  open({ title, value = null, recent = [], preview = () => {}, onTry = () => {} }){
     this.#finish(null);
     this.title.textContent = title;
     this.paintPreview = preview;
+    this.onTry = onTry;
+    this.tried = null;
     this.preview.replaceChildren();          /* (each kind draws its own: an accent's and a theme's differ) */
     this.#load(value ?? recent[0] ?? "#2a5f9eff");
     this.recentBox.hidden = !recent.length;
     this.recentRow.replaceChildren(...recent.map(hex => {
       const b = h("button", { type:"button", class:"picker-swatch", "aria-label":`Recent color ${hex.slice(0, 7)}${hex.endsWith("ff") ? "" : `, ${Math.round(parseHex(hex).a * 100)}% opacity`}`,
-        title:hex.slice(0, 7), onClick:() => this.#load(hex) }, h("i", { style:`background:${css(hex)}` }));
+        title:hex.slice(0, 7), onClick:() => { this.#load(hex); this.#try(); } }, h("i", { style:`background:${css(hex)}` }));
       return b;
     }));
     this.el.showModal();
     this.knob.focus({ preventScroll:true });
     return new Promise(r => { this.resolve = r; });
+  }
+
+  /** Show the color as it is now on the app (once per color), before it's picked. */
+  #try(){
+    if(!this.resolve) return;
+    const hex = this.value;
+    if(hex === this.tried) return;
+    this.tried = hex;
+    this.onTry(hex);
   }
 
   #finish(result){
@@ -123,6 +140,7 @@ export class ColorPicker {
     const c = parseHex(hex), keep = /^#?[0-9a-f]{3}$|^#?[0-9a-f]{6}$/i.test(raw);
     this.#load(toHex({ ...c, a:keep ? this.alpha : c.a }));
     this.#showHex();          /* (as it's used: written out in full, the opacity floor applied) */
+    this.#try();
   }
 
   #showHex(){
@@ -162,7 +180,8 @@ export class ColorPicker {
     };
     move(e);
     this.wheel.setPointerCapture?.(e.pointerId);
-    const up = () => { this.wheel.removeEventListener("pointermove", move); this.wheel.removeEventListener("pointerup", up); this.wheel.removeEventListener("pointercancel", up); };
+    /* let go: the color shows on the app (picked only with Use color) */
+    const up = () => { this.wheel.removeEventListener("pointermove", move); this.wheel.removeEventListener("pointerup", up); this.wheel.removeEventListener("pointercancel", up); this.#try(); };
     this.wheel.addEventListener("pointermove", move);
     this.wheel.addEventListener("pointerup", up);
     this.wheel.addEventListener("pointercancel", up);

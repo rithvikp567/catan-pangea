@@ -28,6 +28,14 @@ import { h } from "./dom.js";
  */
 export const STRENGTH = Object.freeze({ snow:.5, frost:.65, frostAlpha:.8, tint:.5 });
 
+/**
+ * How far winter goes by the last letter, as a share of the full effect:
+ * what the 4th letter used to show (2.14.0 — at the 5th and 6th the frost
+ * crept in so far it was hard to hit the tracker's buttons). Every letter
+ * brings an even share of it, so each is two-thirds of what it was.
+ */
+export const PEAK = 4 / 6;
+
 const FADE_MS = 2800;
 const FRAME_MS = 1000 / 40;            /* draw at ~40 fps: plenty for pixel art, kinder to phones */
 
@@ -134,7 +142,7 @@ export class WinterEffect {
     if(!this.el.hidden && !this.running) this.#drawFrost();
   }
 
-  get #target(){ return this.level / this.max; }
+  get #target(){ return this.level / this.max * PEAK; }
 
   /* ---------------- lifecycle ---------------- */
 
