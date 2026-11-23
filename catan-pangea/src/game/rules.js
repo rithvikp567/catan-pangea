@@ -4,13 +4,17 @@
  * UI uses the same bounds to enable / disable buttons.
  */
 
-export const MAX_VP = 13;
+export const MAX_VP = 13;                      /* to win on a Cities & Knights board (a room's mods may set another target) */
+export const BASE_VP = 10;                     /* … and on a base game board */
 export const KNIGHTS_PER_PLAYER = 12;          /* each island's knight track tops out at 12 × players */
 export const CITIES_PER_PLAYER = 4;            /* city pieces in the box */
 export const KARMA_LIMIT = 99;                  /* karma is ± and unbounded in spirit; ±99 keeps the display sane */
 export const ROBBER_VALUES = Object.freeze([1, 2, 3]);
 export const WALKER_WORD = "WALKER";           /* one letter per 7 rolled with the barbarians; + on the last letter starts over */
 export const NAME_MAX = 20;
+export const ROOM_NAME_MAX = 24;
+/** A room nobody has changed for this long is closed (deleted) — rooms are for the day's games. */
+export const ROOM_TTL_MS = 6 * 60 * 60 * 1000;
 export const ADMIN_PASSWORD = "password";       /* not security — the admin is a shared management account */
 
 export const PLAYER_COLORS = Object.freeze([
@@ -33,7 +37,8 @@ export const COUNTERS = Object.freeze({
 });
 
 export const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-export const clampVP = vp => clamp(vp, 0, MAX_VP);
+/** VP stay within 0 … the points to win (the room's target). */
+export const clampVP = (vp, max = MAX_VP) => clamp(vp, 0, max);
 /**
  * One step of a bounded counter. A value already past a bound (e.g. a game
  * saved under older, looser limits) can still step back toward the range
@@ -65,10 +70,10 @@ export const seatKey = i => "s" + i;
 export const seatIndex = key => Number(String(key).slice(1));
 
 /** Trimmed, collapsed display name, or an error message. */
-export function validateName(raw, existingNames = []){
+export function validateName(raw, existingNames = [], max = NAME_MAX){
   const name = String(raw ?? "").replace(/\s+/g, " ").trim();
   if(!name) return { error:"Enter a name." };
-  if(name.length > NAME_MAX) return { error:`Keep it to ${NAME_MAX} characters.` };
+  if(name.length > max) return { error:`Keep it to ${max} characters.` };
   if(existingNames.some(n => n.toLowerCase() === name.toLowerCase())) return { error:"That name is taken." };
   return { name };
 }

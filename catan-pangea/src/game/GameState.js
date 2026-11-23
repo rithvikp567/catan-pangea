@@ -1,28 +1,22 @@
 /**
- * Read-only view over the synced data (profiles, the active session, the
- * wins ledger and the table's playlist) with the derived facts the UI needs. Built fresh on
+ * Read-only view over the synced data — profiles, the rooms (each a
+ * RoomState: its mods and the game in it), the wins ledger and the
+ * table's playlist — with the derived facts the UI needs. Built fresh on
  * every change; never mutated.
  */
-import { MAX_VP, COUNTERS, colorById, seatKey, seasonOf } from "./rules.js";
+import { colorById, seasonOf } from "./rules.js";
+import { RoomState } from "./RoomState.js";
 
 /**
  * @typedef {{ id:string, name:string, createdAt:number, deviceId:string, look?:{ theme?:string, accent?:string, at?:number } }} Profile
- * @typedef {object} Seat
- * @property {string} key       "s0"…
- * @property {number} index
- * @property {string|null} profileId
- * @property {Profile|null} profile
- * @property {string|null} color      color id
- * @property {string|null} colorHex
- * @property {number} vp
- * @property {boolean} honorable
  */
 
 export class GameState {
-  /** @param {{ profiles?:object, session?:object, wins?:object, music?:object }} raw */
-  constructor({ profiles, session, wins, music } = {}){
+  /** @param {{ profiles?:object, rooms?:object, wins?:object, music?:object }} raw */
+  constructor({ profiles, rooms, wins, music } = {}){
     this.profileMap = new Map(Object.entries(profiles ?? {}).map(([id, p]) => [id, { id, ...p }]));
-    this.session = session?.meta ? session : null;
+    const profile = id => this.profile(id);
+    this.roomMap = new Map(Object.entries(rooms ?? {}).filter(([, r]) => r?.info).map(([id, r]) => [id, new RoomState(id, r, profile)]));
     this.wins = wins ?? {};
     /** @type {{ listId:string, setAt:number, setBy:string|null } | null} */
     this.music = music?.listId ? music : null;
@@ -33,54 +27,20 @@ export class GameState {
   get profiles(){ return [...this.profileMap.values()].sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0)); }
   profile(id){ return this.profileMap.get(id) ?? null; }
 
-  get sessionId(){ return this.session?.meta.id ?? null; }
-  get players(){ return this.session?.meta.players ?? 0; }
-
-  /** Every COUNTERS value (0 if never set — older games lack newer counters) plus the robber. */
-  get counters(){
-    const c = this.session?.counters ?? {};
-    return { ...Object.fromEntries(Object.keys(COUNTERS).map(k => [k, c[k] ?? 0])), robber:c.robber ?? 1 };
+  /** A room by id, if it exists and hasn't been closed (untouched too long) by `now`. */
+  room(id, now){
+    const r = id ? this.roomMap.get(id) : null;
+    return r && !r.expired(now) ? r : null;
   }
 
-  /** @returns {Seat[]} */
-  get seats(){
-    if(!this.session) return [];
-    const raw = this.session.seats ?? {};
-    return Array.from({ length:this.players }, (_, index) => {
-      const key = seatKey(index), s = raw[key] ?? {};
-      const profile = s.profileId ? this.profile(s.profileId) : null;
-      return {
-        key, index, profile,
-        profileId: profile ? s.profileId : null,        /* a removed profile frees its seat */
-        color: profile ? (s.color ?? null) : null,
-        colorHex: profile ? (colorById(s.color)?.hex ?? null) : null,
-        vp: s.vp ?? 0,
-        honorable: s.honorable !== false,
-      };
-    });
+  /** The rooms still open at `now`, newest first. */
+  rooms(now){
+    return [...this.roomMap.values()].filter(r => !r.expired(now))
+      .sort((a, b) => b.createdAt - a.createdAt || a.id.localeCompare(b.id));
   }
 
-  seatOf(profileId){ return this.seats.find(s => s.profileId === profileId) ?? null; }
-
-  /** Seated players currently on MAX_VP. */
-  get winners(){ return this.seats.filter(s => s.profileId && s.vp >= MAX_VP); }
-
-  /** color id -> name of the profile holding it (excluding `exceptProfileId`). */
-  takenColors(exceptProfileId = null){
-    const out = new Map();
-    for(const s of this.seats) if(s.color && s.profileId !== exceptProfileId) out.set(s.color, s.profile.name);
-    return out;
-  }
-
-  get openSeats(){ return this.seats.filter(s => !s.profileId).length; }
-
-  /** Anything a new game would lose (seats carry over, so they don't count). */
-  get hasProgress(){
-    if(!this.session) return false;
-    const c = this.counters;
-    return this.seats.some(s => s.vp > 0 || !s.honorable)
-        || Object.keys(COUNTERS).some(k => c[k] !== 0);
-  }
+  /** Rooms closed by `now` (untouched too long) that are still stored. */
+  expiredRooms(now){ return [...this.roomMap.values()].filter(r => r.expired(now)); }
 
   /** Years with any wins recorded, plus the current one, newest first. */
   seasons(now = Date.now()){
