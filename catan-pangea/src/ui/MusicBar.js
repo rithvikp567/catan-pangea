@@ -24,8 +24,8 @@
  *     over it — so this is a docked bar, never a hidden audio-only player;
  *   - nothing plays while the bar is closed: closing it on the speaker
  *     pauses the music, and a remote's play opens the speaker's bar;
- *   - nor while it's put away (season wins, the sign-in screen, the intro
- *     and the welcome): the speaker holds the music, and a remote's play
+ *   - nor while it's put away (season wins, the sign-in screen, the lobby,
+ *     the intro and the welcome): the speaker holds the music, and a remote's play
  *     waits for it to be back instead of calling the player up over them;
  *   - no autoplay: music starts from someone's tap (on phones the very
  *     first play has to be a tap on the YouTube player itself — browsers
@@ -44,7 +44,8 @@
  * the music half of the music & tracker view.
  *
  * It can also be put away for a while (setAway: the season wins screen, the
- * sign-in screen, the intro and the welcome): nothing of it shows, and
+ * sign-in screen, the lobby — today's games, a new game, picking a color —
+ * the intro and the welcome): nothing of it shows, and
  * since a hidden player mustn't play, the device playing the sound pauses
  * it — and plays on when it's back. Or just the mini bar can be hidden for
  * a while (setMiniAway: the victory screen): the open player is untouched.
@@ -65,8 +66,8 @@ import { describePlayerError, parsePlaylist, playlistDue, playlistUrl, thumbnail
 import { BEAT_MS, isHeld, livePosition, queueChanges, songCount, speakerOnline, wantsToPlay } from "../music/playback.js";
 
 /* why the speaker holds the music (MusicBar.setAway's reasons): what its line says on the remotes, and the screen it's on */
-const HELD_WHY = { wins:"on Season wins", join:"signing in" };
-const HELD_SCREEN = { wins:"has Season wins open", join:"is on the sign-in screen" };
+const HELD_WHY = { wins:"on Season wins", join:"signing in", lobby:"picking a game" };
+const HELD_SCREEN = { wins:"has Season wins open", join:"is on the sign-in screen", lobby:"is picking a game" };
 
 const SVG = {
   play:`<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.6v12.8a1 1 0 0 0 1.52.85l10.2-6.4a1 1 0 0 0 0-1.7L9.52 4.75A1 1 0 0 0 8 5.6z"/></svg>`,
@@ -201,7 +202,7 @@ export class MusicBar {
     this.renderedIds = "";
     this.seeking = false;        /* the time slider is being dragged */
     this.dock = "bar";           /* "bar" (phones), or desktop's left column: "column" (big player + songs) / "compact" */
-    this.away = new Set();       /* why the music is put away for now ("wins", "join", "splash", "welcome"); empty: it shows */
+    this.away = new Set();       /* why the music is put away for now ("wins", "join", "lobby", "splash", "welcome"); empty: it shows */
     this.awayListeners = new Set();
     this.miniAway = new Set();   /* why the mini bar is hidden for now ("victory"); the open player is left as it is */
     this.miniBlur = new Set();   /* why the mini bar is blurred and out of reach for now ("battle") */
@@ -222,7 +223,7 @@ export class MusicBar {
   }
 
   get isOpen(){ return !this.el.hidden; }
-  /** Put away for now (season wins, the sign-in screen, the intro, the welcome): nothing of the music shows. */
+  /** Put away for now (season wins, the sign-in screen, the lobby, the intro, the welcome): nothing of the music shows. */
   get isAway(){ return this.away.size > 0; }
   /** The mini bar is hidden for now (the victory screen) — only the closed bar: the open player still shows. */
   get isMiniAway(){ return this.miniAway.size > 0; }
@@ -252,7 +253,8 @@ export class MusicBar {
    * everyone, and a play from another device meanwhile waits instead of
    * calling this player back — the music plays when it's back if it was
    * playing, or if anyone pressed play meanwhile (and not if someone paused
-   * it). The sign-in screen ("join") holds it the same way, and the intro
+   * it). The sign-in screen ("join") and the lobby ("lobby": today's games,
+   * a new game, picking a color) hold it the same way, and the intro
    * ("splash") and the welcome ("welcome") for a moment.
    */
   setAway(reason, on){
@@ -317,8 +319,8 @@ export class MusicBar {
   #syncHold(){
     const n = this.pb?.now, me = this.game.deviceId;
     if(!n || !this.#queueReady) return;
-    /* the screen it's on says why (Season wins, signing in) — before the intro or the welcome over it */
-    const why = !this.isAway ? null : ["wins", "join"].find(r => this.away.has(r)) ?? [...this.away][0];
+    /* the screen it's on says why (Season wins, signing in, the lobby) — before the intro or the welcome over it */
+    const why = !this.isAway ? null : ["wins", "join", "lobby"].find(r => this.away.has(r)) ?? [...this.away][0];
     let command = null;
     if(why && this.#isSpeaker && !(n.held === me && n.heldFor === why)) command = "hold";
     else if(!why && n.held === me) command = "unhold";
