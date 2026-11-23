@@ -30,7 +30,7 @@ export const KNIGHTS = Object.freeze([
 export const BATTLE_TIMES = Object.freeze({
   askMs:60_000,        /* a challenge nobody answers lapses */
   fightMs:180_000,     /* a fight nobody finishes lapses */
-  showMs:5_000,        /* the result closes itself after this */
+  showMs:10_000,       /* the result closes itself after this */
 });
 
 /** Every card spent: the bits 1…6 of a mask. */

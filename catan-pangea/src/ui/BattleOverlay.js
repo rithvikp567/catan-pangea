@@ -19,9 +19,10 @@
  *   fight       once both are ready: each side's knight charges on its
  *               horse, they collide in a cloud of dust, and the dust fades
  *               into…
- *   result      who won, and each side's knight — the winner's
- *               triumphant, the loser's bandaged — with its card. × or it
- *               closes after 5 s.
+ *   result      from this player's side — "Rithvik Wins" or "Sam Loses"
+ *               (a tie: "Standoff") — and each side's knight, the winner's
+ *               triumphant, the loser's bandaged, with its card. × or it
+ *               closes after 10 s.
  *
  * No hints or summaries in grey: names, cards, knights and buttons only.
  */
@@ -235,6 +236,8 @@ export class BattleOverlay {
   /** Who won, and each side's knight — triumphant or bandaged — and card. */
   #viewResult(b, self, foe, { reveal = false } = {}){
     const res = outcome(b), winner = res.winner === self.profileId ? self : res.winner === foe.profileId ? foe : null;
+    /* from this player's side: "Rithvik Wins" for the winner, "Sam Loses" for the loser */
+    const title = !winner ? "Standoff" : winner === self ? `${self.profile.name} Wins` : `${self.profile.name} Loses`;
     const side = s => {
       const p = b.picks?.[s.profileId], pose = !winner ? "ready" : winner === s ? "victory" : "wounded";
       return h("div", { class:"battle-side", "data-won":String(winner === s), "data-pose":pose },
@@ -247,7 +250,7 @@ export class BattleOverlay {
     return [
       this.#closeBtn(() => this.close()),
       h("div", { class:`battle-result${reveal ? " is-revealing" : ""}` },
-        h("h2", { class:"battle-title battle-outcome" }, winner ? `${winner.profile.name} wins` : "Standoff"),
+        h("h2", { class:"battle-title battle-outcome" }, title),
         h("div", { class:"battle-sides" }, side(self), side(foe))),
     ];
   }

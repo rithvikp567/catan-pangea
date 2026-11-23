@@ -546,12 +546,15 @@ on the tracker): everything works, but nothing is shared between phones.
     from the right; they collide in a **cloud of dust** with stars in it
     that puffs up and shakes, and the dust fades into the **result**,
     which is laid out under it from the start so the card keeps its size
-    (`CHARGE_MS`; skipped under *reduce motion*). The result: *Rithvik
-    wins* (or *Standoff*) over each side's knight, card, name and total —
+    (`CHARGE_MS`; skipped under *reduce motion*). The result, from each
+    player's own side (3.1.1): *Rithvik Wins* on the winner's phone, *Sam
+    Loses* on the loser's (a tie: *Standoff*), over each side's knight,
+    card, name and total —
     the **winner's knight triumphant** (sword raised, sparkles, a little
     cheer) and the **loser's bandaged** (head wrapped, arm in a sling, a
     broken sword, a cracked shield, stars round the head, wobbling); in a
-    standoff both just stand. × or it closes by itself after **5 s**.
+    standoff both just stand. × or it closes by itself after **10 s**
+    (`BATTLE_TIMES.showMs`; 5 s before 3.1.1).
   - A card is spent once played in a finished duel, until all six are —
     then they all come back (worked out from the room's battle history,
     so it can't be double-spent). One open battle per player; a new map
@@ -1777,6 +1780,11 @@ shared crown in Season wins for a Dawn win. With the recommended clock,
 ## 11. Changelog
 
 Keep newest first. Every feature PR adds an entry and updates the sections above.
+
+- **3.1.1 — A longer look at the result.** A battle's result stays up for
+  10 s before it closes by itself (it was 5 s), and its title is from each
+  player's own side, capitalized: *Rithvik Wins* on the winner's phone,
+  *Sam Loses* on the loser's (both used to read *Rithvik wins*).
 
 - **3.1.0 — Knights you can see.** The Battle pop-up's knight circles
   show an 8-bit knight in your colors for each tier — basic (open-faced
