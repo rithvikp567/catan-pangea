@@ -145,7 +145,11 @@ export class App {
     };
     this.screens = [new JoinScreen(deps), new TrackerScreen(deps), new WinsScreen(deps), new AdminScreen(deps)];
     for(const s of this.screens) this.router.register(s);
-    this.victory = new VictoryOverlay(deps);
+    /* while it's up: no mini bar (an open player stays) and no winter frost */
+    this.victory = new VictoryOverlay({ ...deps, onToggle:shown => {
+      this.music.setMiniAway("victory", shown);
+      this.winter.setAway("victory", shown);
+    } });
     this.winter = new WinterEffect({ max:COUNTERS.walker.max(0) });
     this.winter.keepClear(this.music.video);       /* frost all round the window, never over the YouTube player */
     this.layout = new DesktopLayout({ router:this.router, music:this.music, storage:this.storage,
@@ -194,7 +198,7 @@ export class App {
     return seat ? { name:seat.profile.name, note:`You're ${colorById(seat.color)?.label ?? "seated"}` } : null;
   }
 
-  /** Every route change: the desktop layout, and the music is put away while the season wins or the sign-in screen are up. */
+  /** Every route change: the desktop layout, and the music is put away while the season wins or the sign-in screen are up (the frost too, on season wins). */
   #routed(route){
     this.layout?.routed(route);
     /* the new reason first, then the old one off — so going from one to the other never lets the music
@@ -202,6 +206,7 @@ export class App {
     const away = route === "wins" || route === "join" ? route : null;
     if(away) this.music?.setAway(away, true);
     for(const r of ["wins", "join"]) if(r !== away) this.music?.setAway(r, false);
+    this.winter?.setAway("wins", route === "wins");     /* season wins show without the frost */
     document.getElementById("winsBtn")?.setAttribute("aria-pressed", String(route === "wins"));
   }
 

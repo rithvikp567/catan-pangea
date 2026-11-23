@@ -457,7 +457,10 @@ on the tracker): everything works, but nothing is shared between phones.
     the frost frames every edge, the music bar and the mini bar included —
     with a hole cut exactly where the YouTube player is (`keepClear`, a
     clip-path: nothing may cover the player). Never takes a tap. Reduced
-    motion: frost only.
+    motion: frost only. **Not on Season wins or the victory screen**
+    (2.15.0): while either is up it fades out in 0.2 s and stops
+    (`WinterEffect.setAway("wins" | "victory")`), and it comes back at the
+    same level when they close — a letter added meanwhile shows then.
 - **Logging in on another device:** pick your profile on the welcome
   screen. If you're seated in the current game it's *Welcome, Lord …* and
   straight to the tracker; the music is the table's, so it's already there
@@ -465,7 +468,16 @@ on the tracker): everything works, but nothing is shared between phones.
 - **Victory screen**: when a seated player hits 13 VP, they see *Victory*,
   other seated players see *Defeat* (spectators see "X wins"). **Continue**
   returns to the tracker with numbers intact. If that player drops below 13
-  and returns, it shows again.
+  and returns, it shows again. It wears Season wins' 8-bit badges
+  (2.15.0, `ui/badges.js`, the same code and CSS): a big **crown** over
+  *Victory* (and over "X wins"), a big **turd** over *Defeat* (both at
+  1.5×, 3 px art pixels), and in the standings a crown for whoever is on
+  13 (two on 13 both get one) and a turd for everyone else — in place of
+  the color dots. It isn't redrawn while nothing it shows changes, so the
+  badges animate on undisturbed. While it's up the **mini bar** goes
+  (`MusicBar.setMiniAway("victory")` — only the mini bar: an open player
+  stays where it is, and the screen still makes room for it) and so does
+  the **winter frost**.
 - **Season wins** (`#/wins`, the trophy in the top bar — the only way in;
   it opens out of the trophy, its cards following): wins per profile per calendar year (on a screen
   ≥ 700 px wide it's larger: up to 900 px across, taller rows and calendar
@@ -904,7 +916,7 @@ catan-pangea/                       ← deployed as-is to GitHub Pages
     PlayerSettings.js               Settings → Player Settings (accent, theme, custom, Map animations, Sound effects)
     ColorPicker.js                  the color wheel pop-up (brightness, opacity, hex, preview, recent colors)
     imageExport.js, Toast.js, dom.js  PNG/share; toasts; h()/s() DOM builders
-    VictoryOverlay.js               victory / defeat screen
+    VictoryOverlay.js               victory / defeat screen (crown / turd badges; no mini bar or frost while it's up)
     Splash.js                       the intro ("Settlers of Catan") and "Welcome, Lord …"
     Sound.js                        sound effects made with Web Audio (tile clack, flip, pop, fanfare): timelines, mute (Player Settings), restarts after interruptions
     AccountLine.js                  "Sam · Sign out" in the top bar
@@ -1379,6 +1391,15 @@ your run created afterwards — never `DELETE /v1` once real data exists.
   A remote's play / pause button shows `wantsToPlay` (playing, or held with
   a play waiting). The 2.8.0 rule still stands: nothing moves the sound by
   itself — `unhold` only ever plays on the device that held it.
+- **Hiding just the mini bar** (`MusicBar.setMiniAway(reason, on)`, the
+  victory screen's `"victory"`) is not putting the music away: body
+  `data-mini-away` hides `.music-mini` only, `--music-h` reads 0 while the
+  player is closed, and `DesktopLayout` regains the mini bar's height
+  (`miniHeight` is 0). The open player is untouched — nothing holds or
+  pauses (the mini bar has no player in it) — so a play from another
+  device can still open it over nothing: the victory screen makes room
+  (`bottom:var(--music-h)`) as for any overlay. Closing the player while
+  it's hidden leaves the mini bar hidden until the reason goes.
 - **The intro is in `index.html`** (so nothing flashes before the JS
   runs); `Splash` takes it over and marks it `data-js`. Without JS it fades
   by itself after 9 s (a CSS fail-safe). It and the welcome are laid out
@@ -1421,6 +1442,16 @@ your run created afterwards — never `DELETE /v1` once real data exists.
 ## 10. Changelog
 
 Keep newest first. Every feature PR adds an entry and updates the sections above.
+
+- **2.15.0 — No frost on Season wins; crowns and turds on the victory
+  screen.** WALKER's winter frost and snow no longer cover Season wins or
+  the victory / defeat screen: they fade out while either is up and come
+  back at the same level when it closes. The victory screen wears Season
+  wins' animated 8-bit badges — a big crown over *Victory*, a big turd
+  over *Defeat*, and in the standings a crown for the winner (each, if
+  two are on 13) and a turd for everyone else, instead of the color dots
+  — and the closed music's mini bar is hidden while it's up (an open
+  player stays as it was).
 
 - **2.14.0 — Custom colors tried on as they're picked; a gentler winter.**
   In the color wheel (a custom accent or theme), letting go of the wheel —

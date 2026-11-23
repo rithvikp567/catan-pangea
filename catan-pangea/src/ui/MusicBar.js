@@ -46,7 +46,8 @@
  * It can also be put away for a while (setAway: the season wins screen, the
  * sign-in screen, the intro and the welcome): nothing of it shows, and
  * since a hidden player mustn't play, the device playing the sound pauses
- * it — and plays on when it's back.
+ * it — and plays on when it's back. Or just the mini bar can be hidden for
+ * a while (setMiniAway: the victory screen): the open player is untouched.
  */
 import { h } from "./dom.js";
 import { describePlayerError, parsePlaylist, playlistUrl, thumbnailUrl } from "../music/playlist.js";
@@ -186,6 +187,7 @@ export class MusicBar {
     this.dock = "bar";           /* "bar" (phones), or desktop's left column: "column" (big player + songs) / "compact" */
     this.away = new Set();       /* why the music is put away for now ("wins", "join", "splash", "welcome"); empty: it shows */
     this.awayListeners = new Set();
+    this.miniAway = new Set();   /* why the mini bar is hidden for now ("victory"); the open player is left as it is */
     this.holdKey = null;         /* the hold / unhold last sent (once per shared change) */
     this.swipe = null;           /* the mini bar's song, swiped away: { dir, at } until the next song shows */
     this.miniSongId = null;
@@ -205,10 +207,12 @@ export class MusicBar {
   get isOpen(){ return !this.el.hidden; }
   /** Put away for now (season wins, the sign-in screen, the intro, the welcome): nothing of the music shows. */
   get isAway(){ return this.away.size > 0; }
+  /** The mini bar is hidden for now (the victory screen) — only the closed bar: the open player still shows. */
+  get isMiniAway(){ return this.miniAway.size > 0; }
 
   /** How much of the window's height the mini bar takes along the bottom — its card and the gap
-      under it (0 while the player is open, or the music is away). */
-  get miniHeight(){ return this.isOpen || this.isAway ? 0 : footprint(this.mini, "bottom"); }
+      under it (0 while the player is open, the music is away, or the mini bar is hidden). */
+  get miniHeight(){ return this.isOpen || this.isAway || this.isMiniAway ? 0 : footprint(this.mini, "bottom"); }
 
   /** A button elsewhere (map toolbar, tracker header) that opens / closes the bar. */
   addOpener(button){
@@ -221,7 +225,7 @@ export class MusicBar {
 
   /** Called after the bar opens or closes (the desktop layout makes room). */
   onToggle(fn){ this.toggleListeners.add(fn); }
-  /** Called when the music is put away or comes back. */
+  /** Called when the music is put away or comes back (or the mini bar is hidden or comes back). */
   onAway(fn){ this.awayListeners.add(fn); }
 
   /**
@@ -254,6 +258,25 @@ export class MusicBar {
   }
 
   /**
+   * Hide the mini bar for a reason (or bring it back once no reason is
+   * left) — the victory screen. Only the mini bar: if the player is open it
+   * stays open and playing, and if it opens meanwhile (a play from another
+   * device) it shows as usual. The mini bar has no player in it, so nothing
+   * needs pausing.
+   */
+  setMiniAway(reason, on){
+    const was = this.isMiniAway;
+    if(on) this.miniAway.add(reason); else this.miniAway.delete(reason);
+    const now = this.isMiniAway;
+    if(now === was) return;
+    if(now && !this.isOpen){ this.#showSongs(false); this.#showPop(false); }   /* the sheets opened from the mini bar */
+    document.body.toggleAttribute("data-mini-away", now);   /* css/music.css hides the mini bar */
+    this.#measure();
+    for(const fn of this.awayListeners) fn(this.isAway);
+    if(!now && !this.isOpen) this.#enter(this.mini);
+  }
+
+  /**
    * On the speaker: hold the shared playback while the music is put away,
    * and let go once it's back — also after a reload, when this page never
    * put it away itself.
@@ -281,7 +304,7 @@ export class MusicBar {
 
   /** Slide in (css/music.css, .is-entering — which way depends on where it's docked). */
   #enter(el){
-    if(el.hidden || this.isAway || reducedMotion()) return;
+    if(el.hidden || this.isAway || (el === this.mini && this.isMiniAway) || reducedMotion()) return;
     el.classList.remove("is-entering");
     void el.offsetWidth;                     /* restart the animation */
     el.classList.add("is-entering");
@@ -926,8 +949,8 @@ export class MusicBar {
       root.setProperty("--music-w", "0px");
       return;
     }
-    if(!this.isOpen){                                 /* the mini bar: always along the bottom */
-      root.setProperty("--music-h", `${footprint(this.mini, "bottom")}px`);
+    if(!this.isOpen){                                 /* the mini bar: always along the bottom (unless it's hidden for now) */
+      root.setProperty("--music-h", this.isMiniAway ? "0px" : `${footprint(this.mini, "bottom")}px`);
       root.setProperty("--music-w", "0px");
       return;
     }

@@ -12,6 +12,9 @@
  *     the top. It grows and recedes smoothly.
  *   - Back to 0 (the word started over): everything fades out slowly
  *     instead of vanishing.
+ *   - Put away for a while (setAway: the season wins and the victory
+ *     screens): it fades out quickly and stops, and comes back at the
+ *     same level when they close.
  *
  * Purely decorative: pointer-events none. Drawn over everything (the music
  * bar included) except what keepClear() names — the YouTube player, which
@@ -78,8 +81,10 @@ export class WinterEffect {
     this.drawnFrost = -1;
     this.flakes = [];
     this.running = false;
+    this.loop = 0;                /* the animation loop running (a new one replaces it: never two at once) */
     this.fading = false;
     this.clearOf = [];            /* elements winter never covers */
+    this.away = new Set();        /* why it's put away for now ("wins", "victory"); empty: it shows */
     this.clipKey = "";
 
     this.frostCanvas = h("canvas", { class:"winter-frost" });
@@ -119,6 +124,21 @@ export class WinterEffect {
     this.el.style.clipPath = holes.length ? `polygon(evenodd, ${pts.join(", ")})` : "";
   }
 
+  /**
+   * Put winter away for a reason (or bring it back once no reason is left):
+   * the season wins and the victory screens show without it. The level is
+   * kept, so it comes back just as it was.
+   */
+  setAway(reason, on){
+    const was = this.away.size > 0;
+    if(on) this.away.add(reason); else this.away.delete(reason);
+    const now = this.away.size > 0;
+    if(now === was) return;
+    this.el.classList.toggle("is-away", now);            /* css/winter.css */
+    if(now) this.running = false;                         /* (the snow stops; the frost stays drawn, out of sight) */
+    else if(this.level > 0 && !this.fading) this.#restart();
+  }
+
   /** @param {number} level  letters lit, 0…max */
   set(level){
     level = Math.max(0, Math.min(this.max, Number(level) || 0));
@@ -147,6 +167,7 @@ export class WinterEffect {
   /* ---------------- lifecycle ---------------- */
 
   #restart(){
+    if(this.away.size) return;                            /* put away: it starts again when it's back */
     if(this.reduced.matches){
       this.running = false;
       this.flakes = [];
@@ -159,7 +180,8 @@ export class WinterEffect {
     if(this.running) return;
     this.running = true;
     this.last = this.lastDraw = performance.now();
-    requestAnimationFrame(t => this.#tick(t));
+    const loop = ++this.loop;
+    requestAnimationFrame(t => this.#tick(t, loop));
   }
 
   #fadeOut(){
@@ -257,9 +279,9 @@ export class WinterEffect {
     };
   }
 
-  #tick(now){
-    if(!this.running) return;
-    if(!this.snowCtx){ this.#resize(); requestAnimationFrame(n => this.#tick(n)); return; }   /* not laid out yet */
+  #tick(now, loop){
+    if(!this.running || loop !== this.loop) return;
+    if(!this.snowCtx){ this.#resize(); requestAnimationFrame(n => this.#tick(n, loop)); return; }   /* not laid out yet */
     const dt = Math.min(.05, (now - this.last) / 1000);
     this.last = now;
     this.#clip();
@@ -289,7 +311,7 @@ export class WinterEffect {
     }
 
     if(now - this.lastDraw >= FRAME_MS){ this.lastDraw = now; this.#drawSnow(now); }
-    requestAnimationFrame(n => this.#tick(n));
+    requestAnimationFrame(n => this.#tick(n, loop));
   }
 
   #drawSnow(now){
