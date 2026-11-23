@@ -1,19 +1,25 @@
 /**
- * All game-tracker operations, applied to a store (see sync/MemoryStore
- * for the contract). Every change to shared numbers is a transaction, so
- * two phones tapping at once never lose an update or break a limit.
+ * The game tracker's operations on the store (see sync/MemoryStore for
+ * the contract): profiles, rooms, the wins ledger and the music. What's
+ * played inside a room — its game, seats, counters and battles — is a
+ * RoomService (`room(id)`). Every change to shared numbers is a
+ * transaction, so two phones tapping at once never lose an update or
+ * break a limit.
  *
  * Data layout (under `root`, default "v1"):
  *   profiles/{profileId}  { name, createdAt, deviceId, look? }  — look: the Player Settings (game/looks.js) + at,
  *                           (theme, accent, custom colors, animations, sounds), on every device they sign in on
- *   session               { meta, board, settings, seats/{s0…}, counters }  — the one active game
+ *   rooms/{roomId}        { info:{ name, createdAt, createdBy?, activeAt, mods }, session:{ meta, board, settings,
+ *                           seats/{s0…}, counters, battles? } }  — the day's games (RoomService); a room nobody
+ *                           has touched for ROOM_TTL_MS is closed
  *   wins/{season}/{entryId} { profileId, delta, source, sessionId?, at, scores? }  — the wins ledger
  *                           (scores: { profileId: { vp, color } } — everyone's points when a game was won)
- *   music                 { listId, setAt, setBy }  — the table's YouTube playlist
+ *   music                 { listId, setAt, setBy }  — the table's YouTube playlist (one for every room)
  *   playback              { queue, now, beat }  — the table's music as one shared playback: the song,
  *                           the order, playing or paused, the time, and which device plays the sound
  *                           (see music/playback.js; watched on its own, not part of GameState — it
  *                           changes with every tap on the music and every few seconds while it plays)
+ *   session               (before 3.0.0: the one game everyone shared; no longer read)
  *
  * Transactions abort (return undefined) when their node is missing. The
  * RTDB may call a transaction with null when nothing is cached, so the app
@@ -21,19 +27,18 @@
  * start from cached data and Firebase retries them against the server.
  */
 import { GameState } from "./GameState.js";
+import { GameError } from "./GameError.js";
+import { RoomService } from "./RoomService.js";
+import { Mods } from "./mods.js";
 import { parsePlaylist } from "../music/playlist.js";
 import { COMMANDS as PLAYBACK } from "../music/playback.js";
 import { cleanLook } from "./looks.js";
-import {
-  MAX_VP, COUNTERS, clampVP, stepCounter, abstainKarma, robKarma, newSession, carrySeats, validateName,
-} from "./rules.js";
+import { newSession, validateName, ROOM_NAME_MAX, ROOM_TTL_MS } from "./rules.js";
 
-export class GameError extends Error {
-  constructor(code, message){ super(message); this.name = "GameError"; this.code = code; }
-}
+export { GameError };
 
 /** The synced branches under root that make up a GameState. */
-const BRANCHES = ["profiles", "session", "wins", "music"];
+const BRANCHES = ["profiles", "rooms", "wins", "music"];
 
 const randomId = (prefix, random) => prefix + Date.now().toString(36) + Math.floor(random() * 36 ** 6).toString(36).padStart(6, "0");
 
@@ -51,6 +56,7 @@ export class GameService {
   }
 
   #p(...parts){ return [this.root, ...parts].join("/"); }
+  #newId(prefix){ return randomId(prefix, this.random); }
 
   /**
    * Live GameState on every change, once every branch has loaded.
@@ -67,8 +73,8 @@ export class GameService {
   }
 
   async state(){
-    const [profiles, session, wins, music] = await Promise.all(BRANCHES.map(b => this.store.get(this.#p(b))));
-    return new GameState({ profiles, session, wins, music });
+    const [profiles, rooms, wins, music] = await Promise.all(BRANCHES.map(b => this.store.get(this.#p(b))));
+    return new GameState({ profiles, rooms, wins, music });
   }
 
   /* ---------------- profiles ---------------- */
@@ -86,12 +92,14 @@ export class GameService {
     return id;
   }
 
-  /** Admin: delete a profile, free its seat and drop its wins. */
+  /** Admin: delete a profile, free its seat in every room and drop its wins. */
   async removeProfile(profileId){
     const state = await this.state();
     const patch = { [`profiles/${profileId}`]: null, [`listening/${profileId}`]: null };   /* (listening: per-profile music spots, before 2.7.0) */
-    const seat = state.session && Object.entries(state.session.seats ?? {}).find(([, s]) => s.profileId === profileId);
-    if(seat){ patch[`session/seats/${seat[0]}/profileId`] = null; patch[`session/seats/${seat[0]}/color`] = null; }
+    for(const room of state.roomMap.values()){
+      const seat = room.session && Object.entries(room.session.seats ?? {}).find(([, s]) => s.profileId === profileId);
+      if(seat){ for(const k of ["profileId", "color"]) patch[`rooms/${room.id}/session/seats/${seat[0]}/${k}`] = null; }
+    }
     for(const [season, entries] of Object.entries(state.wins)){
       for(const [eid, e] of Object.entries(entries)) if(e.profileId === profileId) patch[`wins/${season}/${eid}`] = null;
     }
@@ -125,115 +133,59 @@ export class GameService {
     return res.committed;
   }
 
-  /* ---------------- session ---------------- */
+  /* ---------------- rooms ---------------- */
+
+  /** What's played inside a room: its game, seats, counters, battles. */
+  room(roomId){
+    return new RoomService(this.store, { root:this.root, roomId, deviceId:this.deviceId, now:this.now, newId:p => this.#newId(p) });
+  }
 
   /**
-   * Make a board the active game for everyone. With onlyIfNone, it only
-   * takes effect when no game exists yet (the first player online sets the
-   * seed); otherwise it replaces the current game, and everyone seated
-   * keeps their seat and color (scores and counters start over).
-   * @returns {Promise<boolean>} whether this board became the session
+   * Open a room: its name and mods, and a first game on the board given
+   * (the map on the creator's screen).
+   * @param {object} p
+   * @param {string} p.name
+   * @param {object} p.mods         Mods (or its JSON)
+   * @param {object} p.board        BoardSnapshot
+   * @param {object} p.settings     Settings#toJSON() the board was made with
+   * @param {string|null} [p.createdBy]  profile id
+   * @returns {Promise<string>} the room's id
    */
-  async publishBoard(snapshot, settings, { createdBy = null, onlyIfNone = false, buildAt = null } = {}){
-    const session = newSession({ id:randomId("s_", this.random), board:snapshot, settings, createdAt:this.now(), createdBy, buildAt });
-    const profiles = onlyIfNone ? {} : (await this.store.get(this.#p("profiles"))) ?? {};
-    const res = await this.store.transact(this.#p("session"), cur => {
-      if(onlyIfNone) return cur?.meta ? undefined : session;
-      return carrySeats(session, cur?.seats, id => id in profiles);
+  async createRoom({ name, mods, board, settings, createdBy = null }){
+    const state = await this.state();
+    const taken = state.rooms(this.now()).map(r => r.name);
+    const res = validateName(name, taken, ROOM_NAME_MAX);
+    if(res.error) throw new GameError("bad-room-name", res.error === "That name is taken." ? "A game today already has that name." : res.error);
+    const id = this.#newId("r_"), t = this.now();
+    const session = newSession({ id:this.#newId("s_"), board, settings, createdAt:t, createdBy });
+    await this.store.set(this.#p("rooms", id), {
+      info:{ name:res.name, createdAt:t, activeAt:t, ...(createdBy ? { createdBy } : {}), mods:new Mods(mods).toJSON() },
+      session,
     });
-    return res.committed;
+    return id;
   }
 
-  /** Take a seat (or change color if already seated). */
-  async join(profileId, color){
-    let outcome = null;
-    const res = await this.store.transact(this.#p("session", "seats"), seats => {
-      if(!seats){ outcome = "no-session"; return undefined; }
-      const entries = Object.entries(seats);
-      if(entries.some(([, s]) => s.color === color && s.profileId && s.profileId !== profileId)){ outcome = "color-taken"; return undefined; }
-      const mine = entries.find(([, s]) => s.profileId === profileId)
-                ?? entries.sort(([a], [b]) => a.localeCompare(b, undefined, { numeric:true })).find(([, s]) => !s.profileId);
-      if(!mine){ outcome = "full"; return undefined; }
-      outcome = "ok";
-      return { ...seats, [mine[0]]: { ...mine[1], profileId, color } };
-    });
-    if(!res.committed){
-      const msg = { "no-session":"No game yet — generate a map first.", "color-taken":"Someone just took that color.", full:"Every seat is taken." };
-      throw new GameError(outcome ?? "failed", msg[outcome] ?? "Couldn't join the game.");
-    }
-  }
-
-  async leave(profileId){
-    await this.store.transact(this.#p("session", "seats"), seats => {
-      if(!seats) return undefined;
-      const mine = Object.entries(seats).find(([, s]) => s.profileId === profileId);
-      if(!mine) return undefined;
-      const { profileId:_p, color:_c, ...rest } = mine[1];
-      return { ...seats, [mine[0]]: rest };
-    });
-  }
-
-  /* ---------------- trackers ---------------- */
+  /** Close a room for everyone (anyone may — a trusted table). */
+  async deleteRoom(roomId){ await this.store.remove(this.#p("rooms", roomId)); }
 
   /**
-   * Change a seat's VP. Reaching MAX_VP records a win for the seated
-   * profile in this game's season; dropping back below removes it — so a
-   * corrected score corrects the season tally too.
+   * Delete the rooms nobody has touched for ROOM_TTL_MS. Each is checked
+   * again inside a transaction, so a room that came back to life a moment
+   * ago is kept.
+   * @returns {Promise<number>} how many were closed
    */
-  async adjustVP(key, delta){
-    const meta = await this.store.get(this.#p("session", "meta"));
-    if(!meta) return;
-    let before = 0, profileId = null;
-    const res = await this.store.transact(this.#p("session", "seats", key), seat => {
-      if(!seat) return undefined;
-      before = seat.vp ?? 0; profileId = seat.profileId ?? null;
-      const vp = clampVP(before + delta);
-      return vp === before ? undefined : { ...seat, vp };
-    });
-    if(!res.committed || !profileId) return;
-    const after = res.value.vp, winPath = this.#p("wins", meta.season, `${meta.id}_${profileId}`);
-    if(before < MAX_VP && after >= MAX_VP){
-      /* everyone's points at the moment of the win (the calendar on the season wins screen shows them) */
-      const seats = (await this.store.get(this.#p("session", "seats"))) ?? {};
-      const scores = {};
-      for(const s of Object.values(seats)) if(s?.profileId) scores[s.profileId] = { vp:s.vp ?? 0, ...(s.color ? { color:s.color } : {}) };
-      scores[profileId] = { ...scores[profileId], vp:after };
-      await this.store.set(winPath, { profileId, delta:1, source:"game", sessionId:meta.id, at:this.now(), scores });
-    }else if(before >= MAX_VP && after < MAX_VP){
-      await this.store.remove(winPath);
+  async pruneRooms(){
+    const t = this.now(), rooms = (await this.store.get(this.#p("rooms"))) ?? {};
+    let closed = 0;
+    for(const id of Object.keys(rooms)){
+      const res = await this.store.transact(this.#p("rooms", id), r => {
+        if(!r) return undefined;
+        const active = r.info?.activeAt ?? r.info?.createdAt ?? 0;
+        return t - active >= ROOM_TTL_MS ? null : undefined;
+      });
+      if(res.committed) closed++;
     }
-  }
-
-  /** Flip your own honor coin. Other players' coins are read-only. */
-  async flipCoin(key, profileId){
-    const res = await this.store.transact(this.#p("session", "seats", key), seat => {
-      if(!seat || seat.profileId !== profileId) return undefined;
-      return { ...seat, honorable: seat.honorable === false };
-    });
-    if(!res.committed) throw new GameError("not-your-coin", "You can only flip your own coin.");
-  }
-
-  /** Any COUNTERS entry (knights per island, cities, karma, walker) by ±n, within its bounds (the walker wraps). */
-  async adjustCounter(name, delta){
-    const rule = COUNTERS[name];
-    if(!rule) throw new GameError("bad-counter", `Unknown counter ${name}`);
-    const players = await this.store.get(this.#p("session", "meta", "players"));
-    if(!players) return;
-    await this.store.transact(this.#p("session", "counters"), c => {
-      if(!c) return undefined;
-      const next = stepCounter(rule, c[name] ?? 0, delta, players);
-      return next === (c[name] ?? 0) ? undefined : { ...c, [name]: next };
-    });
-  }
-
-  /** Abstain: karma +1, and the robber is worth one more (up to 3). */
-  async abstainRobber(){
-    await this.store.transact(this.#p("session", "counters"), c => c ? { ...c, ...abstainKarma(c.karma ?? 0, c.robber ?? 1) } : undefined);
-  }
-
-  /** Rob: karma goes down by the robber's value, and the robber starts over at 1. */
-  async rob(){
-    await this.store.transact(this.#p("session", "counters"), c => c ? { ...c, ...robKarma(c.karma ?? 0, c.robber ?? 1) } : undefined);
+    return closed;
   }
 
   /* ---------------- wins (admin) ---------------- */
@@ -260,6 +212,19 @@ export class GameService {
     if(res.error) throw new GameError("bad-playlist", res.error);
     await this.store.set(this.#p("music"), { listId:res.listId, setAt:this.now(), setBy:profileId ?? null });
     return res.listId;
+  }
+
+  /**
+   * Have the table's playlist read again — the same list, a new `setAt` —
+   * so videos added on YouTube since join the queue (the song playing
+   * carries on). With `ifSetAt`, only if nobody has done it since then:
+   * ten phones opening at once re-read it once.
+   * @returns {Promise<boolean>} whether this call asked for it
+   */
+  async refreshPlaylist(ifSetAt = null){
+    const res = await this.store.transact(this.#p("music"), cur =>
+      !cur?.listId || (ifSetAt != null && cur.setAt !== ifSetAt) ? undefined : { ...cur, setAt:this.now() });
+    return res.committed;
   }
 
   /**

@@ -57,6 +57,10 @@ button{ touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
 /* the logo and the name; "Sam · Sign out" (AccountLine) right of them — under the name on a phone, where
    the icons need the row; a tile of its own at the right on desktop */
 .brand-mark{ display:flex; align-items:center; gap:8px; min-width:0; }
+/* Pangaea is a button: back to today's games */
+button.brand-mark{ font:inherit; color:inherit; background:none; border:0; margin:0; padding:0; cursor:pointer; text-align:left; border-radius:8px; }
+button.brand-mark:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+@media (hover:hover){ button.brand-mark:hover .brand-name{ text-decoration:underline; text-underline-offset:3px; text-decoration-thickness:1px; } }
 .brand svg{ width:20px; height:20px; flex:none; }
 .brand-name{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .account{ display:inline-flex; align-items:baseline; gap:5px; min-width:0; font-size:13.5px; font-weight:500; letter-spacing:0; color:var(--ink-3); white-space:nowrap; }
@@ -68,11 +72,14 @@ button{ touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
 .account-btn:hover{ color:var(--ink); }
 @media (max-width:599px), (orientation:landscape) and (max-height:559px){
   /* the logo beside two lines: the name, and who's signed in under it */
-  .brand{ display:grid; grid-template-columns:auto minmax(0, 1fr); align-items:center; gap:1px 8px; line-height:1.15; }
-  .brand-mark{ display:contents; }
-  .brand svg{ grid-row:1 / span 2; }
+  .brand{ display:grid; grid-template-columns:auto minmax(0, 1fr); grid-template-rows:auto auto; align-items:center; gap:1px 8px; line-height:1.15; }
+  /* (Pangaea, the button, covers the logo and the name's row — and the line under it, where who's signed in
+     sits on top: a subgrid, so the logo still spans both lines) */
+  .brand-mark{ display:grid; grid-template-columns:subgrid; grid-template-rows:subgrid; grid-column:1 / -1; grid-row:1 / span 2; align-items:center; }
+  .brand svg{ grid-column:1; grid-row:1 / span 2; }
   .brand:has(> .account[hidden]) svg{ grid-row:1; }     /* (nobody's line yet — no game: the name alone, beside the logo) */
-  .brand-name, .account{ grid-column:2; }
+  .brand-name{ grid-column:2; grid-row:1; }
+  .account{ grid-column:2; grid-row:2; position:relative; }
   .account{ justify-self:start; font-size:12px; max-width:100%; }
 }
 /* a narrow phone: the logo steps aside so the icons keep their room */

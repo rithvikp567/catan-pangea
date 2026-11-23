@@ -147,6 +147,40 @@ body[data-desk] .screen[data-screen="tracker"][data-leave]{ animation-name:dock-
 .install-card .btn{ min-height:40px; padding:0 14px; }
 .install-card .icon-btn{ flex:none; width:36px; height:36px; }
 
+/* ---------- today's games (RoomsScreen) ---------- */
+.room-list{ display:flex; flex-direction:column; gap:10px; }
+.room-list .empty{ margin:0; padding:22px 16px; text-align:center; border:1px dashed var(--accent-line); border-radius:18px; }
+.room-card{ margin:0; padding:14px 14px 14px 16px; border-radius:18px; display:flex; flex-direction:column; gap:8px; }
+.room-card[data-here="true"]{ border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+.room-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.room-name{ margin:0; min-width:0; font-size:19px; font-weight:700; letter-spacing:-.01em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.room-delete{ flex:none; width:36px; height:36px; margin:-6px -6px -6px 0; color:var(--ink-2); }
+.room-delete svg{ width:20px; height:20px; }
+.room-meta{ margin:-4px 0 0; font-size:14px; color:var(--ink-2); }
+.room-chips{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.room-who{ display:inline-flex; margin-right:4px; }
+.room-avatar{ width:28px; height:28px; font-size:12px; text-shadow:none; box-shadow:0 0 0 2px var(--surface); }
+.room-avatar + .room-avatar{ margin-left:-6px; }
+.chip{
+  display:inline-flex; align-items:center; min-height:26px; padding:0 10px; border-radius:999px;
+  font-size:12.5px; font-weight:600; color:var(--ink-2); background:var(--surface-2); border:1px solid var(--line);
+}
+.room-open{ min-height:48px; border-radius:14px; margin-top:2px; }
+.room-new{ width:100%; min-height:54px; border-radius:14px; margin-top:14px; }
+
+/* ---------- New game: the room's name and mods (ModsScreen) ---------- */
+.screen[data-screen="mods"] .screen-inner{ max-width:520px; }
+.mods-form{ display:flex; flex-direction:column; }
+.mods-form .card-title{ margin-bottom:8px; }
+.room-name-input{
+  width:100%; min-height:48px; padding:0 14px; border-radius:12px; font:inherit; font-size:16px;
+  border:1px solid var(--accent-line); background:var(--surface-2); color:var(--ink);
+}
+.mods-toggles{ display:flex; flex-direction:column; }
+.mods-toggles > * + *{ border-top:1px solid var(--line); }
+.mods-vp[data-off="true"] .stepper output{ color:var(--ink-3); }
+.mods-form > .btn.primary{ min-height:54px; border-radius:14px; margin-top:16px; }
+
 .join-foot{ display:flex; flex-direction:column; align-items:center; gap:6px; margin-top:28px; }
 .join-foot .screen-links{ margin:0; gap:0 22px; }
 .join-foot .link-btn{ text-decoration:none; color:var(--ink-2); }
@@ -184,17 +218,34 @@ body[data-desk] .screen[data-screen="tracker"][data-leave]{ animation-name:dock-
    A container query, not a media query: the music column can take width away. */
 .screen[data-screen="tracker"]{ container-type:size; }   /* (size: the seat rows share its height too) */
 @media (min-width:760px){ .screen[data-screen="tracker"] .screen-inner{ max-width:880px; } }
-/* (DesktopLayout's MAX_LEFT keeps its left column just under this, so the docked tracker stays one column) */
-@container (min-width:760px){
-  .tracker-grid{ grid-template-columns:minmax(0,1fr) minmax(0,1fr); grid-template-rows:auto 1fr; }
-  .tracker-grid > :first-child{ grid-row:span 2; }
+/* the players and the knights: stacked on a phone (the pair's cards flow like the others) … */
+.tracker-pair{ display:contents; }
+/* … side by side on a wider screen (3.0.0 — the desktop column at its default 420 px, a tablet): the players
+   a square on the left, the knights a square on the right, the same height; the rows a little more
+   compact to make room for the names. A base game board has no knights: the players take the row. */
+@container (min-width:400px){
+  .tracker-pair{ display:grid; grid-template-columns:minmax(0,1.5fr) minmax(0,1fr); gap:8px; align-items:stretch; margin-top:8px; }
+  .tracker-pair > .card{ margin-top:0 !important; }
+  .tracker-pair:has(> .ck-card[hidden]){ grid-template-columns:minmax(0,1fr); }
+  /* (in the square: a smaller coin, the number narrower, and no "you" — your coin's ring says it) */
+  .tracker-pair:has(> .ck-card:not([hidden])) .vp-row{ grid-template-columns:30px minmax(0,1fr) auto; gap:8px; }
+  .tracker-pair:has(> .ck-card:not([hidden])) .coin{ width:30px; height:30px; }
+  .tracker-pair:has(> .ck-card:not([hidden])) .vp-name .you{ display:none; }
+  .tracker-pair:has(> .ck-card:not([hidden])) .vp-control .counter-value{ min-width:2ch; width:2.2ch; }
+  .tracker-pair:has(> .ck-card:not([hidden])) .vp-max{ min-width:0; font-size:11px; }
+  .ck-card .card-title{ letter-spacing:.03em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  /* the knights' square: its tiles one over another (a label over its stepper), Battle at the bottom */
+  .ck-card{ display:flex; flex-direction:column; }
+  .ck-card .ck-tiles{ flex:1; grid-template-columns:minmax(0,1fr) !important; align-content:space-between; gap:4px; }
+  .ck-card .battle-tile .tile-label{ display:none; }
+  .ck-card .battle-tile .battle-btn{ width:100%; }
+  .ck-card .battle-btn .battle-btn-text{ display:inline; }
 }
 
-/* --tracker-chrome: everything on the screen except the seat rows (header,
-   meta line, card titles and padding, the two shared cards), measured at
-   phone width. Change it if you add or resize anything around the rows. */
-.vp-list{ --tracker-chrome:404px; --tracker-chrome-tight:290px; --chrome:var(--tracker-chrome); }
-.screen[data-fit="tight"] .vp-list{ --chrome:var(--tracker-chrome-tight); }
+/* --tracker-chrome: everything on the screen except the seat rows (header, meta line, card titles and
+   padding, the other cards) — TrackerScreen measures it as laid out (fewer mods, fewer tiles: more
+   room for the rows), roomy or tight */
+.vp-list{ --chrome:var(--tracker-chrome, 404px); }
 .vp-row{
   display:grid; grid-template-columns:36px minmax(0,1fr) auto; align-items:center; gap:10px;
   min-height:clamp(42px, calc((100cqh - var(--chrome)) / var(--seats, 4)), 54px);   /* 100cqh: the screen's height, inside the music bar and the notch */
@@ -213,12 +264,14 @@ body[data-desk] .screen[data-screen="tracker"][data-leave]{ animation-name:dock-
 .screen[data-screen="tracker"][data-fit="tight"] .screen-head{ padding:2px 0; }
 .screen[data-screen="tracker"][data-fit="tight"] .card{ padding:6px 10px 8px; margin-top:6px; }
 .screen[data-screen="tracker"][data-fit="tight"] .screen-inner{ padding-bottom:8px; }
-/* the two shared cards read as one */
-.screen[data-screen="tracker"][data-fit="tight"] .tracker-grid > .card:nth-child(2){
-  padding-bottom:4px; border-bottom:0; border-bottom-left-radius:0; border-bottom-right-radius:0;
-}
-.screen[data-screen="tracker"][data-fit="tight"] .tracker-grid > .card:nth-child(3){
-  margin-top:0; padding-top:4px; border-top:0; border-top-left-radius:0; border-top-right-radius:0;
+/* the two shared cards read as one (stacked, on a phone) */
+@container (max-width:399px){
+  .screen[data-fit="tight"] .tracker-pair:has(+ .karma-card:not([hidden])) > .ck-card{
+    padding-bottom:4px; border-bottom:0; border-bottom-left-radius:0; border-bottom-right-radius:0;
+  }
+  .screen[data-fit="tight"] .tracker-pair:has(> .ck-card:not([hidden])) + .karma-card{
+    margin-top:0; padding-top:4px; border-top:0; border-top-left-radius:0; border-top-right-radius:0;
+  }
 }
 .screen[data-fit="tight"] .tile{ gap:2px; }
 .screen[data-fit="tight"] .tile-label{ font-size:12px; }
@@ -295,6 +348,15 @@ body[data-desk] .screen[data-screen="tracker"][data-leave]{ animation-name:dock-
 .tile .counter-value{ flex:1 1 auto; min-width:2ch; height:40px; font-size:20px; }
 .tile .counter-value.is-signed{ min-width:3.6ch; }
 .tiles.is-karma .counter{ gap:6px; }
+
+/* Battle (knight duels): on a phone a fourth, narrow tile beside the counters — the swords under its
+   label; on a wider screen a full-width button at the bottom of the knights' square */
+.ck-card[data-battle] .ck-tiles{ grid-template-columns:repeat(3, minmax(0,1fr)) auto; }
+.battle-btn{ height:40px; min-height:40px; padding:0 12px; gap:8px; border-radius:10px; font-size:14px; }
+.battle-btn .icon{ display:inline-flex; width:20px; height:20px; }
+.battle-btn .icon svg{ width:100%; height:100%; }
+.battle-btn-text{ display:none; }
+.screen[data-fit="tight"] .battle-btn{ height:36px; min-height:36px; }
 
 /* the robber (1–3): Abstain (its pips show the value) and Rob: −N */
 .robber-acts{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:6px; }
@@ -553,6 +615,168 @@ body[data-desk] .wins-pop{ left:var(--left-w); }
 .victory-standings li{ display:grid; grid-template-columns:40px 1fr auto; align-items:center; gap:10px; min-height:44px; border-top:1px solid var(--line); }
 .victory-standings li[data-winner="true"]{ font-weight:700; }
 .victory-card .btn{ width:100%; }
+
+/* ---------- battle: knight duels (ui/BattleOverlay.js) — placed like the victory screen ---------- */
+.battle{
+  position:fixed; inset:0; z-index:71; display:grid; place-items:center; padding:24px 16px;
+  background:color-mix(in srgb, var(--bg) 70%, transparent);
+  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  animation:content-in .2s ease;
+}
+.battle[hidden]{ display:none; }
+.battle-card{
+  position:relative; width:min(400px, 100%); padding:22px 18px 18px; text-align:center;
+  background:var(--surface); border:1px solid var(--accent-line); border-radius:24px; box-shadow:var(--shadow);
+  animation:screen-in .24s cubic-bezier(.2,.8,.2,1);
+}
+.battle-close{ position:absolute; top:10px; right:10px; }
+.battle-title{ display:flex; align-items:center; justify-content:center; gap:8px; margin:2px 40px 16px; font-size:22px; font-weight:800; letter-spacing:-.01em; }
+.battle-title-icon{ display:inline-grid; width:22px; height:22px; }
+.battle-title-icon svg{ width:100%; height:100%; }
+
+/* who to battle: a name each, with the cards they have left */
+.battle-foes{ display:grid; gap:8px; }
+.battle-foe, .battle-foe-row{
+  display:grid; grid-template-columns:36px minmax(0, 1fr) auto; align-items:center; gap:10px;
+  padding:10px 12px; border-radius:14px; text-align:left;
+}
+.battle-foe{ border:1px solid var(--accent-line); background:var(--surface); color:var(--ink); font:inherit; cursor:pointer; }
+.battle-foe:hover{ background:var(--surface-2); }
+.battle-foe:active{ transform:scale(.98); }
+.battle-foe-row{ margin-bottom:6px; background:var(--surface-2); }
+.battle-foe-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:700; }
+.battle-avatar{ width:36px; height:36px; font-size:16px; }
+.battle-avatar.is-big{ width:64px; height:64px; font-size:28px; }
+/* the foe is ready: their avatar rings */
+.battle-foe-row[data-ready="true"] .battle-avatar{ box-shadow:0 0 0 3px var(--surface-2), 0 0 0 5px var(--c); animation:ready-ring 1.2s ease-in-out infinite; }
+@keyframes ready-ring{ 50%{ box-shadow:0 0 0 3px var(--surface-2), 0 0 0 8px color-mix(in srgb, var(--c) 30%, transparent); } }
+
+/* the cards 1–6: lit while they're left, greyed once spent */
+.battle-cards{ display:flex; justify-content:center; gap:8px; }
+.battle-num{
+  flex:1 1 0; max-width:48px; aspect-ratio:1; display:grid; place-items:center; padding:0;
+  border:0; border-radius:12px; background:var(--c, var(--surface-2)); color:var(--k-ink, var(--ink));
+  box-shadow:inset 0 0 0 1px rgb(0 0 0 / .14);
+  font:inherit; font-size:20px; font-weight:800; font-variant-numeric:tabular-nums;
+}
+.battle-num[data-spent="true"]{
+  background:transparent; color:var(--ink-3); box-shadow:inset 0 0 0 1.5px var(--line);
+  text-decoration:line-through; text-decoration-thickness:2px;
+}
+button.battle-num{ cursor:pointer; transition:transform .16s cubic-bezier(.3,1.4,.5,1), box-shadow .16s ease; }
+button.battle-num:not(:disabled):active{ transform:scale(.92); }
+button.battle-num[aria-pressed="true"]{
+  transform:translateY(-5px) scale(1.06);
+  box-shadow:inset 0 0 0 1px rgb(0 0 0 / .14), 0 0 0 3px var(--surface), 0 0 0 5px var(--ink), 0 10px 16px -8px rgb(0 0 0 / .5);
+}
+button.battle-num:disabled{ cursor:default; }
+.battle-cards.is-small{ gap:4px; }
+.battle-cards.is-small .battle-num{ flex:0 0 22px; width:22px; border-radius:6px; font-size:12px; }
+.battle-cards.is-small .battle-num[data-spent="true"]{ text-decoration-thickness:1.5px; }
+
+/* your knight: three circles in your color; the one picked moves to the middle and the others fold in under it */
+.battle-knights{ position:relative; height:104px; margin:10px 0 12px; }
+.knight{
+  --size:64px;
+  display:grid; place-items:center; width:var(--size); height:var(--size); padding:0; border-radius:50%;
+  background:var(--c); color:var(--k-ink); border:3px solid color-mix(in srgb, var(--k-ink) 22%, transparent);
+  box-shadow:0 0 0 1px var(--line), 0 6px 14px -8px rgb(0 0 0 / .5);
+}
+.knight-pips{ display:flex; gap:5px; }
+.knight-pips i{ width:9px; height:9px; border-radius:50%; background:currentColor; }
+.battle-knights .knight{
+  --slot:0;
+  position:absolute; left:calc(50% - var(--size) / 2); top:calc(50% - var(--size) / 2); z-index:1; cursor:pointer;
+  transform:translateX(calc(var(--slot) * 84px));
+  transition:transform .38s cubic-bezier(.3,1.3,.5,1), opacity .25s ease, filter .25s ease;
+}
+.battle-knights .knight[data-level="1"]{ --slot:-1; }
+.battle-knights .knight[data-level="3"]{ --slot:1; }
+.battle-knights[data-picked] .knight{ transform:translate(calc(var(--slot) * 14px), 16px) scale(.72); z-index:0; filter:brightness(.85); pointer-events:none; }
+.battle-knights[data-picked] .knight[aria-checked="true"]{ transform:scale(1.14); z-index:2; filter:none; pointer-events:auto; }
+.battle-knights .knight:disabled{ cursor:default; }
+.battle-go{ width:100%; margin-top:16px; gap:8px; }
+.battle-go .icon{ width:20px; height:20px; }
+
+/* a challenge: the challenger and crossed swords */
+.battle-versus{ display:flex; align-items:center; justify-content:center; gap:14px; margin:6px 0 12px; }
+.battle-pulse{ display:inline-grid; width:34px; height:34px; animation:swords-pulse 1s ease-in-out infinite; }
+.battle-pulse svg{ width:100%; height:100%; }
+@keyframes swords-pulse{ 50%{ transform:scale(1.18) rotate(-8deg); } }
+.battle-actions{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:6px; }
+
+/* the scuffle: the two knights charge, clash and kick up dust */
+.battle-scuffle{ position:relative; height:150px; }
+.battle-scuffle .knight{ position:absolute; top:calc(50% - 32px); }
+.scuffle-left{ left:calc(50% - 64px); animation:charge-left 1.5s cubic-bezier(.4,0,.2,1) both; }
+.scuffle-right{ left:50%; animation:charge-right 1.5s cubic-bezier(.4,0,.2,1) both; }
+@keyframes charge-left{
+  0%{ transform:translateX(-110px) rotate(-20deg); }
+  24%{ transform:translateX(4px) rotate(8deg); }
+  32%{ transform:translateX(-14px) rotate(-6deg); }
+  44%{ transform:translateX(2px) rotate(10deg); }
+  56%{ transform:translateX(-10px) translateY(-6px) rotate(-8deg); }
+  68%{ transform:translateX(3px) rotate(6deg); }
+  80%{ transform:translateX(-8px) rotate(-4deg); }
+  100%{ transform:translateX(-30px) rotate(0); }
+}
+@keyframes charge-right{
+  0%{ transform:translateX(110px) rotate(20deg); }
+  24%{ transform:translateX(-4px) rotate(-8deg); }
+  32%{ transform:translateX(14px) rotate(6deg); }
+  44%{ transform:translateX(-2px) rotate(-10deg); }
+  56%{ transform:translateX(10px) translateY(6px) rotate(8deg); }
+  68%{ transform:translateX(-3px) rotate(-6deg); }
+  80%{ transform:translateX(8px) rotate(4deg); }
+  100%{ transform:translateX(30px) rotate(0); }
+}
+.scuffle-cloud{ position:absolute; left:50%; top:50%; z-index:3; }
+/* crossed swords flash where they meet, at each clash */
+.scuffle-clash{
+  position:absolute; left:calc(50% - 22px); top:calc(50% - 66px); z-index:4; display:grid; width:44px; height:44px;
+  color:var(--ink); animation:clash 1.5s ease-out both;
+}
+.scuffle-clash svg{ width:100%; height:100%; }
+@keyframes clash{
+  0%, 20%{ transform:scale(0) rotate(-30deg); opacity:0; }
+  26%{ transform:scale(1.4) rotate(8deg); opacity:1; }
+  36%{ transform:scale(1) rotate(0); }
+  46%{ transform:scale(1.3) rotate(-8deg); }
+  56%{ transform:scale(1) rotate(0); }
+  70%{ transform:scale(1.25) rotate(6deg); }
+  90%{ transform:scale(1); opacity:1; }
+  100%{ transform:scale(.6); opacity:0; }
+}
+.scuffle-cloud i{
+  position:absolute; left:-9px; top:-9px; width:18px; height:18px; border-radius:50%;
+  background:var(--surface); border:2px solid var(--ink-3);
+  transform:rotate(calc(var(--i) * 51deg)) translateX(52px) scale(0);
+  animation:dust .5s ease-out calc(.3s + var(--i) * .08s) 2 both;
+}
+@keyframes dust{
+  40%{ transform:rotate(calc(var(--i) * 51deg)) translateX(56px) scale(1); opacity:1; }
+  100%{ transform:rotate(calc(var(--i) * 51deg + 30deg)) translateX(70px) scale(.4); opacity:0; }
+}
+
+/* the result: each side's knight and card, a crown for the winner */
+.battle-sides{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:4px; }
+.battle-side{ display:grid; justify-items:center; gap:8px; padding:12px 8px 14px; border-radius:18px; background:var(--surface-2); animation:screen-in .3s ease both; }
+.battle-side:nth-child(2){ animation-delay:.08s; }
+.battle-badge{ display:grid; place-items:center; height:34px; }
+.battle-side .knight{ --size:52px; }
+.battle-card-num{
+  display:grid; place-items:center; width:40px; height:40px; border-radius:10px;
+  background:var(--surface); border:1.5px solid var(--accent-line); font-size:20px; font-weight:800;
+}
+.battle-side-name{ max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:700; }
+.battle-total{ font-size:30px; line-height:1; font-weight:800; font-variant-numeric:tabular-nums; }
+.battle-outcome{ font-size:28px; }
+
+@media (prefers-reduced-motion:reduce){
+  .battle, .battle-card, .battle-side, .battle-pulse, .battle-foe-row .battle-avatar{ animation:none !important; }
+  button.battle-num{ transition:none; }
+  .battle-knights .knight{ transition:none; }
+}
 
 /* ---------- toast ---------- */
 .toast{

@@ -6,7 +6,7 @@
  *   ┌────────────┬───────────────────────────┬────────────┐
  *   │ tracker    │ top bar                    │            │
  *   │ (top)      │                            │  map       │
- *   ├══ split ═══┤ map                        │  settings  │
+ *   ├── split ───┤ map                        │  settings  │
  *   │ music      │                            ├────────────┤
  *   │ (bottom)   │                            │  dock      │
  *   └────────────┴───────────────────────────┴────────────┘
@@ -15,8 +15,11 @@
  * The left column appears when the tracker or the music is open. The
  * music is the 200 × 200 player with its controls beside it; alone it has
  * the song list under it, and with the tracker open the column splits —
- * tracker on top, music below (the list moves into a sheet until the
- * music is given room for it). The map stays usable beside the tracker.
+ * tracker on top, its header in line with the top bar's tiles, as tall as
+ * it needs (TrackerScreen reports it: fitTracker — fewer mods, a shorter
+ * tracker), and the music below in the rest (the list moves into a sheet
+ * until the music has room for it). The split isn't dragged (3.0.0). The
+ * map stays usable beside the tracker.
  *
  * The music & tracker view (the top bar's "hide the map" button, desktop
  * only — on a phone it would just be the tracker over the music bar) hides
@@ -38,7 +41,7 @@
  *
  * This class decides and measures; the CSS lays it out —
  * css/desktop.css from body[data-desk], body[data-left] and --left-w /
- * --split / --music-top / --panel-w; css/split.css from
+ * --split (the tracker's height) / --music-top / --panel-w; css/split.css from
  * body[data-view="split"], body[data-axis] and --half (the tracker's
  * share in px). The two never apply at once.
  */
@@ -46,9 +49,10 @@ import { h } from "./dom.js";
 import { DESKTOP_QUERY } from "./Sheet.js";
 
 /* halves / halvesY: the tracker's share of the music & tracker view, side by side / stacked */
-const DEFAULTS = Object.freeze({ left:420, panel:340, music:236, halves:0.5, halvesY:0.5 });
+const DEFAULTS = Object.freeze({ left:420, panel:340, halves:0.5, halvesY:0.5 });
 /* left ≥ 380: the 200 × 200 player and its controls side by side (they shrink a little to fit, css/music.css);
-   music ≥ 236: the player in its card (padding, borders) and the gap under it */
+   music ≥ 236: the player in its card (padding, borders) and the gap under it — under the tracker, the
+   music always keeps that much (the tracker scrolls before it gets less) */
 const MIN = Object.freeze({ left:380, panel:280, map:420, tracker:200, music:236 });
 /* the music & tracker view: the music half always fits a 16:9 player at least 200 tall
    (356 wide, or 200 tall plus its controls, in its card) — it wins over the tracker on a small screen */
@@ -82,10 +86,10 @@ export class DesktopLayout {
     this.size = { ...DEFAULTS };
     for(const k of Object.keys(DEFAULTS)) if(Number.isFinite(saved[k])) this.size[k] = saved[k];
     this.splitOn = storage.get("splitView", false) === true;
+    this.trackerHeight = null;     /* how tall the docked tracker wants to be (px; TrackerScreen says — fitTracker) */
 
     this.handles = {
       left:  this.#handle("left", "Resize the tracker and music column"),
-      split: this.#handle("split", "Resize the tracker and the music"),
       panel: this.#handle("panel", "Resize the settings"),
       halves:this.#handle("halves", "Resize the tracker and the music"),
     };
@@ -113,6 +117,17 @@ export class DesktopLayout {
   /** The router moved: going to the map ends the music & tracker view. */
   routed(route){
     if(route === "" && this.splitOn){ this.#setSplit(false); this.#animate("split-out"); }
+    this.update();
+  }
+
+  /**
+   * The docked tracker's height, from TrackerScreen: what it shows with
+   * its rows at their tallest — under it, the music takes the rest.
+   * @param {number} px
+   */
+  fitTracker(px){
+    if(!(px > 0) || px === this.trackerHeight) return;
+    this.trackerHeight = px;
     this.update();
   }
 
@@ -168,7 +183,9 @@ export class DesktopLayout {
     const tracker = this.router.route === "tracker", music = this.music.isOpen && !this.music.isAway;
     const left = tracker && music ? "both" : tracker ? "tracker" : music ? "music" : "none";
     const vh = innerHeight - this.music.miniHeight, s = this.#clamped();   /* the mini bar along the bottom while the music is closed */
-    const split = left === "both" ? vh - s.music : left === "tracker" ? vh : 0;
+    /* with the music under it, the tracker is as tall as it needs (the music keeps its minimum) */
+    const fitted = clamp(this.trackerHeight ?? Math.round(vh * 0.6), MIN.tracker, Math.max(MIN.tracker, vh - MIN.music));
+    const split = left === "both" ? fitted : left === "tracker" ? vh : 0;
     body.desk = "";
     body.left = left;
     root.setProperty("--left-w", `${left === "none" ? 0 : s.left}px`);
@@ -177,12 +194,11 @@ export class DesktopLayout {
     root.setProperty("--music-top", `${left === "both" ? split : 0}px`);
 
     /* the song list under the player once the music has room for it */
-    this.music.setDock(left === "music" || (left === "both" && s.music >= SONGS_FROM) ? "column" : "compact");
+    this.music.setDock(left === "music" || (left === "both" && vh - split >= SONGS_FROM) ? "column" : "compact");
     this.trackerBtn?.setAttribute("aria-pressed", String(tracker));
 
     this.#aria(this.handles.left, s.left, MIN.left, this.#maxLeft(s.panel));
     this.#aria(this.handles.panel, s.panel, MIN.panel, this.#maxPanel(s.left));
-    this.#aria(this.handles.split, split, MIN.tracker, vh - MIN.music);
   }
 
   /** The music & tracker view: the desktop arrangement steps aside entirely. */
@@ -222,9 +238,8 @@ export class DesktopLayout {
   #clamped(){
     const panel = clamp(this.size.panel, MIN.panel, this.#maxPanel(MIN.left));
     const left = clamp(this.size.left, MIN.left, this.#maxLeft(panel));
-    const music = clamp(this.size.music, MIN.music, Math.max(MIN.music, innerHeight - MIN.tracker));
     const { lo, hi } = this.#halfRange(), key = this.#halfKey;
-    return { panel, left, music, [key]:clamp(this.size[key], lo, hi) };
+    return { panel, left, [key]:clamp(this.size[key], lo, hi) };
   }
 
   #settle(){
@@ -236,7 +251,7 @@ export class DesktopLayout {
   /* ---------------- drag handles ---------------- */
 
   /** Which way this handle moves: "x" (a vertical bar) or "y". */
-  #moves(name){ return name === "split" ? "y" : name === "halves" ? this.#axis : "x"; }
+  #moves(name){ return name === "halves" ? this.#axis : "x"; }
 
   /** A separator you can drag, nudge with the arrow keys (Shift = bigger steps) or double-click to reset. */
   #handle(name, label){
@@ -280,11 +295,10 @@ export class DesktopLayout {
       if(name === "left") this.size.left += d;
       else if(name === "panel") this.size.panel -= d;      /* its edge moves right: a narrower panel */
       else if(name === "halves") this.size[this.#halfKey] += d / (this.#axis === "x" ? innerWidth : innerHeight);
-      else this.size.music -= d;                           /* the split moves down: less music */
       this.#settle();
     });
     el.addEventListener("dblclick", () => {
-      const key = name === "split" ? "music" : name === "halves" ? this.#halfKey : name;
+      const key = name === "halves" ? this.#halfKey : name;
       this.size[key] = DEFAULTS[key];
       this.#settle();
     });
@@ -297,7 +311,6 @@ export class DesktopLayout {
     if(name === "left") this.size.left = from.left + dx;
     else if(name === "panel") this.size.panel = from.panel - dx;
     else if(name === "halves") this.size[this.#halfKey] = from[this.#halfKey] + (this.#axis === "x" ? dx / innerWidth : dy / innerHeight);
-    else this.size.music = from.music - dy;
     Object.assign(this.size, this.#clamped());
     this.update();
   }

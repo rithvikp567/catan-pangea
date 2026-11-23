@@ -1,11 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parsePlaylist, describePlayerError, playlistUrl } from "../catan-pangea/src/music/playlist.js";
+import { parsePlaylist, describePlayerError, playlistUrl, playlistDue, REREAD_AFTER_MS } from "../catan-pangea/src/music/playlist.js";
 import { MemoryStore } from "../catan-pangea/src/sync/MemoryStore.js";
 import { GameService, GameError } from "../catan-pangea/src/game/GameService.js";
 import {
   BEAT_MS, SPEAKER_TIMEOUT_MS, livePosition, isPlaying, speakerOnline, shuffled,
-  load, play, pause, skip, ended, seek, setShuffle, takeOver, hold, unhold, isHeld, wantsToPlay, sync, COMMANDS,
+  load, play, pause, skip, ended, seek, setShuffle, takeOver, hold, unhold, isHeld, wantsToPlay, sync, COMMANDS, queueChanges,
 } from "../catan-pangea/src/music/playback.js";
 
 test("playlist links: YouTube, YouTube Music, share links and bare ids all give the list id", () => {
@@ -222,6 +222,48 @@ test("playback: a new playlist keeps shuffle and playing; reading the same list 
   const fresh = load(pb, { listId:"PL2", setAt:4, songs:["z1", "z2", "z3"] }, ctx(6000));
   assert.deepEqual([fresh.queue.shuffle, fresh.now.playing, fresh.now.pos, fresh.now.speaker], [true, true, 0, "dev-tv"]);
   assert.equal(fresh.queue.order.length, 3);
+});
+
+test("playback: the list read again (Refresh songs) — new videos join, removed ones go, the song playing carries on", () => {
+  let pb = play(load(null, { listId:"PL", setAt:1, songs:SONGS }, ctx(0)), { index:2 }, ctx(0));   /* c3, in playlist order */
+  const after = ["a1", "b2", "c3", "x9", "d4", "e5"];                                            /* x9 added on YouTube, f6 removed */
+  const reread = load(pb, { listId:"PL", setAt:2, songs:after }, ctx(4000));
+  assert.deepEqual([reread.now.videoId, reread.now.index, reread.now.pos, reread.now.playing], ["c3", 2, 4, true], "it plays on, where it was");
+  assert.deepEqual(reread.queue.order, after, "the new video is in the queue, in the playlist's order; the removed one is gone");
+  assert.equal(reread.now.rev, pb.now.rev + 1);
+  assert.deepEqual(queueChanges(pb.queue.songs, reread.queue.songs), { added:1, removed:1 });
+  assert.deepEqual(queueChanges(SONGS, SONGS), { added:0, removed:0 });
+
+  /* the song playing was taken out of the playlist: the queue carries on from the same place, not from the top */
+  const gone = load(pb, { listId:"PL", setAt:3, songs:["a1", "b2", "d4", "e5", "f6"] }, ctx(4000));
+  assert.deepEqual([gone.now.index, gone.now.videoId, gone.now.pos], [2, "d4", 0]);
+  const shorter = load(play(pb, { index:5 }, ctx(10)), { listId:"PL", setAt:4, songs:["a1", "b2"] }, ctx(20));
+  assert.deepEqual([shorter.now.index, shorter.now.videoId], [1, "b2"], "(never past the end)");
+});
+
+test("the playlist read again: Refresh songs bumps setAt; the nightly re-read happens once however many phones open", async () => {
+  const store = new MemoryStore();
+  let t = 1000;
+  const a = new GameService(store, { deviceId:"dev-a", now:() => t });
+  const b = new GameService(store, { deviceId:"dev-b", now:() => t });
+  assert.equal(await a.refreshPlaylist(), false, "no playlist yet: nothing to read");
+  await a.setPlaylist("PLtable", "p_alice");
+
+  t = 5000;
+  assert.equal(await b.refreshPlaylist(), true);
+  assert.deepEqual((await a.state()).music, { listId:"PLtable", setAt:5000, setBy:"p_alice" }, "the same list, read again; who chose it is kept");
+
+  /* once a game night: due after REREAD_AFTER_MS */
+  const music = (await a.state()).music;
+  assert.equal(playlistDue(null, t), false);
+  assert.equal(playlistDue(music, 5000 + REREAD_AFTER_MS - 1), false);
+  assert.equal(playlistDue(music, 5000 + REREAD_AFTER_MS), true);
+  t = 5000 + REREAD_AFTER_MS + 60_000;
+  const results = await Promise.all([a.refreshPlaylist(5000), b.refreshPlaylist(5000), a.refreshPlaylist(5000)]);
+  assert.deepEqual(results.filter(Boolean).length, 1, "three phones opening at once: one re-read");
+  assert.equal((await b.state()).music.setAt, t);
+  assert.equal(await b.refreshPlaylist(5000), false, "someone did it since: nothing more");
+  assert.equal(playlistDue((await a.state()).music, t + 1000), false);
 });
 
 test("playback: only the speaker reports what its player does, and only about the latest change", () => {

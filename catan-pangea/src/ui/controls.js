@@ -194,6 +194,22 @@ export class CounterControl {
   }
 }
 
+/**
+ * An on / off switch with its label (role=switch); the whole row toggles
+ * it. onChange only for the user's own taps.
+ */
+export class Toggle {
+  /** @param {{ label:string, value?:boolean, onChange?:(on:boolean) => void }} p */
+  constructor({ label, value = true, onChange = () => {} }){
+    this.onChange = onChange;
+    this.btn = h("button", { type:"button", class:"switch", role:"switch" }, h("span", { class:"switch-knob", "aria-hidden":"true" }));
+    this.el = h("label", { class:"toggle-row" }, h("span", { class:"toggle-label" }, label), this.btn);
+    this.btn.addEventListener("click", () => { this.set(!this.value); this.onChange(this.value); });
+    this.set(value);
+  }
+  set(on){ this.value = on !== false; this.btn.setAttribute("aria-checked", String(this.value)); }
+}
+
 /** Label + control (+ optional hint) wrapper. */
 export function field(label, control, hint = null, { inline = false } = {}){
   const lab = h("span", { class:"field-label" }, label);

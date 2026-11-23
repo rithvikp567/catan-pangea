@@ -48,10 +48,21 @@
  * since a hidden player mustn't play, the device playing the sound pauses
  * it — and plays on when it's back. Or just the mini bar can be hidden for
  * a while (setMiniAway: the victory screen): the open player is untouched.
+ *
+ * The embedded player only lists a playlist's songs when it opens the
+ * playlist, so the shared queue is the list as it was when it was read.
+ * It's read again — the same list, a new `setAt` — from **Refresh songs**
+ * in the playlist pop-up, once a game night on its own (the first device
+ * to open the app once it's REREAD_AFTER_MS old), or by pasting the link
+ * again. Meanwhile the old queue keeps playing (#queueReady); a remote
+ * with its bar open reads the list at once, and the speaker only while
+ * nothing plays (its player is the one the music comes from) — or, when
+ * it asked itself, after READ_WAIT_MS if no one else has. The song
+ * playing carries on; new videos join the queue.
  */
 import { h } from "./dom.js";
-import { describePlayerError, parsePlaylist, playlistUrl, thumbnailUrl } from "../music/playlist.js";
-import { BEAT_MS, isHeld, livePosition, songCount, speakerOnline, wantsToPlay } from "../music/playback.js";
+import { describePlayerError, parsePlaylist, playlistDue, playlistUrl, thumbnailUrl } from "../music/playlist.js";
+import { BEAT_MS, isHeld, livePosition, queueChanges, songCount, speakerOnline, wantsToPlay } from "../music/playback.js";
 
 /* why the speaker holds the music (MusicBar.setAway's reasons): what its line says on the remotes, and the screen it's on */
 const HELD_WHY = { wins:"on Season wins", join:"signing in" };
@@ -70,6 +81,7 @@ const SVG = {
   note:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17.5V6l10-2v11.5"/><circle cx="6.5" cy="17.5" r="2.5"/><circle cx="16.5" cy="15.5" r="2.5"/></svg>`,
   speaker:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5v5h3.5l4.5 4v-13l-4.5 4H4z"/><path d="M15.5 9.2a4 4 0 0 1 0 5.6M18.3 6.6a7.6 7.6 0 0 1 0 10.8"/></svg>`,
   external:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>`,
+  refresh:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4v4.5H15"/></svg>`,
 };
 
 /** YouTube's own sign-in page (Premium removes ads in embeds when the player can see you're signed in). */
@@ -80,6 +92,7 @@ const DRIFT_S = 3;            /* the speaker's song this far off the shared cloc
 const SYNC_GAP_MS = 2500;     /* the speaker reports its player at most this often */
 const FIRST_TAP_MS = 8000;    /* a speaker that never started (a phone waiting for the first tap on the video): it's paused, say so */
 const READ_WAIT_MS = 6000;    /* a new playlist: the speaker lets another device read its songs, so it keeps its player (a phone needs a tap for a new one) */
+const REFRESH_TOAST_MS = 120_000;   /* Refresh songs: say what changed if the songs are read within this long */
 
 /** Load YouTube's IFrame Player API once. */
 let apiPromise = null;
@@ -175,7 +188,10 @@ export class MusicBar {
     this.lastSync = 0;
     this.lastBeat = 0;
     this.readKey = null;         /* the playlist whose songs this device is reading */
-    this.readNow = null;         /* the playlist this device just set: read it straight away */
+    this.readNow = null;         /* { listId, since }: this device set (or refreshed) the playlist — it reads it, without waiting for the music to stop */
+    this.reading = null;         /* the playlist|setAt this device's player is reading now (it follows no song meanwhile) */
+    this.refreshAsk = null;      /* Refresh songs pressed here: { listId, fromSetAt, songs, at } — say what changed once read */
+    this.dueChecked = false;     /* the nightly re-read looked at once per page load */
     this.wantPlay = false;       /* play was pressed before the songs were read */
     this.problem = null;         /* [title, line] while YouTube can't play */
     this.now = null;             /* { id, title, author } of the table's song */
@@ -188,6 +204,7 @@ export class MusicBar {
     this.away = new Set();       /* why the music is put away for now ("wins", "join", "splash", "welcome"); empty: it shows */
     this.awayListeners = new Set();
     this.miniAway = new Set();   /* why the mini bar is hidden for now ("victory"); the open player is left as it is */
+    this.miniBlur = new Set();   /* why the mini bar is blurred and out of reach for now ("battle") */
     this.holdKey = null;         /* the hold / unhold last sent (once per shared change) */
     this.swipe = null;           /* the mini bar's song, swiped away: { dir, at } until the next song shows */
     this.miniSongId = null;
@@ -274,6 +291,22 @@ export class MusicBar {
     this.#measure();
     for(const fn of this.awayListeners) fn(this.isAway);
     if(!now && !this.isOpen) this.#enter(this.mini);
+  }
+
+  /**
+   * Blur the mini bar behind a pop-up for a reason (or bring it back once no
+   * reason is left) — a battle. It keeps its place (nothing moves), out of
+   * reach until then. Only the mini bar: an open player is never blurred or
+   * covered (YouTube's rules), and one that opens meanwhile shows as usual.
+   */
+  setMiniBlur(reason, on){
+    const was = this.miniBlur.size > 0;
+    if(on) this.miniBlur.add(reason); else this.miniBlur.delete(reason);
+    const now = this.miniBlur.size > 0;
+    if(now === was) return;
+    if(now && !this.isOpen){ this.#showSongs(false); this.#showPop(false); }   /* the sheets opened from the mini bar */
+    this.mini.inert = now;
+    document.body.toggleAttribute("data-mini-blur", now);   /* css/music.css blurs the mini bar */
   }
 
   /**
@@ -392,11 +425,13 @@ export class MusicBar {
   get #playing(){ return wantsToPlay(this.pb, this.#t); }
   /** The speaker holds the music: "on Season wins" / "signing in" / "back in a moment". */
   get #heldWhy(){ return !isHeld(this.pb) ? null : HELD_WHY[this.pb.now.heldFor] ?? "back in a moment"; }
-  /** The shared playback has this playlist's songs. */
+  /** The shared playback has this playlist's songs — maybe as last read, while it's being read again (it plays on). */
   get #queueReady(){
     const q = this.pb?.queue;
-    return !!this.listId && q?.listId === this.listId && (q.setAt ?? null) === this.setAt && songCount(this.pb) > 0;
+    return !!this.listId && q?.listId === this.listId && songCount(this.pb) > 0;
   }
+  /** … read since the playlist was last set or refreshed. */
+  get #queueFresh(){ return this.#queueReady && (this.pb.queue.setAt ?? null) === this.setAt; }
   /** "Sam's phone" */
   #where(){
     const n = this.pb?.now ?? {}, kind = n.speakerKind ?? "device";
@@ -423,6 +458,10 @@ export class MusicBar {
 
   #onState(state){
     const m = state?.music ?? null, listId = m?.listId ?? null, setAt = m?.setAt ?? null;
+    if(m && !this.dueChecked){
+      this.dueChecked = true;
+      if(playlistDue(m, this.#t)) this.game.refreshPlaylist({ ifSetAt:m.setAt });   /* once a game night: new videos join */
+    }
     if(listId === this.listId && setAt === this.setAt){ this.#paint(); return; }
     this.listId = listId;
     this.setAt = setAt;
@@ -434,18 +473,38 @@ export class MusicBar {
   #onPlayback(pb){
     if(pb?.now?.videoId !== this.pb?.now?.videoId) this.problem = null;
     this.pb = pb;
+    this.#refreshed();
     this.#refresh();
+  }
+
+  /** Refresh songs was pressed here and the list has been read again: say what changed. */
+  #refreshed(){
+    const ask = this.refreshAsk, q = this.pb?.queue;
+    if(!ask) return;
+    if(this.#t - ask.at > REFRESH_TOAST_MS || q?.listId !== ask.listId){ this.refreshAsk = null; return; }
+    if((q.setAt ?? null) === ask.fromSetAt) return;           /* not read yet */
+    this.refreshAsk = null;
+    const { added, removed } = queueChanges(ask.songs, q.songs ?? []);
+    const n = (k, what) => `${k} ${what}${k === 1 ? "" : "s"}`;
+    this.toast.show(added && removed ? `${n(added, "new song")} added, ${n(removed, "song")} gone.`
+      : added ? `${n(added, "new song")} added.`
+      : removed ? `${n(removed, "song")} no longer in the playlist.`
+      : "No new songs.");
   }
 
   /** Bring this device in line with the shared playback. */
   #refresh(){
     const ready = this.#queueReady;
+    if(this.#readAsked && this.#queueFresh) this.readNow = null;   /* what this device asked for has been read */
     this.#syncHold();
     if(this.isAway){ this.#paint(); return; }    /* (held: a play from elsewhere waits — it never calls this player back) */
     if(ready && this.wantPlay){ this.wantPlay = false; this.#elsewhere ? this.#remotePlay() : this.#playHere(); }
     /* someone pressed play and the sound comes from here: the player shows (never from a hidden player) */
     if(ready && this.#isSpeaker && this.pb.now.playing && !this.isOpen && this.#t - this.closedAt > 3000){ this.open(); return; }
-    if(this.isOpen && this.listId && this.pb !== undefined) ready ? this.#follow() : this.#readSongs();
+    if(this.isOpen && this.listId && this.pb !== undefined){
+      if(ready && !this.reading) this.#follow();
+      if(!this.#queueFresh) this.#readSongs();
+    }
     this.#paint();
   }
 
@@ -655,37 +714,70 @@ export class MusicBar {
    */
   #readSongs(){
     const key = `${this.listId}|${this.setAt}`;
-    if(this.readKey === key) return;
+    if(this.readKey === key || !this.#mayRead) return;
     this.readKey = key;
     clearTimeout(this.readTimer);
-    const wait = this.#isSpeaker && this.ready && this.readNow !== this.listId ? READ_WAIT_MS : 0;
+    /* the speaker gives a remote the chance first (it keeps its player) — even when it asked, if the old songs are playing */
+    const wait = this.#isSpeaker && this.ready && (!this.#readAsked || this.#busy) ? READ_WAIT_MS : 0;
     this.readTimer = setTimeout(() => this.#startReading(key), wait);
   }
 
+  /** This device asked for the reading under way (it pasted the link, or pressed Refresh songs). */
+  get #readAsked(){ const r = this.readNow; return !!r && r.listId === this.listId && (this.setAt ?? 0) >= r.since; }
+  /** The songs as last read are playing here (the speaker's player is the one the music comes from). */
+  get #busy(){ return this.#queueReady && (this.pb.now.playing || this.#localActive()); }
+
+  /**
+   * May this device's player read the playlist now? A new player replaces
+   * the one the music comes from, so while the songs as last read play on,
+   * the speaker leaves it to a remote — unless it asked itself (Refresh
+   * songs, the link pasted here) — and reads once the music stops.
+   */
+  get #mayRead(){ return !this.#isSpeaker || this.#readAsked || !this.#busy; }
+
   async #startReading(key){
-    if(this.readKey !== key || this.#queueReady) return;         /* another device read them meanwhile */
-    if(!this.isOpen || this.isAway){ this.readKey = null; return; }   /* read when it next opens / shows */
+    if(this.readKey !== key || this.#queueFresh) return;         /* another device read them meanwhile */
+    if(!this.isOpen || this.isAway || !this.#mayRead){ this.readKey = null; return; }   /* read when it next can */
+    this.reading = key;
     /* YouTube's loadPlaylist / cuePlaylist keep the old songs once a player has had a playlist: a fresh player */
     await this.#resetPlayer();
-    if(this.readKey !== key || this.#queueReady){ this.#refresh(); return; }    /* (a player for the song, then) */
+    if(this.readKey !== key || this.#queueFresh){ this.reading = null; this.#refresh(); return; }    /* (a player for the song, then) */
     this.mode = "list";
     const player = await this.#ensurePlayer({ playerVars:{ listType:"playlist", list:this.listId } });
-    if(!player || this.readKey !== key) return;
+    if(!player || this.readKey !== key){ if(this.reading === key) this.reading = null; return; }
     const since = Date.now();
     clearInterval(this.readPoll);
+    const done = () => { clearInterval(this.readPoll); if(this.reading === key) this.reading = null; };
     /* YouTube sends no event when a new player's playlist arrives, so look for it */
     this.readPoll = setInterval(() => {
-      if(this.readKey !== key || this.#queueReady){ clearInterval(this.readPoll); return; }
+      if(this.readKey !== key || this.#queueFresh){ done(); this.#refresh(); return; }
       const songs = this.player?.getPlaylist?.() ?? [];
       if(songs.length){
-        clearInterval(this.readPoll);
+        done();
         this.#send("load", { listId:this.listId, setAt:this.setAt, songs });
       }else if(Date.now() - since > 10000){
-        clearInterval(this.readPoll);
+        done();
+        if(this.#queueReady){                       /* reading it again failed: the songs as last read play on */
+          if(this.refreshAsk){ this.refreshAsk = null; this.toast.show("Couldn't read the playlist. Make sure it's still public or unlisted."); }
+          this.#refresh();
+          return;
+        }
         this.problem = ["Couldn't open this playlist", "Make sure it's public or unlisted, or paste another link."];
         this.#paint();
       }
     }, 400);
+  }
+
+  /** Refresh songs (the playlist pop-up): the playlist read again, so videos added on YouTube join — here, if this device can. */
+  async #refreshSongs(){
+    this.#showPop(false);
+    if(!this.listId) return;
+    const q = this.pb?.queue, same = q?.listId === this.listId;
+    this.refreshAsk = { listId:this.listId, fromSetAt:same ? q.setAt ?? null : null, songs:same ? [...(q.songs ?? [])] : [], at:this.#t };
+    this.readNow = { listId:this.listId, since:this.#t };   /* this device reads them (its player shows while it does) */
+    if(!this.isOpen) this.open();
+    this.toast.show("Reading the playlist for new songs…");
+    if(!(await this.game.refreshPlaylist())) this.refreshAsk = null;
   }
 
   /* ---------------- the player ---------------- */
@@ -804,6 +896,9 @@ export class MusicBar {
     this.hereBox = h("div", { class:"pop-here" }, h("p", { class:"pop-title" }, "Where the music plays"), this.hereText, this.hereBtn);
     const changeForm = this.#linkForm("Change");
     this.changeInput = changeForm.input;
+    this.refreshBtn = h("button", { type:"button", class:"btn refresh-btn", onClick:() => this.#refreshSongs() });
+    this.refreshBtn.innerHTML = SVG.refresh;   /* static, trusted markup */
+    this.refreshBtn.append("Refresh songs");
     this.appLink = h("a", { class:"btn music-app-btn", target:"_blank", rel:"noopener",
       /* the app takes over the music: pause and close here so the map gets the screen */
       onClick:() => setTimeout(() => this.close(), 300) });
@@ -813,6 +908,7 @@ export class MusicBar {
       h("header", { class:"songs-head" }, h("h2", {}, "Playlist"), iconButton("Close", SVG.close, () => this.#showPop(false), "icon-btn")),
       h("div", { class:"pop-body" },
         this.hereBox,
+        this.refreshBtn,
         h("label", { class:"field-label" }, "Change the playlist for everyone"),
         changeForm.form,
         h("div", { class:"pop-premium" },
@@ -927,7 +1023,8 @@ export class MusicBar {
     });
     const form = h("form", { class:"seed-row music-link", onSubmit:async e => {
       e.preventDefault();
-      this.readNow = parsePlaylist(input.value).listId ?? null;   /* this device reads its songs, straight away */
+      const listId = parsePlaylist(input.value).listId;
+      this.readNow = listId ? { listId, since:this.#t } : null;   /* this device reads its songs, straight away */
       const id = await this.game.setPlaylist(input.value);
       if(!id) return;                      /* the toast explains what's wrong */
       input.value = "";

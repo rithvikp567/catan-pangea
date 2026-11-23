@@ -5,10 +5,12 @@
  * directly — they report intent to App (map side) or GameController
  * (tracker side).
  *
- * The board on screen IS the shared game: the first device online
- * publishes its map as the session; "New map" replaces the session for
- * everyone; a session arriving from another phone is restored from its
- * snapshot, so every phone shows the identical map.
+ * Games are played in rooms (the day's games: RoomsScreen). Inside a
+ * room the board on screen IS the room's game: a room is made with the map
+ * on its creator's screen; "New map" starts the room's next game for
+ * everyone in it; a game arriving from another phone is restored from its
+ * snapshot, so every phone in the room shows the identical map. Outside a
+ * room the map is this device's own.
  *
  * A new map builds itself in (BoardView's animation) on every device at
  * once: the device that pressed New map publishes, with the map, the moment
@@ -45,6 +47,7 @@ import { ThemeController } from "../ui/ThemeController.js";
 import { PlayerSettings } from "../ui/PlayerSettings.js";
 import { Toast } from "../ui/Toast.js";
 import { VictoryOverlay } from "../ui/VictoryOverlay.js";
+import { BattleOverlay } from "../ui/BattleOverlay.js";
 import { MusicBar } from "../ui/MusicBar.js";
 import { DesktopLayout } from "../ui/DesktopLayout.js";
 import { WinterEffect } from "../ui/WinterEffect.js";
@@ -52,6 +55,9 @@ import { Sound } from "../ui/Sound.js";
 import { Splash } from "../ui/Splash.js";
 import { AccountLine } from "../ui/AccountLine.js";
 import { JoinScreen } from "../ui/screens/JoinScreen.js";
+import { RoomsScreen } from "../ui/screens/RoomsScreen.js";
+import { ModsScreen } from "../ui/screens/ModsScreen.js";
+import { SeatScreen } from "../ui/screens/SeatScreen.js";
 import { TrackerScreen } from "../ui/screens/TrackerScreen.js";
 import { WinsScreen } from "../ui/screens/WinsScreen.js";
 import { AdminScreen } from "../ui/screens/AdminScreen.js";
@@ -62,6 +68,8 @@ import { saveBoardImage } from "../ui/imageExport.js";
 const CONNECT_TIMEOUT_MS = 6000;
 /** A new map starts building this long after it's published, so it has reached every device by then. */
 const BUILD_LEAD_MS = 800;
+/** How often this device closes the rooms nobody has touched for hours (every device does, on its own). */
+const PRUNE_EVERY_MS = 10 * 60 * 1000;
 
 const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -80,7 +88,8 @@ export class App {
     this.annealer = new Annealer();
     this.board = null;
     this.inflight = null;          /* { ctrl:AbortController, kind:"boot"|"user", done:Promise } of the running generation */
-    this.shownSessionId = null;    /* the shared game whose board is on screen */
+    this.shownRoomId = null;       /* the room whose game is on screen … */
+    this.shownSessionId = null;    /* … and that game */
     this.seatedIn = null;          /* session id this device was last seated in */
 
     this.sound = new Sound();       /* (on / off: the person's Player Settings, below) */
@@ -130,10 +139,14 @@ export class App {
     this.router = new Router({ mapEl:$("app"), docked:route => !!this.layout?.docks(route), onRoute:route => this.#routed(route) });
     this.music = new MusicBar({ game:this.game, toast:this.toast, storage:this.storage });
     this.music.setAway("splash", true);      /* held back while the intro is up */
+    /* knight duels: this player's own pop-up — the mini bar blurred behind it (an open player never is) */
+    this.battle = new BattleOverlay({ game:this.game, toast:this.toast, onToggle:shown => this.music.setMiniBlur("battle", shown) });
     const deps = {
       game:this.game, router:this.router, toast:this.toast, music:this.music, install:this.install,
       confirm:msg => window.confirm(msg),
-      ensureSession:() => this.#ensureSession(),
+      createRoom:(name, mods) => this.#createRoom(name, mods),
+      battle:this.battle,                               /* the tracker's Battle button opens it */
+      boardProfile:() => this.settings.profile,        /* the map on screen's rules: a new room starts on it */
       installApp:() => this.installApp(),
       /** "Welcome, Lord Sam" over everything — the music put away meanwhile (a player mustn't be
           covered); `covered` runs once it hides what's underneath */
@@ -143,7 +156,10 @@ export class App {
         return this.splash.welcome(who, { ...opts, onReveal:back }).finally(back);
       },
     };
-    this.screens = [new JoinScreen(deps), new TrackerScreen(deps), new WinsScreen(deps), new AdminScreen(deps)];
+    this.screens = [
+      new JoinScreen(deps), new RoomsScreen(deps), new ModsScreen(deps), new SeatScreen(deps),
+      new TrackerScreen(deps), new WinsScreen(deps), new AdminScreen(deps),
+    ];
     for(const s of this.screens) this.router.register(s);
     /* while it's up: no mini bar (an open player stays) and no winter frost */
     this.victory = new VictoryOverlay({ ...deps, onToggle:shown => {
@@ -186,9 +202,12 @@ export class App {
         await this.newGame({ kind:"boot" });
         return;
       }
-      if(!first.session) await this.newGame({ kind:"boot" });
-      /* a player who isn't seated in the current game starts at the join screen */
-      if(!this.router.route && !this.game.mySeat) this.router.go("join", { replace:true });
+      setInterval(() => this.game.pruneRooms(), PRUNE_EVERY_MS);
+      if(!this.game.room) await this.newGame({ kind:"boot" });     /* outside a room: a map of this device's own */
+      /* nobody signed in starts at choosing an account; someone outside a room, at today's games */
+      const route = this.router.route;
+      if(!this.game.me) this.router.go("join", { replace:true });
+      else if(!this.game.room && ["", "tracker", "seat"].includes(route)) this.router.go("rooms", { replace:true });
     }finally{ loaded(); }
   }
 
@@ -248,7 +267,8 @@ export class App {
       /* New map: it builds itself in here and on every other device, all starting at buildAt */
       const buildAt = kind === "user" ? this.game.now() + BUILD_LEAD_MS : null;
       this.#render({ buildAt });
-      if(this.game.ready) await this.game.publishBoard(board, this.settings.toJSON(), { onlyIfNone:kind === "boot", buildAt });
+      /* in a room, a New map is its next game, for everyone in it */
+      if(kind === "user" && this.game.room) await this.game.publishBoard(board, this.settings.toJSON(), { buildAt });
     }catch(err){
       if(err instanceof AbortError) return true;
       console.error(err);
@@ -261,8 +281,8 @@ export class App {
 
   /** Starting over wipes the tracker for everyone — ask first if a game is under way. */
   #confirmNewGame(){
-    if(!this.game.state?.hasProgress) return true;
-    const ok = window.confirm("Start a new game for everyone? Points, knights, cities and karma start over. Everyone keeps their seat and color, and season wins are kept.");
+    if(!this.game.room?.hasProgress) return true;
+    const ok = window.confirm("Start a new game for everyone in this room? Points, knights, cities and karma start over. Everyone keeps their seat and color, and season wins are kept.");
     this.sound.wake();             /* an iPhone stops the page's audio for a dialog: start it again, still inside the tap */
     return ok;
   }
@@ -274,17 +294,15 @@ export class App {
   }
 
   /**
-   * The map on screen becomes the game if there isn't one yet. Joining
-   * can happen while the first map is still being generated (e.g. the app
-   * was opened on the join screen), so wait for it — or make one.
+   * Open a room with the map on screen as its first game (waiting for a
+   * map that's still being made — or making one), and go into it.
+   * @returns {Promise<string|undefined>} the room's id
    */
-  async #ensureSession(){
-    if(!this.game.state || this.game.state.session) return;
+  async #createRoom(name, mods){
     if(this.inflight) await this.inflight.done;
-    else if(!this.board) await this.newGame({ kind:"boot" });
-    if(this.game.state && !this.game.state.session && this.board){
-      await this.game.publishBoard(this.board, this.settings.toJSON(), { onlyIfNone:true });
-    }
+    if(!this.board) await this.newGame({ kind:"boot" });
+    if(!this.board) return undefined;
+    return this.game.createRoom({ name, mods }, this.board, this.settings.toJSON());
   }
 
   /* ---------- shared game ---------- */
@@ -293,20 +311,34 @@ export class App {
      arrive before the first state (state is null then) */
   #onGameState(state){
     if(!state){ for(const s of this.screens) if(s.visible) s.render(null); return; }
-    if(state.session && state.sessionId !== this.shownSessionId){
-      const wasSeated = !!this.seatedIn, fresh = this.shownSessionId !== null;   /* (not the first game seen after loading) */
-      this.shownSessionId = state.sessionId;
-      this.#showSessionBoard(state.session, fresh);
+    const room = this.game.room;
+    if(room?.session && (room.id !== this.shownRoomId || room.sessionId !== this.shownSessionId)){
+      const sameRoom = room.id === this.shownRoomId;
+      const fresh = sameRoom && this.shownSessionId !== null;     /* a New map in this room (not one we just walked into) */
+      const wasSeated = sameRoom && !!this.seatedIn;
+      this.shownRoomId = room.id;
+      this.shownSessionId = room.sessionId;
+      this.#showSessionBoard(room.session, fresh);
       /* a new game with fewer seats left this player out: pick again */
       if(wasSeated && !this.game.mySeat){
         this.toast.show("New game started with fewer seats — pick a color to join.");
-        this.router.go("join");
+        this.router.go("seat");
+      }
+    }else if(!room && this.shownRoomId){
+      /* out of the room: closed by someone (or nobody played for hours), or left for another */
+      this.shownRoomId = this.shownSessionId = null;
+      if(this.game.me && ["", "tracker", "seat"].includes(this.router.route)) this.router.go("rooms");
+      if(this.game.identity.roomId){                 /* (not one this device deleted or left) */
+        this.toast.show("That game has closed.");
+        this.game.enterRoom(null);
+        return;                                       /* (enterRoom emits: this runs again) */
       }
     }
-    this.seatedIn = this.game.mySeat ? state.sessionId : null;
+    this.seatedIn = this.game.mySeat ? room.sessionId : null;
     for(const s of this.screens) if(s.visible) s.render(state);
     this.victory.update(state);
-    this.winter.set(state.session ? state.counters.walker : 0);
+    this.battle.update();
+    this.winter.set(room?.mods.walker ? room.counters.walker : 0);
   }
 
   /** @param {boolean} [fresh]  a new game someone just started: it builds itself in, in step with the device that started it */
@@ -373,6 +405,8 @@ export class App {
 
   #wire($){
     this.dom.generate.addEventListener("click", () => this.newGame());
+    /* Pangaea: today's games (choosing an account first, for nobody signed in) */
+    $("roomsBtn").addEventListener("click", () => this.router.go(this.game.me ? "rooms" : "join"));
     /* on desktop the tracker sits beside the map, so the button opens and closes it */
     $("trackerBtn").addEventListener("click", () => this.router.go(this.router.route === "tracker" ? "" : "tracker"));
     this.music.addOpener($("musicBtn"));
