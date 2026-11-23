@@ -33,11 +33,18 @@ const BASE = {
 /* sparkles and dizzy stars follow the theme (css) */
 const THEMED = { y:"knight-spark", z:"knight-star" };
 
-/** The player's color and a shade of it. */
+const rgb = hex => { const n = parseInt(String(hex).slice(1), 16) || 0; return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
+
+/** A darker shade of a color (the shading on the player's tunic, cloth and shield). */
+export function shadeOf(hex, f = .66){ return `rgb(${rgb(hex).map(v => Math.round(v * f)).join(",")})`; }
+
+/** A pale grey horse, for a player whose color is too close to the bay horse's brown (their cloth would vanish on it). */
+const GREY_HORSE = { b:"#D3CEC6", B:"#9C958B", m:"#5E5850" };
+const nearHorse = hex => Math.hypot(...rgb(hex).map((v, i) => v - rgb(BASE.b)[i])) < 50;
+
+/** The player's color and its shade (and a horse that stands apart from them). */
 function palette(hex){
-  const n = parseInt(String(hex).slice(1), 16) || 0;
-  const shade = [n >> 16 & 255, n >> 8 & 255, n & 255].map(v => Math.round(v * .66));
-  return { ...BASE, c:hex, C:`rgb(${shade.join(",")})` };
+  return { ...BASE, ...(nearHorse(hex) ? GREY_HORSE : {}), c:hex, C:shadeOf(hex) };
 }
 
 /* ---------- heads (8 × 8): facing us, and facing right (riding) ---------- */

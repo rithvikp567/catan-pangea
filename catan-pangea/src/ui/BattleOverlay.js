@@ -26,7 +26,7 @@
  * No hints or summaries in grey: names, cards, knights and buttons only.
  */
 import { h } from "./dom.js";
-import { knight, rider, dust, pips } from "./knights.js";
+import { knight, rider, dust, pips, shadeOf } from "./knights.js";
 import { icon, ICONS, inkOn } from "./screens/widgets.js";
 import { CARDS, KNIGHTS, BATTLE_TIMES, battleStatus, isSpent, outcome, strength } from "../game/battle.js";
 
@@ -321,8 +321,12 @@ function avatar(seat, big = false){
     style:`--c:${seat.colorHex};color:${inkOn(seat.colorHex)}`, "aria-hidden":"true" }, seat.profile.name.slice(0, 1).toUpperCase());
 }
 
-/** A player's color (and readable ink on it), for their knights and cards. */
-const knightStyle = hex => `--c:${hex};--k-ink:${inkOn(hex)}`;
+/** A player's color (and readable ink on it), for their knights and cards; a light color (white) gets a darker
+    edge, or its ring and pips would vanish on the card. */
+const knightStyle = hex => {
+  const light = inkOn(hex) !== "#FFFFFF";
+  return `--c:${hex};--k-ink:${inkOn(hex)};--c-edge:${light ? shadeOf(hex, .62) : hex}`;
+};
 
 /**
  * A player's cards 1–6: lit in their color while they're left, greyed once

@@ -531,13 +531,17 @@ on the tracker): everything works, but nothing is shared between phones.
     an 8-bit knight in your colors and one to three pips (3.1.0,
     `ui/knights.js` — original art: **basic** in an open-faced helmet,
     **strong** in a great helm with a plume, **mighty** in a great helm with
-    a gold crown): the one you tap moves to the middle and
+    a gold crown; every player color works — a light one, white, gets a
+    darker ring and pips so they show on the card): the one you tap moves
+    to the middle and
     the other two fold in under it; tap it again and they spread out —
     and your cards (the spent ones can't be picked). **Battle** readies
     you (it reads *Ready*); the foe's avatar rings once they're ready. A
     duel left unfinished for 3 minutes lapses; × calls it off.
   - Both ready: **the charge** (3.1.0, 2.4 s): each side's knight — the
-    tier they picked — gallops in on a horse in their colors (two leg
+    tier they picked — gallops in on a horse in their colors (a bay horse;
+    a pale grey one for a color too close to its brown, so brown's cloth
+    stands out; two leg
     frames, a bob), lance forward, yours from the left, theirs mirrored
     from the right; they collide in a **cloud of dust** with stars in it
     that puffs up and shakes, and the dust fades into the **result**,
@@ -1778,7 +1782,8 @@ Keep newest first. Every feature PR adds an entry and updates the sections above
   show an 8-bit knight in your colors for each tier — basic (open-faced
   helmet), strong (a great helm with a plume), mighty (a great helm with
   a gold crown) — original art in the app's pixel style
-  (`ui/knights.js`). The scuffle is now a charge: each side's knight
+  (`ui/knights.js`), checked in all six player colors, light and dark
+  (white gets a darker ring; brown rides a grey horse). The scuffle is now a charge: each side's knight
   gallops in on a horse in their colors, they collide in a cloud of dust,
   and the dust fades into the result, where the winner's knight stands
   triumphant and the loser's is bandaged up. The pixel-art drawing moved
