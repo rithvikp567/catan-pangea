@@ -215,6 +215,19 @@ export class GameService {
   }
 
   /**
+   * Have the table's playlist read again — the same list, a new `setAt` —
+   * so videos added on YouTube since join the queue (the song playing
+   * carries on). With `ifSetAt`, only if nobody has done it since then:
+   * ten phones opening at once re-read it once.
+   * @returns {Promise<boolean>} whether this call asked for it
+   */
+  async refreshPlaylist(ifSetAt = null){
+    const res = await this.store.transact(this.#p("music"), cur =>
+      !cur?.listId || (ifSetAt != null && cur.setAt !== ifSetAt) ? undefined : { ...cur, setAt:this.now() });
+    return res.committed;
+  }
+
+  /**
    * The shared playback, now and on every change (null until a playlist's songs are read).
    * @returns {() => void} unsubscribe
    */

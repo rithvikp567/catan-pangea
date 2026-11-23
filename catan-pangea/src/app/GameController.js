@@ -210,6 +210,18 @@ export class GameController {
   /** @returns {Promise<string|undefined>} the playlist id, or undefined if the link was rejected */
   setPlaylist(link){ return this.#run(() => this.service.setPlaylist(link, this.me?.id ?? null)); }
 
+  /**
+   * Read the table's playlist again (new videos join the queue). With
+   * `ifSetAt` it's the quiet nightly re-read: only if nobody did it since,
+   * and never a toast.
+   * @returns {Promise<boolean>} whether this device asked for it
+   */
+  refreshPlaylist({ ifSetAt = null } = {}){
+    if(!this.service) return Promise.resolve(false);
+    if(ifSetAt != null) return this.service.refreshPlaylist(ifSetAt).catch(() => false);
+    return this.#run(() => this.service.refreshPlaylist()).then(Boolean);
+  }
+
   /** @param {(playback:object|null) => void} fn  the shared music, now (once loaded) and on every change */
   onPlayback(fn){
     this.playbackListeners.add(fn);

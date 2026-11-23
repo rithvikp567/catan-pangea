@@ -1,6 +1,7 @@
 /**
  * Playlist links, without any DOM or network: turn whatever people paste
- * into a YouTube playlist id, and explain YouTube player errors.
+ * into a YouTube playlist id, say when it's due to be read again, and
+ * explain YouTube player errors.
  * The same ids work for YouTube and YouTube Music.
  */
 
@@ -42,6 +43,17 @@ export function parsePlaylist(raw){
   }
   return { listId };
 }
+
+/**
+ * The embedded player only tells us a playlist's songs when it opens it, so
+ * the shared queue is the list as it was when it was last read. Once it's
+ * this old, the first device to open the app has it read again (new videos
+ * join, removed ones go) — about once per game night.
+ */
+export const REREAD_AFTER_MS = 6 * 60 * 60 * 1000;
+
+/** Is the table's playlist (GameState.music) due to be read again? */
+export const playlistDue = (music, t) => !!music?.listId && t - (Number(music.setAt) || 0) >= REREAD_AFTER_MS;
 
 /** Link to open the playlist in YouTube Music (the app, if installed). */
 export const playlistUrl = listId => `https://music.youtube.com/playlist?list=${encodeURIComponent(listId)}`;

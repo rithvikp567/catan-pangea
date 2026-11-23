@@ -623,7 +623,8 @@ on the tracker): everything works, but nothing is shared between phones.
   (🔗) and Close. Songs and Playlist open as sheets above the bar, one at a
   time, and stay hidden otherwise.
 - **Playlist** pop-up: *Where the music plays* (with **Play here** on a
-  remote), change the link for everyone, and **Play in the YouTube Music
+  remote), **Refresh songs** (2.16.0 — see *Videos added on YouTube*
+  below), change the link for everyone, and **Play in the YouTube Music
   app** under *Have YouTube Premium?* — the app plays in the background
   with no ads, so the bar pauses and closes and the map gets the whole
   screen (the other phones can't control the app). The pop-up keeps that
@@ -647,6 +648,34 @@ on the tracker): everything works, but nothing is shared between phones.
   from the 🔗 pop-up, and it switches for everyone (re-pasting the same
   link re-reads its songs — new ones show up — and the song playing
   carries on).
+- **Videos added on YouTube** (2.16.0): the embedded player only lists a
+  playlist's songs when it opens the playlist (no API key, so no other
+  way to ask), so the shared queue is the list as it was when it was last
+  read. It's read again — the same list, a new `music.setAt`
+  (`GameService.refreshPlaylist`) — three ways:
+  - **Refresh songs** in the 🔗 pop-up (it opens the player on that
+    device if it was closed: the reading happens in a visible player), and
+    a toast says what changed (*2 new songs added.* / *No new songs.*);
+  - **once a game night on its own:** the first device to open the app
+    once the list was read `REREAD_AFTER_MS` (6 h) ago asks for it
+    (`playlistDue`, `music/playlist.js`), in a transaction that only bumps
+    `setAt` if it's still the one it saw — ten phones opening at once
+    re-read it once;
+  - pasting the same link again (as before).
+
+  Meanwhile the songs as last read play on (`MusicBar#queueReady` no
+  longer needs the latest `setAt`; `#queueFresh` does). A remote with its
+  player open reads the list straight away (its player isn't the one the
+  music comes from); the speaker leaves it to them while the music plays
+  — a new player would cut the song, and on a phone need a tap on the
+  video — and reads once it stops, or, if it pressed Refresh songs
+  itself, after a 6 s grace. If no device has its player open, the
+  re-read waits for one. The song playing carries on at its place; new
+  videos join the queue (in the playlist's order, or shuffled in with
+  shuffle on) and removed ones drop out — if that was the song playing,
+  the queue carries on from the same place in the list
+  (`playback.load`). Reading needs a visible player: there is no hidden
+  reader.
 - **One shared playback** (`/v1/playback`, `src/music/playback.js`): every
   device shows the same song, the same order (shuffled or not — the order
   is stored, so it's the same everywhere), playing or paused, and the same
@@ -1109,7 +1138,8 @@ v1/
                 a lapsed one is "asked" / "fight" left too long — worked out, never written)
   wins/{season}/{entryId}: { profileId, delta (±1), source:"game"|"admin", sessionId?, at,
                              scores?: { [profileId]: { vp, color? } } }   ← everyone seated, at a game win (2.10.0+)
-  music:                   { listId, setAt (ms), setBy? }   ← the table's playlist (YouTube list id)
+  music:                   { listId, setAt (ms), setBy? }   ← the table's playlist (YouTube list id); setAt also moves when
+                                               it's to be read again (Refresh songs, the nightly re-read — 2.16.0)
   playback:                                  ← the table's music, one shared playback (music/playback.js);
                                                watched on its own, not part of GameState
     queue:  { listId, setAt, songs:[videoId…] (the playlist's own order), order:[videoId…] (play order), shuffle }
@@ -1747,6 +1777,18 @@ Keep newest first. Every feature PR adds an entry and updates the sections above
   room's game), `RoomState`, `Mods`, `game/battle.js`; new screens
   `RoomsScreen`, `ModsScreen`, `SeatScreen` and `ui/BattleOverlay.js`; a
   shared `Toggle` control.
+
+- **2.16.0 — The playlist picks up videos added on YouTube.** The queue
+  was the playlist as it was when its link was pasted: videos added on
+  YouTube since only showed after pasting the link again. Now **Refresh
+  songs** in the 🔗 pop-up reads it again (a toast says what changed),
+  and so does the first device to open the app once it was read 6 h ago
+  — once, however many phones open at once. The song playing carries on
+  while it's read: a remote with its player open reads it, and the
+  speaker only once its music stops (or after a 6 s grace when it asked
+  itself), so the music isn't cut. Removed videos drop out; if the song
+  playing was removed, the queue carries on from the same place instead
+  of the top.
 
 - **Docs — Future expansions (§10).** A new section, kept open for ideas
   the group is discussing: the Long Night (a rework of WALKER's special
