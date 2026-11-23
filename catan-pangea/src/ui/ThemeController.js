@@ -37,6 +37,7 @@ export class ThemeController {
     /* as the head script painted it (a custom color's properties too) — app/LookSync sets the whole look next */
     this.look = { ...DEFAULT_LOOK, theme:ds.theme ?? DEFAULT_LOOK.theme, accent:ds.accent ?? DEFAULT_LOOK.accent };
     this.painted = "";
+    this.keeping = true;          /* false while a look is only being tried on */
     this.system.addEventListener("change", () => this.#paint());
     this.#barColor();
   }
@@ -46,9 +47,14 @@ export class ThemeController {
   /** Is this device set to dark? (Someone who never picked a theme follows it.) */
   get systemDark(){ return this.system.matches; }
 
-  /** @param {object} look  a whole look (game/looks.js) */
-  set(look){
+  /**
+   * @param {object} look  a whole look (game/looks.js)
+   * @param {{ keep?: boolean }} [p]  keep: false for a look only being tried on (the color wheel,
+   *   before Use color) — it isn't kept as `lastPaint`, so a reload never starts in it
+   */
+  set(look, { keep = true } = {}){
     this.look = { ...look };
+    this.keeping = keep;
     this.#paint();
   }
 
@@ -96,7 +102,7 @@ export class ThemeController {
     const colorsNow = `${ds.theme ?? ""}|${scheme}|${THEME_VARS.map(k => style.getPropertyValue(k)).join()}`;
     const accentNow = `${ds.accent ?? ""}|${ACCENT_VARS.map(k => style.getPropertyValue(k)).join()}`;
     const colors = colorsWere !== colorsNow, accentChanged = accentWas !== accentNow;
-    this.#keep(scheme, vars);
+    if(this.keeping) this.#keep(scheme, vars);
     if(colors) this.#barColor();
     if(colors || accentChanged) for(const fn of this.listeners) fn({ colors, accent:accentChanged, scheme });
   }

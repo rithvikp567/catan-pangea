@@ -401,6 +401,40 @@ test("signed in: a pick on the phone shows on the laptop too; signed out, each d
   assert.deepEqual(phone.toasts, []);
 });
 
+test("the color wheel: a color tried on shows at once but is saved nowhere until Use color; Cancel puts back what was there", async () => {
+  const store = new MemoryStore();
+  const phone = await device(store, "phone"), laptop = await device(store, "laptop");
+  const id = await phone.game.createProfile("Sam");
+  laptop.game.selectProfile(id);
+  phone.look.pick({ theme:"sand" });
+  await wait(SAVED);
+  const told = phone.owners.length;
+  const tried = { theme:"custom", customTheme:"#1e3a5fff" };
+
+  phone.look.preview(tried);                                  /* let go of the wheel */
+  assert.deepEqual(phone.shown.at(-1), L({ ...tried, accent:"graphite" }), "it shows at once");
+  assert.deepEqual(phone.current, L({ theme:"sand", accent:"graphite" }), "but it isn't what's picked");
+  assert.equal(phone.owners.length, told, "Player Settings isn't told: nothing was picked");
+  assert.deepEqual(phone.storage.get("lastLook"), L({ theme:"sand", accent:"graphite" }), "nor kept for the next launch");
+  await wait(SAVED);
+  assert.deepEqual(laptop.current, L({ theme:"sand", accent:"graphite" }), "nor saved on the profile");
+
+  laptop.look.pick({ accent:"rose" });                        /* a pick on another device meanwhile shows under it */
+  await wait(SAVED);
+  assert.deepEqual(phone.shown.at(-1), L({ ...tried, accent:"rose" }));
+
+  phone.look.preview(null);                                   /* Cancel */
+  assert.deepEqual(phone.shown.at(-1), L({ theme:"sand", accent:"rose" }), "Cancel: what's picked comes back");
+
+  phone.look.preview(tried);                                  /* tried again, then Use color */
+  phone.look.pick(tried);
+  phone.look.preview(null);
+  assert.deepEqual(phone.shown.at(-1), L({ ...tried, accent:"rose" }), "Use color: it stays");
+  await wait(SAVED);
+  assert.deepEqual(laptop.current, L({ ...tried, accent:"rose" }), "and follows them to their other devices");
+  assert.deepEqual(phone.toasts, []);
+});
+
 test("a run of picks is saved once, when it settles; signed in, what the person never picked shows the default, not this device's own", async () => {
   const store = new MemoryStore();
   const phone = await device(store, "phone");

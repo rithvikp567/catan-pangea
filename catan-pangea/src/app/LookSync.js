@@ -16,8 +16,12 @@
  * straight away if they sign out (or someone else signs in) first, or the
  * page is hidden (`flush`, from App).
  *
- * It only decides; `apply(look)` (App: ui/ThemeController, Sound, the
- * build animation) applies them. The settings it showed last are kept on
+ * A color can also be tried on before it's picked (`preview` — the color
+ * wheel, before Use color): it shows on this device only and is saved
+ * nowhere; putting it back shows what's picked again.
+ *
+ * It only decides; `apply(look, { trying })` (App: ui/ThemeController,
+ * Sound, the build animation) applies them. The settings it showed last are kept on
  * the device as `lastLook` (index.html's head script paints from them
  * before the first frame — so nobody sees the default flash while their
  * own arrives with the game data). Until that data has loaded, it keeps
@@ -48,6 +52,7 @@ export class LookSync {
     this.timer = null;
     this.look = null;
     this.owner = undefined;
+    this.trying = null;        /* a look being tried on (some fields), or null */
     this.#show(resolveLook(null, storage.get("lastLook") ?? this.device));
     game.onChange(() => this.#changed());
   }
@@ -90,6 +95,22 @@ export class LookSync {
     }
     if(this.game.ready) this.#sync();
     else this.#show(resolveLook({ ...this.look, ...clean }, null));   /* (still loading: on top of what shows) */
+  }
+
+  /**
+   * Try a look on without picking it (the color wheel, before Use color): it
+   * shows on this device at once, over what's picked, and is saved nowhere —
+   * not on the profile, not as `lastLook`, and listeners don't hear of it.
+   * `preview(null)` puts back what's picked. Whatever changes meanwhile (a
+   * pick from another device) shows under it.
+   * @param {object|null} patch  some fields of a look (game/looks.js)
+   */
+  preview(patch){
+    const clean = patch ? cleanLook(patch) : {};
+    const trying = Object.keys(clean).length ? clean : null;
+    if(!trying && !this.trying) return;
+    this.trying = trying;
+    this.#paint();
   }
 
   /** Save a pick that's waiting, now — the page is being hidden or closed. */
@@ -142,8 +163,14 @@ export class LookSync {
     if(changed){
       this.look = { ...look, recent:[...look.recent] };
       this.storage.set("lastLook", this.look);
-      this.apply(this.look);
+      this.#paint();
     }
     for(const fn of this.listeners) fn(this.look, owner);
+  }
+
+  /** Apply what shows: the look, with what's being tried on over it. */
+  #paint(){
+    const trying = !!this.trying;
+    this.apply(trying ? resolveLook({ ...this.look, ...this.trying }, null) : this.look, { trying });
   }
 }

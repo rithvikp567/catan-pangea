@@ -8,6 +8,10 @@
  * (`sync`); none of it is part of the map's settings (those go out to
  * every phone with each new map).
  *
+ * A custom color shows on the whole app as it's picked — each time the
+ * wheel (or a slider) is let go — but is only picked, and saved, with Use
+ * color; Cancel puts back what was there (`onTry` → LookSync.preview).
+ *
  * Each swatch and theme preview carries its own data-accent / data-scheme /
  * data-theme, so css/tokens.css colors it as itself; a custom one gets its
  * colors from game/colors.js as properties.
@@ -24,10 +28,12 @@ export class PlayerSettings {
    * @param {HTMLElement} root
    * @param {object} p
    * @param {(patch:object) => void} p.onPick   some fields of a look (game/looks.js)
-   * @param {() => "light"|"dark"} p.scheme      the family showing now (the default theme follows the device)
+   * @param {(patch:object|null) => void} [p.onTry]  show a look without picking it (null: back to what's picked)
+   * @param {() => "light"|"dark"} p.scheme      what the device is set to (the default theme follows it)
    */
-  constructor(root, { onPick, scheme }){
+  constructor(root, { onPick, onTry = () => {}, scheme }){
     this.onPick = onPick;
+    this.onTry = onTry;
     this.scheme = scheme;
     this.look = null;
     this.picker = null;          /* made the first time it's needed */
@@ -116,8 +122,10 @@ export class PlayerSettings {
     const hex = await this.#picker().open({
       title:"Custom accent color", value:look?.customAccent ?? null, recent:look?.recent ?? [],
       preview:(el, value) => accentPreview(el, value),
+      onTry:value => this.onTry({ accent:CUSTOM, customAccent:value }),
     });
     if(hex) this.onPick({ accent:CUSTOM, customAccent:hex, recent:addRecent(this.look?.recent, hex) });
+    this.onTry(null);             /* (picked: it shows as picked now; cancelled: what was there comes back) */
     this.accentCustom.focus({ preventScroll:true });
   }
 
@@ -126,8 +134,10 @@ export class PlayerSettings {
     const hex = await this.#picker().open({
       title:"Custom theme color", value:look?.customTheme ?? null, recent:look?.recent ?? [],
       preview:(el, value) => themePreview(el, value, scheme => this.#accentFill(scheme)),
+      onTry:value => this.onTry({ theme:CUSTOM, customTheme:value }),
     });
     if(hex) this.onPick({ theme:CUSTOM, customTheme:hex, recent:addRecent(this.look?.recent, hex) });
+    this.onTry(null);
     this.themeCustom.focus({ preventScroll:true });
   }
 
