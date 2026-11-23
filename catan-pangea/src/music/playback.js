@@ -92,15 +92,29 @@ function stamp(pb, patch, ctx){
   return { ...pb, now:{ ...pb.now, ...patch, pos:round(Math.max(0, pos)), at:ctx.t, rev:(pb.now?.rev ?? 0) + 1, by:ctx.deviceId } };
 }
 
-/** The playlist's songs, read by any device's player. Re-reading the same list keeps the song playing. */
+/**
+ * The playlist's songs, read by any device's player. Re-reading the same
+ * list (Refresh songs, the nightly re-read, the link pasted again) keeps
+ * the song playing where it is: new videos join the queue and removed
+ * ones drop out — if that was the song playing, the queue carries on from
+ * the same place in the list.
+ */
 export function load(pb, { listId, setAt = null, songs }, ctx){
   if(!listId || !songs?.length) return undefined;
   if(pb?.queue?.listId === listId && (pb.queue.setAt ?? null) === setAt) return undefined;
-  const shuffle = pb?.queue?.shuffle === true;
-  const keepSong = pb?.queue?.listId === listId && songs.includes(pb?.now?.videoId) ? pb.now.videoId : null;
+  const sameList = pb?.queue?.listId === listId, shuffle = pb?.queue?.shuffle === true;
+  const keepSong = sameList && songs.includes(pb?.now?.videoId) ? pb.now.videoId : null;
   const order = shuffle ? shuffled(songs, keepSong, ctx.random) : [...songs];
   const base = { ...pb, queue:{ listId, setAt, songs:[...songs], order, shuffle }, now:{ ...pb?.now, playing:pb?.now?.playing === true } };
-  return stamp(base, keepSong ? { index:order.indexOf(keepSong), videoId:keepSong } : song(base, 0), ctx);
+  if(keepSong) return stamp(base, { index:order.indexOf(keepSong), videoId:keepSong }, ctx);
+  const place = sameList && !shuffle ? Math.min(Math.max(0, pb.now?.index ?? 0), order.length - 1) : 0;
+  return stamp(base, song(base, place), ctx);
+}
+
+/** What a re-read changed: the songs that joined and the ones that left (by video id). */
+export function queueChanges(before = [], after = []){
+  const had = new Set(before), has = new Set(after);
+  return { added:after.filter(id => !had.has(id)).length, removed:before.filter(id => !has.has(id)).length };
 }
 
 /**
