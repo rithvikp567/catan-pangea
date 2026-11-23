@@ -188,6 +188,7 @@ export class MusicBar {
     this.away = new Set();       /* why the music is put away for now ("wins", "join", "splash", "welcome"); empty: it shows */
     this.awayListeners = new Set();
     this.miniAway = new Set();   /* why the mini bar is hidden for now ("victory"); the open player is left as it is */
+    this.miniBlur = new Set();   /* why the mini bar is blurred and out of reach for now ("battle") */
     this.holdKey = null;         /* the hold / unhold last sent (once per shared change) */
     this.swipe = null;           /* the mini bar's song, swiped away: { dir, at } until the next song shows */
     this.miniSongId = null;
@@ -274,6 +275,22 @@ export class MusicBar {
     this.#measure();
     for(const fn of this.awayListeners) fn(this.isAway);
     if(!now && !this.isOpen) this.#enter(this.mini);
+  }
+
+  /**
+   * Blur the mini bar behind a pop-up for a reason (or bring it back once no
+   * reason is left) — a battle. It keeps its place (nothing moves), out of
+   * reach until then. Only the mini bar: an open player is never blurred or
+   * covered (YouTube's rules), and one that opens meanwhile shows as usual.
+   */
+  setMiniBlur(reason, on){
+    const was = this.miniBlur.size > 0;
+    if(on) this.miniBlur.add(reason); else this.miniBlur.delete(reason);
+    const now = this.miniBlur.size > 0;
+    if(now === was) return;
+    if(now && !this.isOpen){ this.#showSongs(false); this.#showPop(false); }   /* the sheets opened from the mini bar */
+    this.mini.inert = now;
+    document.body.toggleAttribute("data-mini-blur", now);   /* css/music.css blurs the mini bar */
   }
 
   /**

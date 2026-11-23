@@ -47,6 +47,7 @@ import { ThemeController } from "../ui/ThemeController.js";
 import { PlayerSettings } from "../ui/PlayerSettings.js";
 import { Toast } from "../ui/Toast.js";
 import { VictoryOverlay } from "../ui/VictoryOverlay.js";
+import { BattleOverlay } from "../ui/BattleOverlay.js";
 import { MusicBar } from "../ui/MusicBar.js";
 import { DesktopLayout } from "../ui/DesktopLayout.js";
 import { WinterEffect } from "../ui/WinterEffect.js";
@@ -138,10 +139,13 @@ export class App {
     this.router = new Router({ mapEl:$("app"), docked:route => !!this.layout?.docks(route), onRoute:route => this.#routed(route) });
     this.music = new MusicBar({ game:this.game, toast:this.toast, storage:this.storage });
     this.music.setAway("splash", true);      /* held back while the intro is up */
+    /* knight duels: this player's own pop-up — the mini bar blurred behind it (an open player never is) */
+    this.battle = new BattleOverlay({ game:this.game, toast:this.toast, onToggle:shown => this.music.setMiniBlur("battle", shown) });
     const deps = {
       game:this.game, router:this.router, toast:this.toast, music:this.music, install:this.install,
       confirm:msg => window.confirm(msg),
       createRoom:(name, mods) => this.#createRoom(name, mods),
+      battle:this.battle,                               /* the tracker's Battle button opens it */
       boardProfile:() => this.settings.profile,        /* the map on screen's rules: a new room starts on it */
       installApp:() => this.installApp(),
       /** "Welcome, Lord Sam" over everything — the music put away meanwhile (a player mustn't be
@@ -333,6 +337,7 @@ export class App {
     this.seatedIn = this.game.mySeat ? room.sessionId : null;
     for(const s of this.screens) if(s.visible) s.render(state);
     this.victory.update(state);
+    this.battle.update();
     this.winter.set(room?.mods.walker ? room.counters.walker : 0);
   }
 

@@ -12,7 +12,7 @@
 body[data-desk] .app{ margin-left:var(--left-w, 0px); }
 body[data-desk]:not([data-left="none"]) .app{ margin-left:calc(var(--left-w) - var(--card-gap)); }
 body[data-desk] .screen{ left:var(--left-w, 0px); }
-body[data-desk] .victory{ left:var(--left-w, 0px); }
+body[data-desk] .victory, body[data-desk] .battle{ left:var(--left-w, 0px); }
 body[data-desk] dialog.picker{ left:var(--left-w, 0px); }
 body[data-desk] .toast{ left:calc(var(--left-w) + (100% - var(--left-w) - var(--panel-w)) / 2); bottom:calc(24px + var(--music-h)); }
 body[data-desk] dialog.about{

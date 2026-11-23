@@ -99,10 +99,10 @@ body[data-view="split"][data-axis="x"] .toast{
   left:calc(var(--half) / 2); bottom:calc(24px + env(safe-area-inset-bottom)); max-width:min(420px, calc(var(--half) - 32px));
 }
 body[data-view="split"][data-axis="y"] .toast{ left:50%; bottom:calc(100% - var(--half) + 16px); }
-/* victory / defeat */
-body[data-view="split"][data-axis="x"] .victory{ inset:0 auto 0 0; width:var(--half); }
-body[data-view="split"][data-axis="y"] .victory{ inset:0 0 auto 0; height:var(--half); place-items:normal; overflow-y:auto; }
-body[data-view="split"][data-axis="y"] .victory-card{ margin:auto; }   /* centred, and scrolls when taller than the half */
+/* victory / defeat, and battles */
+body[data-view="split"][data-axis="x"] :is(.victory, .battle){ inset:0 auto 0 0; width:var(--half); }
+body[data-view="split"][data-axis="y"] :is(.victory, .battle){ inset:0 0 auto 0; height:var(--half); place-items:normal; overflow-y:auto; }
+body[data-view="split"][data-axis="y"] :is(.victory-card, .battle-card){ margin:auto; }   /* centred, and scrolls when taller than the half */
 
 /* ---------- the bar between the halves (always shows a grip: phones can't hover) ---------- */
 body[data-view="split"] .splitter[data-split="halves"]{ display:block; }

@@ -22,7 +22,7 @@
   bottom:var(--music-h); right:var(--music-w);
   padding-bottom:max(0px, env(safe-area-inset-bottom) - var(--music-h));
 }
-.victory{ bottom:var(--music-h); right:var(--music-w); }
+.victory, .battle{ bottom:var(--music-h); right:var(--music-w); }
 /* the settings sheet floats above the music's card (beside it in landscape), the same gap from it and the edges */
 .panel{
   left:max(var(--card-gap), env(safe-area-inset-left));
@@ -253,6 +253,8 @@ body[data-view="split"] .music.is-entering{ animation-name:music-fade; }
 body[data-music-away] :is(.music, .music-mini, .music-songs, .music-pop){ display:none !important; }
 /* the victory screen: just the mini bar goes (MusicBar.setMiniAway) — an open player stays as it is */
 body[data-mini-away] .music-mini{ display:none !important; }
+/* a battle: the mini bar blurred behind it, out of reach (MusicBar.setMiniBlur) — an open player is never blurred */
+body[data-mini-blur] .music-mini{ filter:blur(5px); opacity:.55; pointer-events:none; transition:filter .2s ease, opacity .2s ease; }
 
 /* ---------- sheets (songs, playlist): floating cards above the bar (beside it in landscape), never over the player ---------- */
 .music-sheet{
