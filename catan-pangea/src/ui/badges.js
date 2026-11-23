@@ -6,6 +6,7 @@
  * (css/screens.css, "season badges"), still under prefers-reduced-motion.
  */
 import { h, s } from "./dom.js";
+import { outlined, pixels as drawPixels, art as drawArt } from "./pixelArt.js";
 
 const PX = 2;                       /* screen px per art pixel */
 
@@ -52,40 +53,9 @@ const SPARK = ["..a..", "..a..", "aacaa", "..a..", "..a.."];
 /* colours that change with the theme are classes (css), not fills */
 const THEMED = { g:"stink-px", k:"fly-px", w:"wing-px", a:"spark-px", c:"spark-core" };
 
-/** The grid with a one-pixel outline ("o") round everything drawn. */
-function outlined(rows){
-  const g = [rows[0].replace(/./g, "."), ...rows, rows[0].replace(/./g, ".")].map(r => [".", ...r, "."]);
-  const drawn = (x, y) => g[y]?.[x] != null && g[y][x] !== "." && g[y][x] !== "o";
-  for(let y = 0; y < g.length; y++) for(let x = 0; x < g[y].length; x++)
-    if(g[y][x] === "." && (drawn(x - 1, y) || drawn(x + 1, y) || drawn(x, y - 1) || drawn(x, y + 1))) g[y][x] = "o";
-  return g.map(r => r.join(""));
-}
-
-/** One <rect> per run of same-coloured pixels in a row. */
-function pixels(rows, colors = {}, filter = () => true){
-  const out = [];
-  rows.forEach((row, y) => {
-    for(let x = 0; x < row.length;){
-      const c = row[x];
-      let n = 1;
-      while(row[x + n] === c) n++;
-      if(c !== "." && filter(c)){
-        const attrs = { x, y, width:n, height:1 };
-        if(THEMED[c]) attrs.class = THEMED[c]; else attrs.fill = colors[c];
-        out.push(s("rect", attrs));
-      }
-      x += n;
-    }
-  });
-  return out;
-}
-
-function art(rows, cls, ...children){
-  const w = rows[0].length, hgt = rows.length;
-  const svg = s("svg", { class:cls, viewBox:`0 0 ${w} ${hgt}`, width:w * PX, height:hgt * PX, "shape-rendering":"crispEdges", "aria-hidden":"true", focusable:"false" });
-  svg.append(...children.flat());
-  return svg;
-}
+/** Pixels with the badges' themed colors (stink, flies, sparks follow the theme). */
+const pixels = (rows, colors = {}, filter = () => true) => drawPixels(rows, colors, filter, THEMED);
+const art = (rows, cls, ...children) => drawArt(rows, cls, children, PX);
 
 let uid = 0;
 

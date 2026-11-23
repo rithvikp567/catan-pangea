@@ -11,23 +11,27 @@
  *   challenged  the one challenged: Fight, or Retreat (the knight moves
  *               away and stays active).
  *   duel        both: the foe's cards (what they've spent) over your own
- *               knight — three circles in your color, basic · strong ·
- *               mighty: the one you pick moves to the middle and the others
- *               fold in under it (pick it again and they spread out) — and
- *               your cards; Battle readies you.
- *   result      once both are ready: a quick scuffle, then who won and
- *               each side's knight and card (a crown for the winner, a
- *               turd for the loser, as on the victory screen). × or it
+ *               knight — three circles, each a knight in your color
+ *               (ui/knights.js: basic · strong · mighty): the one you pick
+ *               moves to the middle and the others fold in under it (pick
+ *               it again and they spread out) — and your cards; Battle
+ *               readies you.
+ *   fight       once both are ready: each side's knight charges on its
+ *               horse, they collide in a cloud of dust, and the dust fades
+ *               into…
+ *   result      who won, and each side's knight — the winner's
+ *               triumphant, the loser's bandaged — with its card. × or it
  *               closes after 5 s.
  *
  * No hints or summaries in grey: names, cards, knights and buttons only.
  */
 import { h } from "./dom.js";
-import { crown, turd } from "./badges.js";
+import { knight, rider, dust, pips } from "./knights.js";
 import { icon, ICONS, inkOn } from "./screens/widgets.js";
 import { CARDS, KNIGHTS, BATTLE_TIMES, battleStatus, isSpent, outcome, strength } from "../game/battle.js";
 
-const SCUFFLE_MS = 1500;
+/** The charge, the collision and the dust fading into the result (css/screens.css: "the charge"). */
+const CHARGE_MS = 2400;
 /** A finished battle this recent still shows its result on a device that just caught up. */
 const FRESH_MS = 10_000;
 const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -190,7 +194,7 @@ export class BattleOverlay {
       KNIGHTS.map(k => h("button", {
         type:"button", role:"radio", class:"knight", style:knightStyle(self.colorHex), "data-level":String(k.level),
         "aria-label":`${k.label} knight`, disabled:ready, onClick:() => this.#pickKnight(k.level),
-      }, pips(k.level))));
+      }, knight(k.level, self.colorHex), pips(k.level))));
     const cards = cardStrip(spent, { hex:self.colorHex, onPick:ready ? null : c => this.#pickCard(c) });
     const go = h("button", { type:"button", class:"btn primary battle-go", disabled:ready, onClick:() => this.#ready(b) },
       icon(ICONS.swords), ready ? "Ready" : "Battle");
@@ -205,33 +209,46 @@ export class BattleOverlay {
     ];
   }
 
-  /** Both are in: a quick scuffle, then the result. */
+  /**
+   * Both are in: the knights charge, collide in a cloud of dust, and the
+   * dust fades into the result — laid out underneath from the start (so
+   * the card keeps its size), shown as the dust clears.
+   */
   #viewScuffle(room, b, self, foe){
     clearTimeout(this.scuffleTimer);
-    const after = () => { this.#show(`result:${b.id}`, () => this.#viewResult(b, self, foe)); this.#autoClose(); };
-    if(reducedMotion()){ queueMicrotask(after); return []; }
-    this.scuffleTimer = setTimeout(after, SCUFFLE_MS);
-    const side = (s, cls) => h("span", { class:`knight scuffle-${cls}`, style:knightStyle(s.colorHex), "data-level":String(b.picks?.[s.profileId]?.level ?? 1) }, pips(b.picks?.[s.profileId]?.level ?? 1));
-    return [h("div", { class:"battle-scuffle", "aria-label":"Fighting" },
-      side(self, "left"), h("span", { class:"scuffle-cloud" }, ...Array.from({ length:7 }, (_, i) => h("i", { style:`--i:${i}` }))),
-      side(foe, "right"), icon(ICONS.swords, "scuffle-clash"))];
+    const revealed = () => {
+      this.viewKey = `result:${b.id}`;
+      this.card.dataset.view = "result";
+      this.#autoClose();
+    };
+    if(reducedMotion()){ queueMicrotask(revealed); return this.#viewResult(b, self, foe); }
+    this.scuffleTimer = setTimeout(revealed, CHARGE_MS);
+    const charger = (s, side) => h("span", { class:`charge-rider is-${side}` },
+      h("span", { class:"charge-bob" }, rider(b.picks?.[s.profileId]?.level ?? 1, s.colorHex)));
+    return [
+      ...this.#viewResult(b, self, foe, { reveal:true }),
+      h("div", { class:"battle-charge", "aria-hidden":"true" },
+        charger(self, "left"), charger(foe, "right"), h("span", { class:"charge-dust" }, dust())),
+    ];
   }
 
-  #viewResult(b, self, foe){
+  /** Who won, and each side's knight — triumphant or bandaged — and card. */
+  #viewResult(b, self, foe, { reveal = false } = {}){
     const res = outcome(b), winner = res.winner === self.profileId ? self : res.winner === foe.profileId ? foe : null;
     const side = s => {
-      const p = b.picks?.[s.profileId];
-      return h("div", { class:"battle-side", "data-won":String(winner === s) },
-        h("span", { class:"battle-badge" }, winner === s ? crown() : winner ? turd() : null),
-        h("span", { class:"knight", style:knightStyle(s.colorHex), "data-level":String(p.level), "aria-label":`${KNIGHTS[p.level - 1].label} knight` }, pips(p.level)),
+      const p = b.picks?.[s.profileId], pose = !winner ? "ready" : winner === s ? "victory" : "wounded";
+      return h("div", { class:"battle-side", "data-won":String(winner === s), "data-pose":pose },
+        h("span", { class:"battle-pose", style:knightStyle(s.colorHex), "data-level":String(p.level),
+          role:"img", "aria-label":`${KNIGHTS[p.level - 1].label} knight` }, knight(p.level, s.colorHex, pose)),
         h("span", { class:"battle-card-num", "aria-label":`card ${p.card}` }, String(p.card)),
         h("span", { class:"battle-side-name" }, s.profile.name),
         h("b", { class:"battle-total" }, String(strength(p))));
     };
     return [
       this.#closeBtn(() => this.close()),
-      h("h2", { class:"battle-title battle-outcome" }, winner ? `${winner.profile.name} wins` : "Standoff"),
-      h("div", { class:"battle-sides" }, side(self), side(foe)),
+      h("div", { class:`battle-result${reveal ? " is-revealing" : ""}` },
+        h("h2", { class:"battle-title battle-outcome" }, winner ? `${winner.profile.name} wins` : "Standoff"),
+        h("div", { class:"battle-sides" }, side(self), side(foe))),
     ];
   }
 
@@ -304,11 +321,8 @@ function avatar(seat, big = false){
     style:`--c:${seat.colorHex};color:${inkOn(seat.colorHex)}`, "aria-hidden":"true" }, seat.profile.name.slice(0, 1).toUpperCase());
 }
 
-/** A knight's circle in its player's color. */
+/** A player's color (and readable ink on it), for their knights and cards. */
 const knightStyle = hex => `--c:${hex};--k-ink:${inkOn(hex)}`;
-
-/** 1–3 pips: basic, strong, mighty. */
-const pips = level => h("span", { class:"knight-pips", "aria-hidden":"true" }, Array.from({ length:level }, () => h("i")));
 
 /**
  * A player's cards 1–6: lit in their color while they're left, greyed once
