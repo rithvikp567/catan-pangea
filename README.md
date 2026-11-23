@@ -5,7 +5,9 @@ free-form continents with the coastline kept tight, numbers and ports
 optimised for a fair draft, and a shared scoreboard (VP, cities and knights, karma,
 robber, the WALKER word with its 8-bit winter, honor coins, season wins with a
 crown for first place and turds for the rest, and a calendar of who won each day) synced
-across everyone's phone, plus a docked YouTube music player for the table's
+across everyone's phone — several games at once, each a room in *Today's
+games* with its own house rules (Karma & Robber, Walker, knight duels with
+cards 1–6, points to win) — plus a docked YouTube music player for the table's
 playlist — one shared player that every phone controls while the phone cast
 to the TV plays the sound. Two board types — **Open Sea** and
 **Sea Lanes** — built mobile-first, with a mini music player that sits along

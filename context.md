@@ -17,7 +17,10 @@ hexagonal board. It does two jobs:
    tokens and ports, and optimises them so the game is fair.
 2. **Game tracker** — a shared, live scoreboard used on everyone's phone
    during the game: victory points, knights, cities, karma, the robber, and each
-   player's honor coin, with a victory screen and season win tallies.
+   player's honor coin, with a victory screen and season win tallies. Several
+   games can run at once: each is a **room** in *Today's games*, with the
+   house rules (**mods**) picked when it's made — and knight duels
+   (**Battle**) between the players in it.
 
 Plus a **music bar** that plays the table's YouTube / YouTube Music
 playlist docked under the map and tracker, so the phone that's cast to the
@@ -43,13 +46,14 @@ no browser bars, and it opens with no signal.
 | **Open Sea** board | One continent in open water; 9 loose ports clip onto the coast. |
 | **Sea Lanes** board | Land inside the 5–6 player frame; leftover frame slots are navigable water. A player may pay a ship to claim one otherwise unreachable frame port, one player per port. "Flat" ship cost = any ship reaches any port; "Per hop" = water distance matters. |
 | **Cities & Knights** | Optional balance profile: forest / pasture / mountains are worth more (commodities). |
-| **13 VP to win** | Tracker caps VP at 13 and shows Victory / Defeat. |
+| **13 VP to win** | Tracker caps VP at 13 and shows Victory / Defeat — 10 on a base-game board, or any 5–20 a room picks (its **Points to win** mod). |
 | **Knights, per island** | Two shared counters, **Main island** and **Off island**, each 0 … 12 × players on its own. (A tiered version — mighty / strong / basic with a derived knight strength — was tried in 2.1.0 and reverted in 2.1.1 as too much for the table.) |
 | **Cities** | A shared counter, 0 … 4 × players (city pieces in the box). |
-| **Karma** | A shared ± number (homebrew; the app only tracks it). |
+| **Karma** | A shared ± number (homebrew; the app only tracks it). With the robber, the **Karma & Robber** mod. |
 | **Robber points** | A shared value, 1 … 3, starting at 1: **Abstain** adds 1 to karma and makes it one more (up to 3, where it stays); **Rob** subtracts it from karma and starts it over at 1. |
 | **Honor coin** | Each player has a coin: heads = honorable (start), tails = dishonorable. Only its owner can flip it; everyone sees it. |
-| **Walker** | The word **WALKER**, shared: one letter per 7 rolled with the barbarians (counted by hand with + / −). **+** on the full word starts it over at 0. As it fills, every phone snows (8-bit pixel snow, frost creeping in from the edges); back to 0, the winter fades away. |
+| **Walker** | The **Walker** mod. The word **WALKER**, shared: one letter per 7 rolled with the barbarians (counted by hand with + / −). **+** on the full word starts it over at 0. As it fills, every phone snows (8-bit pixel snow, frost creeping in from the edges); back to 0, the winter fades away. |
+| **Knight duels** | The **Battle** mod (Cities & Knights boards). Each player holds cards 1–6; a duel is card + knight level (basic 1, strong 2, mighty 3), higher wins, a tie is a standoff. A played card is spent until all six are, then they all come back. The one challenged can **Retreat** instead (the knight moves away and stays active). |
 
 ---
 
@@ -368,11 +372,11 @@ on the tracker): everything works, but nothing is shared between phones.
   2.6 s and until the game has loaded, then it fades into choosing an
   account. Someone already signed in and seated goes straight on to the
   welcome instead. A tap skips it. The music is held back while it's up.
-- **The welcome**: picking your account (seated already, or once you've
-  joined with a color) shows **Welcome, Lord Sam** — an 8-bit crown drops
-  in, "You're Blue" under the name, a little square-wave fanfare where sound
-  is allowed — then fades into the tracker (seated) or the map (just
-  joined). Changing color doesn't repeat it. It covers the **whole
+- **The welcome**: picking your account shows **Welcome, Lord Sam** — an
+  8-bit crown drops in, a little square-wave fanfare where sound is
+  allowed — then fades into **Today's games** (below). After the intro, for
+  someone seated in this device's room, it says "You're Blue" under the
+  name and fades into the map. It covers the **whole
   window**: the music is put away while it plays (`setAway("welcome")`)
   and comes back as it fades out — on the device playing the music, the
   song pauses for those few seconds and plays on after (the same hold as
@@ -382,29 +386,56 @@ on the tracker): everything works, but nothing is shared between phones.
   its tile on a phone, where the icons need the row (`ui/AccountLine.js`).
   Sign out only forgets the profile on this device — the seat stays — and
   goes to choosing an account; nobody signed in reads **Sign in**.
-- **Welcome / join screen** (`#/join`): a centred welcome page — brand,
-  "Who's playing?", the game in one line (board · players · seats taken),
-  then every profile as a list. Create one (**one per device**, username
-  only — the limit is enforced, not explained on screen); pick a profile →
-  pick a **color** (colors taken in this game are disabled) → **Join
-  game**. Underneath: Admin · View map, and the sync pill (season wins are
-  the top bar's trophy only). **The music is put away** while it's open
-  (`setAway("join")`), held exactly like on Season wins (below): a play
-  from another phone waits — *Sam's computer is on the sign-in screen —
-  the music plays as soon as they leave it* — and plays once they're
-  through (after the welcome).
-- **Session = the map's seed.** The first device online publishes its map
-  as the shared game; every phone shows that exact board. **New map**
-  starts a new game for everyone (after a confirm if anything is in
-  progress): points, coins and counters reset, **everyone seated keeps
-  their seat and color** (if the new map has fewer seats, the players who
-  don't fit pick again), **season wins are kept**.
+- **Who's playing?** (`#/join`, 3.0.0: the profile only): a centred page —
+  brand, "Who's playing?", then every profile as a list. Create one (**one
+  per device**, username only — the limit is enforced, not explained on
+  screen); pick one → the welcome → Today's games. Underneath: Admin · View
+  map, and the sync pill (season wins are the top bar's trophy only). **The
+  music is put away** while it's open (`setAway("join")`), held exactly
+  like on Season wins (below): a play from another phone waits — *Sam's
+  computer is on the sign-in screen — the music plays as soon as they
+  leave it* — and plays once they're through (after the welcome).
+- **Today's games** (`#/rooms`, 3.0.0, `RoomsScreen`): every open room,
+  newest first — its name, a delete button (after a confirm: the game ends
+  for everyone in it; season wins are kept), the board · players · seats
+  taken, who's seated (an initial in their color) and its mods as chips
+  (*Karma & Robber*, *Walker*, *Battle* — never on a base-game board —
+  and the points to win). **Open** (seated there: the tracker once the
+  game's under way, else the map), **Join** (pick a color) or **Watch** (no
+  seat left). **New game** under the list. *No games yet today.* when
+  there are none. The top bar's **Pangaea** (logo and name) comes back
+  here. Rooms close by themselves **6 h after anyone last touched them**
+  (`ROOM_TTL_MS`; every committed change in a room stamps its
+  `activeAt`): whichever device notices deletes them
+  (`GameService.pruneRooms`, at start and every 10 min), and anyone still
+  in one gets *That game has closed.* and Today's games.
+- **New game** (`#/mods`, `ModsScreen`): the room's name (*Sam's game*,
+  *Sam's game 2* … suggested; unique among today's rooms, up to 24
+  letters), then the mods as switches — **Karma & Robber**, **Walker**,
+  **Battle** (all on at first) — and **Custom points to win** (off: the
+  board's own, 13 or 10, shown greyed; on: a stepper, 5–20). **Create
+  game** makes the room on the map on screen (or the one still being
+  made) and goes on to pick a color. A room's mods are fixed once it's
+  made.
+- **Pick your color** (`#/seat`, `SeatScreen`): the room's name, board and
+  seats taken, then the colors (taken ones disabled, with who has them) →
+  **Join game** — *You're Blue in Sam's game* and the map (or the tracker,
+  for someone changing color). A full room offers **Watch**. Colors are
+  per room: Sam can be blue in one and red in another.
+- **A room's game = its map's seed.** Making a room publishes its map as
+  that room's game; every phone in it shows that exact board. **New map**
+  starts a new game for everyone in the room (after a confirm if anything
+  is in progress): points, coins, counters and battles reset, **everyone
+  seated keeps their seat and color** (if the new map has fewer seats, the
+  players who don't fit pick again), **season wins are kept**. Outside a
+  room the map is this device's own (nothing is published).
 - **Tracker screen** (`#/tracker`, *Tracker* button in the dock): its header
   is two tiles, like the top bar's (2.13.0) — the back arrow with the title
   at the left, the sync status at the right; 40 px tall, so the header
   keeps the 48 px that `--tracker-chrome` counts (music and season wins live
   only in the top bar; who's signed in too — the meta line under the header
-  is just the seed, plus *Join as …* for someone not seated). It rises from
+  is the room's name, the seed and the players, plus *Join as …* for
+  someone not seated). It rises from
   the bottom with its cards following one by one (on desktop it docks in
   from the left), and slides away going back to the map.
   - **Fits one phone screen without scrolling.** The seat rows share the
@@ -423,13 +454,26 @@ on the tracker): everything works, but nothing is shared between phones.
     Brave at 393 × 656: up to 4 players fit roomy with the music closed;
     with it open (its card takes 230 px) 3 fit, and 4 scroll ~30 px (5–6 a
     little more).
+  - **The tiles follow the room** (3.0.0): Cities and Knights only on a
+    Cities & Knights board, the Battle button only with the Battle mod, the
+    karma tile only with Karma & Robber or Walker — titled by what's in it:
+    *Karma and Robber & Walker*, *Karma and Robber* or *Walker*. Where the
+    tracker is at least 400 px wide (a container query: desktop, a tablet)
+    **Victory points & honor** is a square with **Cities and Knights** a
+    square to its right (1.5 : 1, the same height; the knights' tiles
+    stacked, Battle across the bottom with its name); without Cities and
+    Knights it's a full-width rectangle again. On a phone they stay
+    stacked. The measured height of everything but the seat rows
+    (`--tracker-chrome`) is taken from the screen itself, so a tracker
+    with fewer tiles has taller rows.
   - Victory points & honor — one row per seat (seat count = the map's
     player count): that player's honor coin in their color (only the owner
     can flip it; "Honorable" / "Dishonorable" under the name), then VP
-    0–13. **Anyone can edit any player's VP.**
+    from 0 to the room's points to win (13 on Cities & Knights, 10 in the
+    base game, or the room's own). **Anyone can edit any player's VP.**
   - Cities and Knights — three compact tiles in one row: Main island
     knights, Off island knights (each 0…12 × players) and Cities
-    (0…4 × players).
+    (0…4 × players), and **Battle** (crossed swords; below).
   - Karma, robber & walker — one row: Karma (±99, the digits stay centred
     with the sign hanging left) and the Robber's two buttons: **Abstain**
     (karma +1, and the robber one more — three pips show its value; at 3 it
@@ -461,11 +505,42 @@ on the tracker): everything works, but nothing is shared between phones.
     (2.15.0): while either is up it fades out in 0.2 s and stops
     (`WinterEffect.setAway("wins" | "victory")`), and it comes back at the
     same level when they close — a letter added meanwhile shows then.
-- **Logging in on another device:** pick your profile on the welcome
-  screen. If you're seated in the current game it's *Welcome, Lord …* and
-  straight to the tracker; the music is the table's, so it's already there
-  (see Music).
-- **Victory screen**: when a seated player hits 13 VP, they see *Victory*,
+- **Battle** (3.0.0, the Battle mod, `ui/BattleOverlay.js`; the rules are
+  `game/battle.js`): each player's own pop-up, laid out like the victory
+  screen (never over the YouTube player; the mini bar is blurred behind
+  it and out of reach — `MusicBar.setMiniBlur` — an open player never is).
+  No hints or summaries in it: names, cards, knights and buttons.
+  - **Battle** in the Cities and Knights tile opens **who to battle**:
+    everyone else seated, each with their cards **1–6** — lit in their
+    color while they have them, greyed and struck through once spent. Tap
+    a name to challenge them (× or a tap outside closes it).
+  - The one challenged gets a pop-up of their own — *Rithvik challenges
+    you* — with **Retreat** (their knight moves away and stays active; the
+    challenger sees *Sam retreated*) and **Fight**. A challenge nobody
+    answers lapses after a minute (*Sam didn't answer.*); × on the
+    challenger's side calls it off (*The battle was called off.* on the
+    other's).
+  - **Fight** opens the duel on both phones: the foe's cards (what they've
+    spent), your **knight** — three circles in your color, one to three
+    pips (basic, strong, mighty): the one you tap moves to the middle and
+    the other two fold in under it; tap it again and they spread out —
+    and your cards (the spent ones can't be picked). **Battle** readies
+    you (it reads *Ready*); the foe's avatar rings once they're ready. A
+    duel left unfinished for 3 minutes lapses; × calls it off.
+  - Both ready: a quick **scuffle** (the two knights charge and clash,
+    crossed swords, dust — 1.5 s; skipped under *reduce motion*), then the
+    **result** — *Rithvik wins* (or *Standoff*) over each side's knight,
+    card, name and total, a crown for the winner and a turd for the loser
+    (Season wins' badges). × or it closes by itself after **5 s**.
+  - A card is spent once played in a finished duel, until all six are —
+    then they all come back (worked out from the room's battle history,
+    so it can't be double-spent). One open battle per player; a new map
+    clears them.
+- **Logging in on another device:** pick your profile — *Welcome, Lord …*
+  and Today's games, where your room says **Open**; the music is the
+  table's, so it's already there (see Music). A device remembers its room
+  (`Identity.roomId`), so a reload goes straight back in.
+- **Victory screen**: when a seated player hits the points to win (13 VP on Cities & Knights), they see *Victory*,
   other seated players see *Defeat* (spectators see "X wins"). **Continue**
   returns to the tracker with numbers intact. If that player drops below 13
   and returns, it shows again. It wears Season wins' 8-bit badges
@@ -482,7 +557,7 @@ on the tracker): everything works, but nothing is shared between phones.
   it opens out of the trophy, its cards following): wins per profile per calendar year (on a screen
   ≥ 700 px wide it's larger: up to 900 px across, taller rows and calendar
   days, bigger type — 2.13.0). Reaching
-  13 records a win; dropping back below 13 removes it (so corrections fix
+  the points to win (13 in most games) records a win; dropping back below them removes it (so corrections fix
   the tally). Once anyone has won that season, first place wears an 8-bit
   **crown** (a glint sweeps across it, it glows, sparkles twinkle) and
   everyone else gets a **turd** (stink rises off it, two flies buzz round
@@ -669,10 +744,14 @@ on the tracker): everything works, but nothing is shared between phones.
   200 × 200 player with its controls beside it (YouTube's minimum size, so
   the song list gets the room): alone it fills the column with the whole
   song list underneath; with the tracker open the column splits —
-  **tracker on top, music below** (`compact`: the songs open as a sheet
-  beside the column, until the music is dragged to ≥ 392 px tall (its
-  card 380 px plus the gap under it) — `SONGS_FROM` — and the list moves
-  in under the player, `column`). The
+  **tracker on top, music below**, locked (3.0.0: no handle between them):
+  the tracker takes the height its tiles and rows need
+  (`DesktopLayout.fitTracker`, from `TrackerScreen`'s own measure — fewer
+  mods, a shorter tracker), its header in line with the top bar's tiles,
+  and the music takes the rest (`compact`: the songs open as a sheet
+  beside the column, until the music has ≥ 392 px (its card 380 px plus
+  the gap under it) — `SONGS_FROM` — and the list moves in under the
+  player, `column`). The
   map and the settings column sit to the right, and the map stays usable
   while the tracker is open (the **Tracker** button opens and closes it).
 - **Tiles on top** (2.13.0): over the map, three tiles, 50 px tall —
@@ -696,8 +775,9 @@ on the tracker): everything works, but nothing is shared between phones.
   middle of its space when it's shorter, and scrolls from the top when it
   isn't (`.screen-inner`: `min-height:100%`, a centred flex column). The
   compact music pane centres its player and controls too.
-- **Drag to resize**, with three handles: the column's width, the split
-  between tracker and music, and the settings column's width (each column
+- **Drag to resize**, with two handles: the column's width and the
+  settings column's width (the split between tracker and music had a third
+  until 3.0.0; each column
   handle sits in the middle of its gap and runs the window's full height
   — the settings one used to start under the top bar; a drag follows the
   pointer from where it took hold, so nothing jumps; if the window
@@ -705,9 +785,7 @@ on the tracker): everything works, but nothing is shared between phones.
   keys when focused, Shift for bigger steps; double-click resets). Sizes are
   remembered per device and fitted to smaller windows. Limits keep the map
   ≥ 420 px wide, the column ≥ 380 px (the player and its controls side by
-  side) and ≤ 759 px —
-  just short of the tracker's two-column layout (its `@container` at
-  760 px), so the docked tracker always stays one column (`MAX_LEFT`).
+  side) and ≤ 759 px (`MAX_LEFT`).
 - `DesktopLayout` decides and measures (body `data-desk` / `data-left`,
   `--left-w` / `--split` / `--music-top` / `--panel-w`);
   `css/desktop.css` lays it out. Phones never get any of it.
@@ -886,9 +964,14 @@ catan-pangea/                       ← deployed as-is to GitHub Pages
     generators/index.js             GENERATORS registry, getGenerator, restoreBoard
     index.js                        public API barrel
   src/game/                         GAME TRACKER DOMAIN — pure logic over a store
-    rules.js                        limits, colors, robber cycle, newSession(), validateName
-    GameState.js                    read-only view: seats, winners, taken colors, wins tally
-    GameService.js                  every operation as store transactions
+    rules.js                        limits, colors, robber cycle, newSession(), validateName, ROOM_TTL_MS
+    mods.js                         Mods: a room's house rules (immutable value object), points to win, the karma tile's title
+    battle.js                       knight duels: cards, knights, strength, outcome, lapsing, the commands, spent cards
+    GameError.js                    the error a rule refusal throws (its message is shown as a toast)
+    GameState.js                    read-only view: profiles, rooms (RoomState), wins tally, season history
+    RoomState.js                    read-only view of one room: seats, winners, taken colors, mods, battles
+    GameService.js                  profiles, rooms (create, delete, prune), wins, music — store transactions
+    RoomService.js                  one room's game: board, seats, VP, coins, counters, battles — store transactions
     looks.js                        Player Settings: theme / accent ids, names, families, the fields; clean / resolve a look
     colors.js                       custom colors: hex / HSV, contrast, a whole theme or an accent from one color, recent list
   src/music/playlist.js             pure: parsePlaylist (links → list id), player error meanings
@@ -900,13 +983,13 @@ catan-pangea/                       ← deployed as-is to GitHub Pages
     firebaseConfig.js               public config of the live project (null = this device only)
     createStore.js                  picks the adapter; `?store=local` forces this device only
   src/app/                          APPLICATION LAYER
-    App.js                          controller: map ↔ shared session, wiring
+    App.js                          controller: map ↔ this device's room, wiring
     GameController.js               tracker facade for screens (state, me, intents, toasts)
     Settings.js                     immutable settings value object + UI presets
-    Identity.js                     device id + current profile (localStorage)
+    Identity.js                     device id + current profile + current room (localStorage)
     LookSync.js                     whose Player Settings apply here, and where a pick is saved (the profile, or this device)
     InstallHelper.js                install button / iPhone how-to; registers sw.js
-    Router.js                       hash routes: "" (map), join, tracker, wins, admin
+    Router.js                       hash routes: "" (map), join, rooms, mods, seat, tracker, wins, admin
     storage.js                      SafeStorage (never-throwing localStorage)
   src/ui/                           VIEWS
     BoardView.js                    SVG board renderer (concrete colors → exportable)
@@ -917,15 +1000,17 @@ catan-pangea/                       ← deployed as-is to GitHub Pages
     ColorPicker.js                  the color wheel pop-up (brightness, opacity, hex, preview, recent colors)
     imageExport.js, Toast.js, dom.js  PNG/share; toasts; h()/s() DOM builders
     VictoryOverlay.js               victory / defeat screen (crown / turd badges; no mini bar or frost while it's up)
+    BattleOverlay.js                knight duels: who to battle, the challenge, the duel, the scuffle, the result
     Splash.js                       the intro ("Settlers of Catan") and "Welcome, Lord …"
     Sound.js                        sound effects made with Web Audio (tile clack, flip, pop, fanfare): timelines, mute (Player Settings), restarts after interruptions
     AccountLine.js                  "Sam · Sign out" in the top bar
     MusicBar.js                     docked YouTube player (IFrame API) following the shared playback: speaker / remote, songs sheet, playlist pop-up
     WinterEffect.js                 8-bit snow + frost that build up as WALKER fills
     badges.js                       8-bit season badges: the crown (first place) and the turd (everyone else)
-    DesktopLayout.js                desktop left column + its drag handles; the music & tracker view
+    DesktopLayout.js                desktop left column (the tracker fitted over the music) + its drag handles; the music & tracker view
     screens/Screen.js               base class for full-screen views
-    screens/JoinScreen.js, TrackerScreen.js, WinsScreen.js, AdminScreen.js, widgets.js
+    screens/JoinScreen.js, RoomsScreen.js, ModsScreen.js, SeatScreen.js   who's playing; today's games; new game; pick a color
+    screens/TrackerScreen.js, WinsScreen.js, AdminScreen.js, widgets.js
 tests/                              node:test (engine, store, game service)
 .github/workflows/test.yml          npm test on every pull request into main (the required "npm test" check)
 .github/workflows/deploy-pages.yml  every push to main (a merged pull request): npm test, then publish catan-pangea/ to Pages
@@ -972,21 +1057,28 @@ ui/  ──intent──▶  app/  ──▶  engine/        (map)
   Colors only via CSS tokens (`css/tokens.css`) except terrain colors in
   `ui/palette.js`.
 
-### Map ↔ session flow (`App`)
-- Boot: connect the store → first `GameState`. If a session exists, restore
-  its board from the snapshot; otherwise generate a board and publish it
-  with `onlyIfNone` (a transaction, so two devices booting together agree).
-- New map / mode switch / replay seed → confirm if `state.hasProgress` →
-  generate → publish (replaces the session).
-- A session arriving from another phone → `restoreBoard(snapshot)` (no
-  annealing; identical board and score on every device — this avoids any
-  cross-browser floating-point drift in re-generation).
+### Map ↔ room flow (`App`)
+- Each device is in at most one room (`Identity.roomId`; `GameController.room`
+  is that room's `RoomState`, or null — also once it's expired).
+- Boot: connect the store → first `GameState` (rooms past their 6 h are
+  pruned). In a room: restore its board from the snapshot. Outside one:
+  generate a map of this device's own, published nowhere; signed in, the
+  app goes to Today's games, otherwise to Who's playing?.
+- **New game** (the Mods screen) makes a room on the map on screen
+  (`App.#createRoom` — waiting for a map still being made, or making one)
+  and enters it.
+- New map / mode switch / replay seed → confirm if `room.hasProgress` →
+  generate → publish into this device's room (replaces its game). Outside a
+  room it just shows.
+- A room's game arriving from another phone, or a room just entered →
+  `restoreBoard(snapshot)` (no annealing; identical board and score on
+  every device — this avoids any cross-browser floating-point drift in
+  re-generation). Only a new game in the same room builds itself in.
 - A new game carries the seated players over (`carrySeats` in
   `rules.js`). If this device was seated before and isn't any more (the
-  new map has fewer seats), it's sent to the join screen.
-- **Join** first makes sure a game exists (`App.#ensureSession`): if the
-  app was opened straight on the join screen and the first map is still
-  generating, it waits for that map (`inflight.done`) — or makes one.
+  new map has fewer seats), it's sent to pick a color.
+- The room gone (deleted, or expired) while this device is in it: *That
+  game has closed.* and Today's games.
 - If the store doesn't deliver a first state within 6 s, a local map is
   shown and a toast explains; the game attaches when the data arrives.
 
@@ -1001,14 +1093,20 @@ v1/
                2.13.0 adds customTheme?, customAccent? ("#rrggbbaa"), recent? (up to 5 of them, newest
                first — an array, which Firebase may hand back as an object keyed 0, 1, 2…),
                animations?, sounds? (booleans); theme / accent may be "custom")
-  session:                                   ← the ONE active game
-    meta:     { id, seed, players, createdAt, createdBy?, buildAt?, season }
-              (buildAt: ms, server clock — when a New map starts building in on every device; 2.11.0+)
-    board:    BoardSnapshot  { v:1, generatorId, request, tiles:["q,r|terrain|num"], ports:["edge|hex|type|res"] }
-    settings: Settings#toJSON()
-    seats:    { s0:{ vp, honorable, profileId?, color? }, s1:…, … }   (keys "s0…" — numeric keys become arrays)
-    counters: { knightsMain, knightsOff, cities, karma, walker (0…6), robber }
-              (one key per COUNTERS entry; a missing key reads as 0, so older games keep working)
+  rooms/{roomId}:                            ← today's games (3.0.0; before, one `session` — no longer read)
+    info:     { name, createdAt, createdBy?, activeAt (ms — every committed change stamps it; 6 h later the
+                room is pruned), mods:{ karmaRobber, walker, battle, vpToWin? } }   (game/mods.js)
+    session:                                 ← the room's game
+      meta:     { id, seed, players, createdAt, createdBy?, buildAt?, season }
+                (buildAt: ms, server clock — when a New map starts building in on every device; 2.11.0+)
+      board:    BoardSnapshot  { v:1, generatorId, request, tiles:["q,r|terrain|num"], ports:["edge|hex|type|res"] }
+      settings: Settings#toJSON()   (settings.profile: "ck" | "base" — the points to win and whether there are knights)
+      seats:    { s0:{ vp, honorable, profileId?, color? }, s1:…, … }   (keys "s0…" — numeric keys become arrays)
+      counters: { knightsMain, knightsOff, cities, karma, walker (0…6), robber }
+                (one key per COUNTERS entry; a missing key reads as 0, so older games keep working)
+      battles/{battleId}: { from, to (profileIds), at, state:"asked"|"fight"|"retreat"|"done"|"cancelled",
+                answeredAt?, picks?:{ [profileId]:{ level (1–3), card (1–6) } }, doneAt? }   (game/battle.js;
+                a lapsed one is "asked" / "fight" left too long — worked out, never written)
   wins/{season}/{entryId}: { profileId, delta (±1), source:"game"|"admin", sessionId?, at,
                              scores?: { [profileId]: { vp, color? } } }   ← everyone seated, at a game win (2.10.0+)
   music:                   { listId, setAt (ms), setBy? }   ← the table's playlist (YouTube list id)
@@ -1021,7 +1119,7 @@ v1/
     beat:   ms                               ← the speaker's last "still here" (every 20 s; gone after 70 s)
   listening/{profileId}:   (before 2.7.0: per-profile music spots; no longer written — removing a profile still clears it)
 ```
-- **Wins are a ledger.** A game win's entry id is `${sessionId}_${profileId}`
+- **Wins are a ledger** (shared by every room). A game win's entry id is `${sessionId}_${profileId}`
   (idempotent): written when VP goes <13 → 13 — with every seated player's
   VP and color at that moment (`scores`, for the calendar's pop-up) —
   removed when 13 → <13. Admin
@@ -1030,8 +1128,8 @@ v1/
 - Nulls are never stored (RTDB semantics); `prune()` in `MemoryStore`
   normalises writes identically for every adapter.
 - **Concurrency:** every change to shared numbers is a transaction with the
-  limits applied inside it (VP 0–13, knights 0–12×N per island, cities 0–4×N, karma ±99, walker 0–6 wrapping, color
-  uniqueness, seat availability), so simultaneous taps from several phones
+  limits applied inside it (VP 0 to the points to win, knights 0–12×N per island, cities 0–4×N, karma ±99, walker 0–6 wrapping, color
+  uniqueness, seat availability, one open battle per player, a card not spent), so simultaneous taps from several phones
   never lose updates or break a limit. Counter controls send **deltas**.
   Music commands are transactions on `playback` too (next is relative, so
   two taps skip two songs; a song's end is tied to its video id, so it
@@ -1048,6 +1146,8 @@ v1/
   admin removes it, the device may create another.
 - Current profile: `pangaea:profileId`. Clicking another profile on the join
   screen switches to it (no passwords — trusted group).
+- Current room: `pangaea:roomId` (3.0.0) — the room this device is in
+  (opened from Today's games, or made here); cleared when it closes.
 - Player Settings on this device: `pangaea:theme`, `accent`,
   `customTheme`, `customAccent`, `recent`, `animations`, `sounds` (this
   device's own, applying while nobody's signed in — before 2.12.0 `theme`
@@ -1071,12 +1171,20 @@ v1/
 - `generators.test.js` — determinism, hard rules, port siting, ore/wheat
   floor, frame bounds, snapshot round-trip (identical board + score), abort.
 - `store.test.js` — the store contract (`MemoryStore`).
-- `game.test.js` — the tracker as several devices on one shared store:
-  profiles, seats/colors, VP + win record/revoke, coins, knights, karma,
-  robber (abstain: karma +1 and the robber up to 3; rob and reset),
-  session rotation (with `buildAt`), admin, the points recorded with a win
-  and `winHistory` (the calendar), and the look saved on a profile
-  (merged by field, never bringing back a removed profile).
+- `game.test.js` — the tracker as several devices on one shared store, in
+  a room: profiles, seats/colors, VP + win record/revoke, coins, knights,
+  karma, robber (abstain: karma +1 and the robber up to 3; rob and reset),
+  a room's game rotating (with `buildAt`; a closed room stays closed),
+  admin, the points recorded with a win and `winHistory` (the calendar),
+  and the look saved on a profile (merged by field, never bringing back a
+  removed profile).
+- `rooms.test.js` — rooms and mods: `Mods` (defaults, the clamp, the karma
+  tile's title, the summary — no Battle on a base-game board), making and
+  listing rooms (unique names today), expiry after 6 h and pruning,
+  deleting, a removed profile freeing its seat in every room, the base
+  game's 10 VP and a custom target, and battles: cards spent and coming
+  back, the outcome, a lapsed challenge, the whole flow (a spent card, one
+  battle at a time, retreat, calling off) and a new map clearing them.
 - `look.test.js` — Player Settings: the lists, cleaning and resolving a
   look (custom colors, recent — an array or Firebase's object — and the
   two switches), the light / dark switch; custom colors: hex ⇄ HSV round
@@ -1147,18 +1255,27 @@ your run created afterwards — never `DELETE /v1` once real data exists.
   tests in `generators.test.js` (they iterate over `GENERATORS`).
 - **New shared counter:** add it to `COUNTERS` in `game/rules.js` (label +
   bounds as functions of the player count). `newSession()`,
-  `GameState.counters`, `hasProgress` and `GameService.adjustCounter` all
+  `RoomState.counters`, `hasProgress` and `RoomService.adjustCounter` all
   derive from `COUNTERS`; render it in `TrackerScreen` with the
   `tile(name, label)` helper (bounds follow the table size). Steps go
   through `stepCounter` / `stepWithin`, so a value saved past a later,
   tighter bound can still step back one at a time; `wraps:true` (the
   walker) makes + on the maximum go back to the minimum (pass `wraps` to
   `CounterControl` too). Adding a row of tiles makes the screen
-  taller: re-measure and update `--tracker-chrome` (and
-  `--tracker-chrome-tight`, measured with `data-fit="tight"`). Add a test.
+  taller: `TrackerScreen` measures it (`--tracker-chrome`); check the
+  phone still fits without scrolling (and `--tracker-chrome-tight`,
+  measured with `data-fit="tight"`). Add a test.
 - **New per-player stat:** add the field to seats in `newSession()`, read it
-  in `GameState.seats`, add a `GameService` method using a seat
-  transaction, render it in `TrackerScreen.#buildSeats`.
+  in `RoomState.seats`, add a `RoomService` method using a seat
+  transaction (through `#change`, so the room's `activeAt` is stamped),
+  a `GameController` intent (`#inRoom`), render it in
+  `TrackerScreen.#buildSeats`.
+- **New mod:** a switch in `Mods.SWITCHES` and `Mods.DEFAULTS`
+  (`game/mods.js`) — the Mods screen and the room's chips list it from
+  there — then show or hide what it governs in `TrackerScreen#showMods`
+  (and anywhere else it applies, read from `room.mods`). A mod that
+  depends on the board (like Battle: knights) says so in `summary` and in
+  `RoomState` (`battleOn`). Add it to `rooms.test.js`.
 - **New screen:** subclass `Screen` (build once in `build()`, update in
   `render(state)`), register it in `App` (`this.screens`), navigate with
   `router.go(name)`.
@@ -1268,10 +1385,20 @@ your run created afterwards — never `DELETE /v1` once real data exists.
 - **Local runs hit production** unless the URL has `?store=local` (the
   config in the repo is the live one). Tests in `tests/` never touch it —
   they use `MemoryStore`.
-- **One active game at a time** (one `session`). Two groups playing
-  simultaneously would overwrite each other. Multiple rooms would mean
-  `sessions/{roomId}` plus a room code — the service is structured so this
-  is a contained change.
+- **Rooms** (3.0.0): each game is `rooms/{id}`; the old single
+  `v1/session` is no longer read (a game in progress there when 3.0.0
+  went out is simply left behind — nothing reads or deletes it). A room's
+  mods are fixed when it's made. Rooms are pruned by whichever device
+  notices they're 6 h stale, with a transaction per room that re-checks
+  `activeAt`, so a room touched meanwhile survives. Every committed change
+  stamps `activeAt` with a transaction on `info` that aborts when the room
+  is gone, so a change racing a delete never brings a room back. The music
+  is shared by every room (one playlist, one speaker), as are the season
+  wins.
+- **Battles are derived, not stored per player:** a player's spent cards
+  are replayed from the room's finished battles (`spentCards`, in
+  `doneAt` order), so there's nothing to get out of step. Two battles
+  finishing in the same millisecond are ordered by id.
 - "One profile per device" relies on localStorage; clearing site data makes
   the browser a new device (admin can tidy up).
 - Admin password is a constant (`ADMIN_PASSWORD` in `rules.js`) by request
@@ -1531,6 +1658,10 @@ to win.
 
 ### Knight duels (the old "war" card rule, rebuilt)
 
+**Built in 3.0.0 as the Battle mod** (§1, §3): the all-game rules below —
+cards 1–6, card + knight level, spent until all six are, and Yield (the
+app's **Retreat**). Ambush and the Long Night parts aren't in the app.
+
 The group used to give each player a suit of cards and play war with
 chosen cards (no reuse until the whole suit was spent), so knights of
 equal power could fight with mind games. Proposed version:
@@ -1592,6 +1723,30 @@ shared crown in Season wins for a Dawn win. With the recommended clock,
 ## 11. Changelog
 
 Keep newest first. Every feature PR adds an entry and updates the sections above.
+
+- **3.0.0 — Today's games, mods and Battle.** Several games at once: after
+  *Welcome, Lord …* everyone lands on **Today's games** — every open room
+  with its board, seats, who's in it and its house rules — to open, join,
+  watch or delete; **New game** names a room and picks its **mods**:
+  **Karma & Robber**, **Walker**, **Battle** and a custom **points to
+  win** (5–20; otherwise 13, or 10 on a base-game board). The color is
+  picked per room, and rooms close by themselves 6 h after anyone last
+  touched them. The tracker shows only what the room plays, its karma
+  tile titled to match (*Karma and Robber & Walker*, *Karma and Robber*,
+  *Walker*); on a wide screen Victory points & honor is a square with
+  Cities and Knights beside it (full width again on a base-game board).
+  **Battle** (knight duels): challenge another player, who fights or
+  retreats; each picks a knight (basic, strong, mighty — they fold in
+  under the one picked) and a card 1–6 (spent until all six are); a
+  scuffle, then the winner with each side's knight and card, closing by
+  itself after 5 s. On desktop the tracker sits locked over the music —
+  sized to what it shows, its header in line with the top bar — with no
+  handle between them. The top bar's Pangaea goes to Today's games. Data:
+  `rooms/{id}` replaces the single `session` (no longer read). Code:
+  `GameService` (profiles, rooms, wins, music) and `RoomService` (one
+  room's game), `RoomState`, `Mods`, `game/battle.js`; new screens
+  `RoomsScreen`, `ModsScreen`, `SeatScreen` and `ui/BattleOverlay.js`; a
+  shared `Toggle` control.
 
 - **Docs — Future expansions (§10).** A new section, kept open for ideas
   the group is discussing: the Long Night (a rework of WALKER's special
