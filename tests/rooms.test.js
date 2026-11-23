@@ -48,6 +48,7 @@ test("mods: defaults, validation, points to win, the karma tile's title and the 
   assert.equal(new Mods({ vpToWin:"x" }).vpToWin, null);
   assert.equal(new Mods({ walker:"yes" }).walker, true, "not a boolean: the default");
   assert.deepEqual(new Mods({ battle:false, vpToWin:12 }).summary("ck"), ["Karma & Robber", "Walker", "12 VP"]);
+  assert.deepEqual(d.summary("base"), ["Karma & Robber", "Walker", "10 VP"], "no knights, no Battle");
   assert.ok(Object.isFrozen(d));
 });
 

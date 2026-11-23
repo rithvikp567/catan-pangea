@@ -147,6 +147,40 @@ body[data-desk] .screen[data-screen="tracker"][data-leave]{ animation-name:dock-
 .install-card .btn{ min-height:40px; padding:0 14px; }
 .install-card .icon-btn{ flex:none; width:36px; height:36px; }
 
+/* ---------- today's games (RoomsScreen) ---------- */
+.room-list{ display:flex; flex-direction:column; gap:10px; }
+.room-list .empty{ margin:0; padding:22px 16px; text-align:center; border:1px dashed var(--accent-line); border-radius:18px; }
+.room-card{ margin:0; padding:14px 14px 14px 16px; border-radius:18px; display:flex; flex-direction:column; gap:8px; }
+.room-card[data-here="true"]{ border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+.room-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.room-name{ margin:0; min-width:0; font-size:19px; font-weight:700; letter-spacing:-.01em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.room-delete{ flex:none; width:36px; height:36px; margin:-6px -6px -6px 0; color:var(--ink-2); }
+.room-delete svg{ width:20px; height:20px; }
+.room-meta{ margin:-4px 0 0; font-size:14px; color:var(--ink-2); }
+.room-chips{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.room-who{ display:inline-flex; margin-right:4px; }
+.room-avatar{ width:28px; height:28px; font-size:12px; text-shadow:none; box-shadow:0 0 0 2px var(--surface); }
+.room-avatar + .room-avatar{ margin-left:-6px; }
+.chip{
+  display:inline-flex; align-items:center; min-height:26px; padding:0 10px; border-radius:999px;
+  font-size:12.5px; font-weight:600; color:var(--ink-2); background:var(--surface-2); border:1px solid var(--line);
+}
+.room-open{ min-height:48px; border-radius:14px; margin-top:2px; }
+.room-new{ width:100%; min-height:54px; border-radius:14px; margin-top:14px; }
+
+/* ---------- New game: the room's name and mods (ModsScreen) ---------- */
+.screen[data-screen="mods"] .screen-inner{ max-width:520px; }
+.mods-form{ display:flex; flex-direction:column; }
+.mods-form .card-title{ margin-bottom:8px; }
+.room-name-input{
+  width:100%; min-height:48px; padding:0 14px; border-radius:12px; font:inherit; font-size:16px;
+  border:1px solid var(--accent-line); background:var(--surface-2); color:var(--ink);
+}
+.mods-toggles{ display:flex; flex-direction:column; }
+.mods-toggles > * + *{ border-top:1px solid var(--line); }
+.mods-vp[data-off="true"] .stepper output{ color:var(--ink-3); }
+.mods-form > .btn.primary{ min-height:54px; border-radius:14px; margin-top:16px; }
+
 .join-foot{ display:flex; flex-direction:column; align-items:center; gap:6px; margin-top:28px; }
 .join-foot .screen-links{ margin:0; gap:0 22px; }
 .join-foot .link-btn{ text-decoration:none; color:var(--ink-2); }
@@ -184,17 +218,34 @@ body[data-desk] .screen[data-screen="tracker"][data-leave]{ animation-name:dock-
    A container query, not a media query: the music column can take width away. */
 .screen[data-screen="tracker"]{ container-type:size; }   /* (size: the seat rows share its height too) */
 @media (min-width:760px){ .screen[data-screen="tracker"] .screen-inner{ max-width:880px; } }
-/* (DesktopLayout's MAX_LEFT keeps its left column just under this, so the docked tracker stays one column) */
-@container (min-width:760px){
-  .tracker-grid{ grid-template-columns:minmax(0,1fr) minmax(0,1fr); grid-template-rows:auto 1fr; }
-  .tracker-grid > :first-child{ grid-row:span 2; }
+/* the players and the knights: stacked on a phone (the pair's cards flow like the others) … */
+.tracker-pair{ display:contents; }
+/* … side by side on a wider screen (3.0.0 — the desktop column at its default 420 px, a tablet): the players
+   a square on the left, the knights a square on the right, the same height; the rows a little more
+   compact to make room for the names. A base game board has no knights: the players take the row. */
+@container (min-width:400px){
+  .tracker-pair{ display:grid; grid-template-columns:minmax(0,1.5fr) minmax(0,1fr); gap:8px; align-items:stretch; margin-top:8px; }
+  .tracker-pair > .card{ margin-top:0 !important; }
+  .tracker-pair:has(> .ck-card[hidden]){ grid-template-columns:minmax(0,1fr); }
+  /* (in the square: a smaller coin, the number narrower, and no "you" — your coin's ring says it) */
+  .tracker-pair:has(> .ck-card:not([hidden])) .vp-row{ grid-template-columns:30px minmax(0,1fr) auto; gap:8px; }
+  .tracker-pair:has(> .ck-card:not([hidden])) .coin{ width:30px; height:30px; }
+  .tracker-pair:has(> .ck-card:not([hidden])) .vp-name .you{ display:none; }
+  .tracker-pair:has(> .ck-card:not([hidden])) .vp-control .counter-value{ min-width:2ch; width:2.2ch; }
+  .tracker-pair:has(> .ck-card:not([hidden])) .vp-max{ min-width:0; font-size:11px; }
+  .ck-card .card-title{ letter-spacing:.03em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  /* the knights' square: its tiles one over another (a label over its stepper), Battle at the bottom */
+  .ck-card{ display:flex; flex-direction:column; }
+  .ck-card .ck-tiles{ flex:1; grid-template-columns:minmax(0,1fr) !important; align-content:space-between; gap:4px; }
+  .ck-card .battle-tile .tile-label{ display:none; }
+  .ck-card .battle-tile .battle-btn{ width:100%; }
+  .ck-card .battle-btn .battle-btn-text{ display:inline; }
 }
 
-/* --tracker-chrome: everything on the screen except the seat rows (header,
-   meta line, card titles and padding, the two shared cards), measured at
-   phone width. Change it if you add or resize anything around the rows. */
-.vp-list{ --tracker-chrome:404px; --tracker-chrome-tight:290px; --chrome:var(--tracker-chrome); }
-.screen[data-fit="tight"] .vp-list{ --chrome:var(--tracker-chrome-tight); }
+/* --tracker-chrome: everything on the screen except the seat rows (header, meta line, card titles and
+   padding, the other cards) — TrackerScreen measures it as laid out (fewer mods, fewer tiles: more
+   room for the rows), roomy or tight */
+.vp-list{ --chrome:var(--tracker-chrome, 404px); }
 .vp-row{
   display:grid; grid-template-columns:36px minmax(0,1fr) auto; align-items:center; gap:10px;
   min-height:clamp(42px, calc((100cqh - var(--chrome)) / var(--seats, 4)), 54px);   /* 100cqh: the screen's height, inside the music bar and the notch */
@@ -213,12 +264,14 @@ body[data-desk] .screen[data-screen="tracker"][data-leave]{ animation-name:dock-
 .screen[data-screen="tracker"][data-fit="tight"] .screen-head{ padding:2px 0; }
 .screen[data-screen="tracker"][data-fit="tight"] .card{ padding:6px 10px 8px; margin-top:6px; }
 .screen[data-screen="tracker"][data-fit="tight"] .screen-inner{ padding-bottom:8px; }
-/* the two shared cards read as one */
-.screen[data-screen="tracker"][data-fit="tight"] .tracker-grid > .card:nth-child(2){
-  padding-bottom:4px; border-bottom:0; border-bottom-left-radius:0; border-bottom-right-radius:0;
-}
-.screen[data-screen="tracker"][data-fit="tight"] .tracker-grid > .card:nth-child(3){
-  margin-top:0; padding-top:4px; border-top:0; border-top-left-radius:0; border-top-right-radius:0;
+/* the two shared cards read as one (stacked, on a phone) */
+@container (max-width:399px){
+  .screen[data-fit="tight"] .tracker-pair:has(+ .karma-card:not([hidden])) > .ck-card{
+    padding-bottom:4px; border-bottom:0; border-bottom-left-radius:0; border-bottom-right-radius:0;
+  }
+  .screen[data-fit="tight"] .tracker-pair:has(> .ck-card:not([hidden])) + .karma-card{
+    margin-top:0; padding-top:4px; border-top:0; border-top-left-radius:0; border-top-right-radius:0;
+  }
 }
 .screen[data-fit="tight"] .tile{ gap:2px; }
 .screen[data-fit="tight"] .tile-label{ font-size:12px; }
@@ -295,6 +348,15 @@ body[data-desk] .screen[data-screen="tracker"][data-leave]{ animation-name:dock-
 .tile .counter-value{ flex:1 1 auto; min-width:2ch; height:40px; font-size:20px; }
 .tile .counter-value.is-signed{ min-width:3.6ch; }
 .tiles.is-karma .counter{ gap:6px; }
+
+/* Battle (knight duels): on a phone a fourth, narrow tile beside the counters — the swords under its
+   label; on a wider screen a full-width button at the bottom of the knights' square */
+.ck-card[data-battle] .ck-tiles{ grid-template-columns:repeat(3, minmax(0,1fr)) auto; }
+.battle-btn{ height:40px; min-height:40px; padding:0 12px; gap:8px; border-radius:10px; font-size:14px; }
+.battle-btn .icon{ display:inline-flex; width:20px; height:20px; }
+.battle-btn .icon svg{ width:100%; height:100%; }
+.battle-btn-text{ display:none; }
+.screen[data-fit="tight"] .battle-btn{ height:36px; min-height:36px; }
 
 /* the robber (1–3): Abstain (its pips show the value) and Rob: −N */
 .robber-acts{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:6px; }

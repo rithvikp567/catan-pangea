@@ -55,9 +55,11 @@ export class Mods {
     return parts.length ? parts.join(" & ") : null;
   }
 
-  /** What's on, in a few words each, for a room's summary: switches, then the points to win. */
+  /** What's in play on a board made for `profile`, in a few words each, for a room's summary: the switches
+      that are on (Battle needs knights: not in the base game), then the points to win. */
   summary(profile){
-    return [...Mods.SWITCHES.filter(s => this[s.key]).map(s => s.label), `${this.vpTarget(profile)} VP`];
+    const on = Mods.SWITCHES.filter(s => this[s.key] && !(s.key === "battle" && profile === "base"));
+    return [...on.map(s => s.label), `${this.vpTarget(profile)} VP`];
   }
 
   /** For the database (nulls are never stored). */

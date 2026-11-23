@@ -17,7 +17,7 @@
  * colors from game/colors.js as properties.
  */
 import { h } from "./dom.js";
-import { SegmentedControl } from "./controls.js";
+import { SegmentedControl, Toggle } from "./controls.js";
 import { animateDetails } from "./SettingsPanel.js";
 import { ColorPicker, css } from "./ColorPicker.js";
 import { THEMES, ACCENTS, CUSTOM, themeById, accentById } from "../game/looks.js";
@@ -77,8 +77,8 @@ export class PlayerSettings {
       h("span", { class:"theme-name" }, "Custom"),
       h("span", { class:"theme-hint", "aria-hidden":"true" }, "Any color"));
 
-    this.animations = toggle("Map animations", on => onPick({ animations:on }));
-    this.sounds = toggle("Sound effects", on => onPick({ sounds:on }));
+    this.animations = new Toggle({ label:"Map animations", onChange:on => onPick({ animations:on }) });
+    this.sounds = new Toggle({ label:"Sound effects", onChange:on => onPick({ sounds:on }) });
 
     const details = h("details", { class:"advanced player-settings" },
       h("summary", {}, "Player Settings"),
@@ -200,11 +200,3 @@ function accentPreview(el, hex){
   for(const [k, v] of Object.entries({ ...vars, "--accent":vars["--accent-l"] })) page.style.setProperty(k, v);
 }
 
-/** An on / off switch with its label (role=switch). */
-function toggle(label, onChange){
-  const btn = h("button", { type:"button", class:"switch", role:"switch", "aria-checked":"true" }, h("span", { class:"switch-knob", "aria-hidden":"true" }));
-  const el = h("label", { class:"toggle-row" }, h("span", { class:"toggle-label" }, label), btn);
-  let on = true;
-  btn.addEventListener("click", () => { on = !on; btn.setAttribute("aria-checked", String(on)); onChange(on); });
-  return { el, set(v){ on = v !== false; btn.setAttribute("aria-checked", String(on)); } };
-}

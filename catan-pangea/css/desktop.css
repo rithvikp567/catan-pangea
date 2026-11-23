@@ -31,6 +31,10 @@ body[data-desk] .screen[data-screen="tracker"]{
 /* every screen (the tracker in its pane, the season wins, admin) sits in the
    middle of its space when it's shorter, and scrolls from the top when it isn't */
 body[data-desk] .screen .screen-inner{ min-height:100%; display:flex; flex-direction:column; justify-content:center; }
+/* with the music under it (3.0.0), the tracker is as tall as it needs (DesktopLayout.fitTracker), from the
+   top: its header's tiles in line with the top bar's (50 px tall, a gap from the top — the header's are 40) */
+body[data-desk][data-left="both"] .screen[data-screen="tracker"] .screen-inner{ justify-content:flex-start; }
+body[data-desk][data-left="both"] .screen[data-screen="tracker"] .screen-head{ padding-top:calc(var(--card-gap) + 5px); }
 
 /* ---------- the music: a card at the bottom of the column (all of it without the tracker) ---------- */
 body[data-desk] .music{
@@ -83,12 +87,9 @@ body[data-desk] .splitter[data-split="panel"]{
 body[data-desk]:not([data-left="none"]) .splitter[data-split="left"]{
   display:block; top:0; bottom:var(--music-h); left:calc(var(--left-w) - var(--card-gap) / 2 - 4px); width:8px; cursor:col-resize;   /* (in the gap; the mini bar, when the music is closed) */
 }
-body[data-desk][data-left="both"] .splitter[data-split="split"]{
-  display:block; left:0; width:var(--left-w); top:calc(var(--split) - 4px); height:8px; cursor:row-resize;
-}
+
 .splitter::after{ content:""; position:absolute; background:var(--focus); opacity:0; transition:opacity .15s; }
-.splitter[data-split="split"]::after{ left:0; right:0; top:3px; height:2px; }
-.splitter:not([data-split="split"])::after{ top:0; bottom:0; left:3px; width:2px; }
+.splitter::after{ top:0; bottom:0; left:3px; width:2px; }
 .splitter:hover::after, .splitter.is-dragging::after, .splitter:focus-visible::after{ opacity:.85; }
 body.is-resizing{ user-select:none; -webkit-user-select:none; }
 body[data-resizing="x"]{ cursor:col-resize; }

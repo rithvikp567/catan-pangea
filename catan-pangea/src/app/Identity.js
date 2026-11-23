@@ -27,4 +27,8 @@ export class Identity {
   /** The profile this device last played as (may have been removed since). */
   get profileId(){ return this.storage.get("profileId"); }
   set profileId(id){ this.storage.set("profileId", id ?? null); }
+
+  /** The room this device last opened (may have closed since). */
+  get roomId(){ return this.storage.get("roomId"); }
+  set roomId(id){ this.storage.set("roomId", id ?? null); }
 }

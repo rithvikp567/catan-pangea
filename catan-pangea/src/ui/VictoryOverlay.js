@@ -1,8 +1,9 @@
 /**
- * Victory / defeat screen. Shown on every phone when a seated player
- * reaches 13 VP — "Victory" for them, "Defeat" for everyone else seated.
- * Continue dismisses it (the numbers are untouched). If that player drops
- * below 13 and climbs back, it shows again.
+ * Victory / defeat screen. Shown on every phone in the room when a seated
+ * player reaches the points to win (13 on Cities & Knights, 10 in the base
+ * game, or the room's own) — "Victory" for them, "Defeat" for everyone
+ * else seated. Continue dismisses it (the numbers are untouched). If that
+ * player drops below the target and climbs back, it shows again.
  *
  * The season wins' 8-bit badges (ui/badges.js): a big crown over "Victory"
  * (and over "Sam wins" for someone watching), a big turd over "Defeat";
@@ -12,7 +13,6 @@
  */
 import { h } from "./dom.js";
 import { crown, turd } from "./badges.js";
-import { MAX_VP } from "../game/rules.js";
 
 export class VictoryOverlay {
   /** @param {object} deps { game, router, onToggle?:(shown:boolean) => void } */
@@ -26,23 +26,25 @@ export class VictoryOverlay {
 
   /** @param {import("../game/GameState.js").GameState} state */
   update(state){
-    if(!state?.session){ this.#hide(); return; }
-    const sid = state.sessionId;
-    const winners = state.winners;
+    const room = state ? this.deps.game.room : null;
+    if(!room?.session){ this.#hide(); return; }
+    const sid = room.sessionId;
+    const winners = room.winners;
     const current = new Set(winners.map(w => `${sid}:${w.key}`));
-    /* forget acknowledgements for anyone no longer on 13, so a return to 13 shows again */
-    for(const k of [...this.dismissed]) if(!current.has(k)) this.dismissed.delete(k);
+    /* forget acknowledgements for anyone in this game no longer on the target, so a return to it shows again */
+    for(const k of [...this.dismissed]) if(k.startsWith(`${sid}:`) && !current.has(k)) this.dismissed.delete(k);
     const fresh = winners.filter(w => !this.dismissed.has(`${sid}:${w.key}`));
     if(!fresh.length){ if(!winners.length) this.#hide(); return; }
-    this.#show(state, fresh[0], current);
+    this.#show(room, fresh[0], current);
   }
 
+  /** @param {import("../game/RoomState.js").RoomState} state  this device's room */
   #show(state, winner, current){
     const me = this.deps.game.me;
     const kind = me?.id === winner.profileId ? "win" : this.deps.game.mySeat ? "loss" : "watch";
     const title = { win:"Victory", loss:"Defeat", watch:`${winner.profile.name} wins` }[kind];
-    const sub = kind === "win" ? `You reached ${MAX_VP} victory points.`
-              : `${winner.profile.name} reached ${MAX_VP} victory points.`;
+    const sub = kind === "win" ? `You reached ${state.vpToWin} victory points.`
+              : `${winner.profile.name} reached ${state.vpToWin} victory points.`;
     const standings = [...state.seats].filter(s => s.profile).sort((a, b) => b.vp - a.vp);
     const crowned = new Set(state.winners.map(w => w.key));      /* everyone on 13 (more than one: they share it) */
 

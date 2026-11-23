@@ -1,8 +1,11 @@
 /**
  * The game tracker as the UI sees it: the latest GameState, who "me" is
- * on this device, the sync status, and intent methods that never throw —
- * failures surface as a toast. Screens hold a reference to this and
- * re-render from `onChange`.
+ * on this device and which room it's in, the sync status, and intent
+ * methods that never throw — failures surface as a toast. Screens hold a
+ * reference to this and re-render from `onChange`.
+ *
+ * A device is in one room at a time (the one it opened last, remembered
+ * like the profile); the tracker's intents act on that room.
  */
 import { GameService, GameError } from "../game/GameService.js";
 import { cleanLook } from "../game/looks.js";
@@ -39,10 +42,13 @@ export class GameController {
       this.service.watch(state => {
         this.state = state;
         this.#emit();
-        if(first){ first = false; resolve(state); }
+        if(first){ first = false; resolve(state); this.pruneRooms(); }    /* (and App, every so often) */
       });
     });
   }
+
+  /** Close the rooms nobody has touched for hours — in the background, never a toast. */
+  pruneRooms(){ this.service?.pruneRooms().catch(() => {}); }
 
   get ready(){ return !!this.state; }
 
@@ -59,12 +65,18 @@ export class GameController {
 
   /** My profile, if it still exists. */
   get me(){ return this.state?.profile(this.identity.profileId) ?? null; }
-  get mySeat(){ return this.me ? this.state.seatOf(this.me.id) : null; }
+  /** The room this device is in (RoomState), while it's open. */
+  get room(){ return this.state?.room(this.identity.roomId, this.now()) ?? null; }
+  get roomId(){ return this.room?.id ?? null; }
+  /** My seat in this device's room. */
+  get mySeat(){ return this.me && this.room ? this.room.seatOf(this.me.id) : null; }
   get canCreateProfile(){ return !!this.state && this.service.canCreateProfile(this.state); }
   /** The profile this device created, if any. */
   get ownProfile(){ return this.state?.profiles.find(p => p.deviceId === this.identity.deviceId) ?? null; }
 
   selectProfile(id){ this.identity.profileId = id; this.#emit(); }
+  /** Go into a room (or out of every room: null). */
+  enterRoom(id){ this.identity.roomId = id; this.#emit(); }
   /** Forget the profile on this device (its seat stays: picking it again is straight back in). */
   signOut(){ this.selectProfile(null); }
 
@@ -90,29 +102,79 @@ export class GameController {
     });
   }
 
+  /* ---------- rooms ---------- */
+
+  /**
+   * Open a room with these mods and the map on this screen as its first
+   * game, and go into it.
+   * @param {{ name:string, mods:object }} p
+   * @param {import("../engine/Board.js").Board} board
+   * @param {object} settings   Settings#toJSON() the board was made with
+   * @returns {Promise<string|undefined>} the room's id (undefined: it failed, and said so)
+   */
+  createRoom({ name, mods }, board, settings){
+    return this.#run(async () => {
+      const id = await this.service.createRoom({ name, mods, board:board.toSnapshot(), settings, createdBy:this.me?.id ?? null });
+      this.enterRoom(id);
+      return id;
+    });
+  }
+
+  /** Close a room for everyone. */
+  deleteRoom(id){
+    if(this.identity.roomId === id) this.enterRoom(null);     /* (first: leaving it isn't "it closed") */
+    return this.#run(() => this.service.deleteRoom(id));
+  }
+
+  /** What's played in this device's room (null outside one). */
+  #inRoom(fn){
+    const id = this.roomId;
+    return id ? this.#run(() => fn(this.service.room(id))) : Promise.resolve(undefined);
+  }
+
+  /** Take a seat in this device's room (or change color). */
   join(color){
     const me = this.me;
     if(!me) return Promise.resolve(false);
-    return this.#run(async () => { await this.service.join(me.id, color); return true; });
+    return this.#inRoom(async room => { await room.join(me.id, color); return true; }).then(Boolean);
   }
 
-  leave(){ const me = this.me; return me ? this.#run(() => this.service.leave(me.id)) : Promise.resolve(); }
+  leave(){ const me = this.me; return me ? this.#inRoom(room => room.leave(me.id)) : Promise.resolve(); }
 
-  adjustVP(seatKey, delta){ return this.#run(() => this.service.adjustVP(seatKey, delta)); }
+  adjustVP(seatKey, delta){ return this.#inRoom(room => room.adjustVP(seatKey, delta)); }
   flipMyCoin(){
     const seat = this.mySeat;
-    return seat ? this.#run(() => this.service.flipCoin(seat.key, seat.profileId)) : Promise.resolve();
+    return seat ? this.#inRoom(room => room.flipCoin(seat.key, seat.profileId)) : Promise.resolve();
   }
-  adjustCounter(name, delta){ return this.#run(() => this.service.adjustCounter(name, delta)); }
-  abstainRobber(){ return this.#run(() => this.service.abstainRobber()); }
-  rob(){ return this.#run(() => this.service.rob()); }
+  adjustCounter(name, delta){ return this.#inRoom(room => room.adjustCounter(name, delta)); }
+  abstainRobber(){ return this.#inRoom(room => room.abstainRobber()); }
+  rob(){ return this.#inRoom(room => room.rob()); }
 
-  /** @returns {Promise<boolean>} whether the board became the shared game */
-  /** @param {{ onlyIfNone?:boolean, buildAt?:number|null }} [p]  buildAt: when the new map starts building in, on every device */
-  publishBoard(board, settings, { onlyIfNone = false, buildAt = null } = {}){
-    return this.#run(() => this.service.publishBoard(board.toSnapshot(), settings, {
-      createdBy:this.me?.id ?? null, onlyIfNone, buildAt,
-    })).then(Boolean);
+  /**
+   * A new map: the next game in this device's room, for everyone in it.
+   * @param {{ buildAt?:number|null }} [p]  when the new map starts building in, on every device
+   * @returns {Promise<boolean>} whether the board became the room's game
+   */
+  publishBoard(board, settings, { buildAt = null } = {}){
+    return this.#inRoom(room => room.publishBoard(board.toSnapshot(), settings, { createdBy:this.me?.id ?? null, buildAt })).then(Boolean);
+  }
+
+  /* ---------- knight duels ---------- */
+
+  /** Challenge another player in this room. @returns {Promise<string|undefined>} the battle's id */
+  challenge(profileId){
+    const me = this.me;
+    return me ? this.#inRoom(room => room.challenge(me.id, profileId)) : Promise.resolve(undefined);
+  }
+
+  /**
+   * Answer, pick or cancel in a battle (game/battle.js), as me.
+   * @param {"answer"|"pick"|"cancel"} command
+   * @returns {Promise<boolean>}
+   */
+  battle(id, command, arg = {}){
+    const me = this.me;
+    return me ? this.#inRoom(room => room.battle(id, command, { ...arg, by:me.id })).then(Boolean) : Promise.resolve(false);
   }
 
   /* admin */
