@@ -17,21 +17,24 @@
  *               it again and they spread out) — and your cards; Battle
  *               readies you.
  *   fight       once both are ready: each side's knight charges on its
- *               horse, they collide in a cloud of dust, and the dust fades
- *               into…
- *   result      who won, and each side's knight — the winner's
- *               triumphant, the loser's bandaged — with its card. × or it
- *               closes after 5 s.
+ *               horse, they collide in a cloud of dust, and the dust clears
+ *               on the winner still mounted, sword up, and the loser
+ *               knocked over with the horse (a standoff: both still in the
+ *               saddle), which fades into…
+ *   result      from this player's side — "Rithvik Wins" or "Sam Loses"
+ *               (a tie: "Standoff") — and each side's knight, the winner's
+ *               triumphant, the loser's bandaged, with its card. × or it
+ *               closes after 10 s.
  *
  * No hints or summaries in grey: names, cards, knights and buttons only.
  */
 import { h } from "./dom.js";
-import { knight, rider, dust, pips, shadeOf } from "./knights.js";
+import { knight, rider, victor, fallen, dust, pips, shadeOf } from "./knights.js";
 import { icon, ICONS, inkOn } from "./screens/widgets.js";
 import { CARDS, KNIGHTS, BATTLE_TIMES, battleStatus, isSpent, outcome, strength } from "../game/battle.js";
 
-/** The charge, the collision and the dust fading into the result (css/screens.css: "the charge"). */
-const CHARGE_MS = 2400;
+/** The charge, the collision, the dust clearing on who's still in the saddle, and that fading into the result (css/screens.css: "the charge"). */
+const CHARGE_MS = 4600;
 /** A finished battle this recent still shows its result on a device that just caught up. */
 const FRESH_MS = 10_000;
 const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -210,9 +213,11 @@ export class BattleOverlay {
   }
 
   /**
-   * Both are in: the knights charge, collide in a cloud of dust, and the
-   * dust fades into the result — laid out underneath from the start (so
-   * the card keeps its size), shown as the dust clears.
+   * Both are in: the knights charge, collide in a cloud of dust, the dust
+   * clears on the winner still mounted with the sword up and the loser
+   * knocked over with the horse (a standoff: both still in the saddle),
+   * and that fades into the result — laid out underneath from the start
+   * (so the card keeps its size).
    */
   #viewScuffle(room, b, self, foe){
     clearTimeout(this.scuffleTimer);
@@ -223,18 +228,29 @@ export class BattleOverlay {
     };
     if(reducedMotion()){ queueMicrotask(revealed); return this.#viewResult(b, self, foe); }
     this.scuffleTimer = setTimeout(revealed, CHARGE_MS);
+    const level = s => b.picks?.[s.profileId]?.level ?? 1, won = outcome(b)?.winner;
     const charger = (s, side) => h("span", { class:`charge-rider is-${side}` },
-      h("span", { class:"charge-bob" }, rider(b.picks?.[s.profileId]?.level ?? 1, s.colorHex)));
+      h("span", { class:"charge-bob" }, rider(level(s), s.colorHex)));
+    /* after the clash: the winner still mounted, sword up; the loser knocked over with the horse */
+    const after = (s, side) => {
+      const pose = !won ? "standoff" : won === s.profileId ? "won" : "fell";
+      const art = pose === "won" ? victor(level(s), s.colorHex) : pose === "fell" ? fallen(level(s), s.colorHex) : rider(level(s), s.colorHex);
+      return h("span", { class:`after-side is-${side}`, "data-pose":pose }, art);
+    };
     return [
       ...this.#viewResult(b, self, foe, { reveal:true }),
       h("div", { class:"battle-charge", "aria-hidden":"true" },
-        charger(self, "left"), charger(foe, "right"), h("span", { class:"charge-dust" }, dust())),
+        charger(self, "left"), charger(foe, "right"),
+        h("div", { class:"charge-after" }, after(self, "left"), after(foe, "right")),
+        h("span", { class:"charge-dust" }, dust())),
     ];
   }
 
   /** Who won, and each side's knight — triumphant or bandaged — and card. */
   #viewResult(b, self, foe, { reveal = false } = {}){
     const res = outcome(b), winner = res.winner === self.profileId ? self : res.winner === foe.profileId ? foe : null;
+    /* from this player's side: "Rithvik Wins" for the winner, "Sam Loses" for the loser */
+    const title = !winner ? "Standoff" : winner === self ? `${self.profile.name} Wins` : `${self.profile.name} Loses`;
     const side = s => {
       const p = b.picks?.[s.profileId], pose = !winner ? "ready" : winner === s ? "victory" : "wounded";
       return h("div", { class:"battle-side", "data-won":String(winner === s), "data-pose":pose },
@@ -247,7 +263,7 @@ export class BattleOverlay {
     return [
       this.#closeBtn(() => this.close()),
       h("div", { class:`battle-result${reveal ? " is-revealing" : ""}` },
-        h("h2", { class:"battle-title battle-outcome" }, winner ? `${winner.profile.name} wins` : "Standoff"),
+        h("h2", { class:"battle-title battle-outcome" }, title),
         h("div", { class:"battle-sides" }, side(self), side(foe))),
     ];
   }

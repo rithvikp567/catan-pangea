@@ -714,13 +714,15 @@ button.battle-num:disabled{ cursor:default; }
 @keyframes swords-pulse{ 50%{ transform:scale(1.18) rotate(-8deg); } }
 .battle-actions{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:6px; }
 
-/* the charge: each side's knight gallops in on its horse (the right one mirrored), they collide in a cloud of
-   dust, and the dust fades into the result laid out underneath (BattleOverlay: CHARGE_MS, 2.4 s) */
+/* the charge (BattleOverlay: CHARGE_MS, 4.6 s): each side's knight gallops in on its horse (the right one
+   mirrored) — 0–1 s; they collide in a cloud of dust — from 0.85 s; the dust clears on the winner still mounted,
+   sword up, and the loser knocked over with the horse — 2.1 s; and that fades into the result laid out
+   underneath — 4.1 s */
 .battle-charge{
   position:absolute; inset:0; z-index:2; overflow:hidden; border-radius:inherit; pointer-events:none;
-  background:var(--surface); animation:charge-stage 2.4s ease both;
+  background:var(--surface); animation:charge-stage 4.6s ease both;
 }
-@keyframes charge-stage{ 0%, 72%{ opacity:1; } 100%{ opacity:0; } }
+@keyframes charge-stage{ 0%, 89%{ opacity:1; } 100%{ opacity:0; } }
 .charge-rider{ position:absolute; top:calc(50% - 40px); width:96px; }
 .charge-rider svg{ display:block; width:100%; height:auto; image-rendering:pixelated; }
 .charge-rider.is-left{ right:50%; animation:ride-left 1s cubic-bezier(.5,0,.95,.7) both, rider-gone .15s 1.05s ease-in both; }
@@ -737,18 +739,41 @@ button.battle-num:disabled{ cursor:default; }
 @keyframes legs-a{ 0%{ opacity:1; } 50%{ opacity:0; } }
 @keyframes legs-b{ 0%{ opacity:0; } 50%{ opacity:1; } }
 /* the collision: a cloud of dust, with stars in it, that puffs up and shakes */
-.charge-dust{ position:absolute; left:50%; top:50%; width:224px; margin:-62px 0 0 -112px; opacity:0; animation:dust-in 1.4s .85s ease-out both; }
+.charge-dust{ position:absolute; left:50%; top:50%; width:224px; margin:-62px 0 0 -112px; opacity:0; animation:dust-in 1.75s .85s ease-out both; }
 .charge-dust svg{ display:block; width:100%; height:auto; image-rendering:pixelated; animation:dust-shake .12s steps(2) infinite; }
 .charge-dust .knight-star{ animation:spark-twinkle .3s steps(2) infinite; }
-@keyframes dust-in{
+@keyframes dust-in{                       /* puffs up, hangs, then clears (2.1–2.6 s) */
   0%{ opacity:0; transform:scale(.2); }
-  14%{ opacity:1; transform:scale(1.25); }
-  30%{ transform:scale(1); }
-  100%{ opacity:1; transform:scale(1.1); }
+  11%{ opacity:1; transform:scale(1.25); }
+  24%{ transform:scale(1); }
+  70%{ opacity:1; transform:scale(1.1); }
+  100%{ opacity:0; transform:scale(1.3); }
 }
 @keyframes dust-shake{ 50%{ transform:translate(3px, -2px); } }
-/* the result shows as the dust clears */
-.battle-result.is-revealing{ animation:result-in .5s 1.85s ease both; }
+/* after the clash, as the dust clears: the winner still mounted, sword up (a little cheer, sparkles), the loser
+   knocked over with the horse (it lands with a thud, stars round both heads); a standoff: both still in the
+   saddle. The same ground as the riders; --p is one art pixel (the riders' 96 px / 36) */
+.charge-after{ position:absolute; inset:0; --p:calc(8px / 3); animation:after-in .45s 2.1s ease-out both; }
+@keyframes after-in{ from{ opacity:0; } }
+.after-side{ position:absolute; bottom:calc(50% - 40px); display:block; }
+.after-side svg{ display:block; width:auto; height:calc(34 * var(--p)); image-rendering:pixelated; }
+.after-side .rider-art{ height:calc(30 * var(--p)); }
+.after-side.is-right svg{ transform:scaleX(-1); }
+.after-side[data-pose="won"].is-left{ right:calc(50% + 24px); }
+.after-side[data-pose="won"].is-right{ left:calc(50% + 24px); }
+.after-side[data-pose="fell"].is-left{ right:calc(50% - 14px); }
+.after-side[data-pose="fell"].is-right{ left:calc(50% - 14px); }
+.after-side[data-pose="standoff"].is-left{ right:calc(50% + 12px); }
+.after-side[data-pose="standoff"].is-right{ left:calc(50% + 12px); }
+.after-side[data-pose="won"]{ animation:cheer .5s 2.5s ease-in-out infinite alternate; }
+.after-side[data-pose="fell"]{ animation:thud .45s 2.1s ease-out both; }
+@keyframes thud{ 0%{ transform:translateY(-12px); } 55%{ transform:none; } 75%{ transform:translateY(-3px); } 100%{ transform:none; } }
+.after-side .knight-fx{ animation:spark-twinkle .5s steps(2) infinite; }
+.after-side .legs-a{ display:none; }                     /* standing still */
+.after-side .legs-b{ animation:none; opacity:1; }
+@media (max-width:359px){ .charge-after{ --p:2.4px; } }
+/* the result shows as that fades */
+.battle-result.is-revealing{ animation:result-in .5s 4.1s ease both; }
 @keyframes result-in{ from{ opacity:0; transform:scale(.96); } }
 
 /* the result: who won, and each side's knight — triumphant or bandaged — and card */

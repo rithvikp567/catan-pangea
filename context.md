@@ -538,20 +538,30 @@ on the tracker): everything works, but nothing is shared between phones.
     and your cards (the spent ones can't be picked). **Battle** readies
     you (it reads *Ready*); the foe's avatar rings once they're ready. A
     duel left unfinished for 3 minutes lapses; × calls it off.
-  - Both ready: **the charge** (3.1.0, 2.4 s): each side's knight — the
+  - Both ready: **the charge** (3.1.0; 4.6 s since 3.1.2): each side's knight — the
     tier they picked — gallops in on a horse in their colors (a bay horse;
     a pale grey one for a color too close to its brown, so brown's cloth
     stands out; two leg
     frames, a bob), lance forward, yours from the left, theirs mirrored
     from the right; they collide in a **cloud of dust** with stars in it
-    that puffs up and shakes, and the dust fades into the **result**,
-    which is laid out under it from the start so the card keeps its size
-    (`CHARGE_MS`; skipped under *reduce motion*). The result: *Rithvik
-    wins* (or *Standoff*) over each side's knight, card, name and total —
+    that puffs up and shakes; the dust clears on **who's still in the
+    saddle** (3.1.2) — the winner on the horse with the sword raised,
+    sparkling, and the loser **knocked over with the horse**: the horse on
+    its back, legs in the air, the knight thrown on the ground beside it,
+    stars round both heads (`victor()` / `fallen()` in `ui/knights.js`; in
+    a standoff both are still in the saddle, facing each other) — and that
+    fades into the **result**, which is laid out under it from the start
+    so the card keeps its size (`CHARGE_MS`, 4.6 s: the gallop to 1 s, the
+    dust from 0.85 s, the knockdown from 2.1 s, the result from 4.1 s;
+    skipped under *reduce motion*). The result, from each
+    player's own side (3.1.1): *Rithvik Wins* on the winner's phone, *Sam
+    Loses* on the loser's (a tie: *Standoff*), over each side's knight,
+    card, name and total —
     the **winner's knight triumphant** (sword raised, sparkles, a little
     cheer) and the **loser's bandaged** (head wrapped, arm in a sling, a
     broken sword, a cracked shield, stars round the head, wobbling); in a
-    standoff both just stand. × or it closes by itself after **5 s**.
+    standoff both just stand. × or it closes by itself after **10 s**
+    (`BATTLE_TIMES.showMs`; 5 s before 3.1.1).
   - A card is spent once played in a finished duel, until all six are —
     then they all come back (worked out from the room's battle history,
     so it can't be double-spent). One open battle per player; a new map
@@ -1050,7 +1060,7 @@ catan-pangea/                       ← deployed as-is to GitHub Pages
     imageExport.js, Toast.js, dom.js  PNG/share; toasts; h()/s() DOM builders
     VictoryOverlay.js               victory / defeat screen (crown / turd badges; no mini bar or frost while it's up)
     BattleOverlay.js                knight duels: who to battle, the challenge, the duel, the charge, the result
-    knights.js                      the battle's 8-bit knights: three tiers, standing (ready / victory / wounded), riding, the dust
+    knights.js                      the battle's 8-bit knights: three tiers, standing (ready / victory / wounded), riding, the dust, after the clash (victor / fallen)
     Splash.js                       the intro ("Settlers of Catan") and "Welcome, Lord …"
     Sound.js                        sound effects made with Web Audio (tile clack, flip, pop, fanfare): timelines, mute (Player Settings), restarts after interruptions
     AccountLine.js                  "Sam · Sign out" in the top bar
@@ -1777,6 +1787,19 @@ shared crown in Season wins for a Dawn win. With the recommended clock,
 ## 11. Changelog
 
 Keep newest first. Every feature PR adds an entry and updates the sections above.
+
+- **3.1.2 — Knocked off the horse.** The charge gets one more frame: once
+  the dust clears, the winner is still on the horse with the sword
+  raised, and the loser is knocked over with the horse — the horse on its
+  back, legs in the air, the knight thrown on the ground beside it, both
+  seeing stars (a standoff: both still in the saddle). It holds for about
+  a second and a half, then fades into the result; the charge takes 4.6 s
+  (it was 2.4 s). Checked in all six player colors, light and dark.
+
+- **3.1.1 — A longer look at the result.** A battle's result stays up for
+  10 s before it closes by itself (it was 5 s), and its title is from each
+  player's own side, capitalized: *Rithvik Wins* on the winner's phone,
+  *Sam Loses* on the loser's (both used to read *Rithvik wins*).
 
 - **3.1.0 — Knights you can see.** The Battle pop-up's knight circles
   show an 8-bit knight in your colors for each tier — basic (open-faced
