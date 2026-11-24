@@ -27,7 +27,7 @@
  *            playing, pos, at,           ← the clock: pos seconds in at time `at` (ms, server clock)
  *            duration?,                  ← seconds, once the speaker knows it
  *            speaker?, speakerName?, speakerKind?,   ← the device playing the sound (its device id), for "On Sam's phone"
- *            held?, heldFor?, resume?,   ← the speaker holds it (its device id; "wins" | "join" | "lobby" | "splash" | "welcome"; play once it's back?)
+ *            held?, heldFor?, resume?,   ← the speaker holds it (its device id; "wins" | "join" | "lobby" | "splash" | "loading" | "welcome"; play once it's back?)
  *            rev, by }                   ← bumped by every change, and which device made it
  *   beat:  ms                            ← the speaker's last "still here" (every BEAT_MS)
  *
@@ -189,7 +189,8 @@ export function takeOver(pb, _arg, ctx){
 /**
  * The speaker puts its player away (`why`: "wins" — the season wins
  * screen — "join", the sign-in screen, "lobby", today's games / a new game /
- * picking a color, "splash", the intro, or "welcome").
+ * picking a color, "splash", the intro, "loading", a page that doesn't
+ * know yet where it lands, or "welcome").
  * A hidden player mustn't play, so the
  * music pauses; it plays on when it's unheld if it was playing, or if
  * anyone presses play meanwhile.
