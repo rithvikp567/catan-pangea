@@ -13,6 +13,10 @@
  *              right (the right-hand rider is mirrored in CSS); two leg
  *              frames for the gallop
  *   dust()     the cloud where they collide
+ *   victor()   after the clash, the winner: still mounted, sword raised
+ *   fallen()   after the clash, the loser: knocked over with the horse —
+ *              the horse on its back, legs in the air, the knight thrown
+ *              on the ground beside it, stars round both heads
  *
  * The animation is CSS (css/screens.css, "battle").
  */
@@ -326,6 +330,110 @@ export function rider(level, hex){
     group("legs-a", pixels(legs("a"), colors)),
     group("legs-b", pixels(legs("b"), colors)),
     pixels(rows, colors),
+  ], 3);
+}
+
+/* ---------- after the clash: the winner still mounted, sword up; the loser knocked over with the horse ----------
+   32 rows: the charge's 28 with 4 more on top for the raised sword, so the ground (row 30) lines up with the
+   riders' hooves; both face right, like rider() (the right-hand one is mirrored in CSS) */
+const UP = 4;
+/** The grid turned a quarter left (its top row becomes the left column) — a head lying on its back. */
+const turnLeft = rows => [...rows[0]].map((_, i) => rows.map(r => r[r.length - 1 - i]).join(""));
+
+/* the rider without the lance (row 7: the hand and the lance), on a horse standing still */
+const MOUNTED = RIDING.map((r, y) => y === 7 ? ".".repeat(r.length) : r);
+/* the sword arm raised, at (19, 0): blade, guard, hand, arm — down to the shoulder at (19, 12) */
+const SWORD_UP = [
+  ".W..",
+  ".Ws.",
+  ".Ws.",
+  ".Ws.",
+  ".Ws.",
+  ".Ws.",
+  ".Ws.",
+  ".Ws.",
+  "gggG",
+  ".kk.",
+  ".s..",
+  ".s..",
+];
+const VICTOR_FX = [
+  ".y......y.",
+  "..........",
+  "y.........",
+  ".........y",
+];
+
+/**
+ * The winner, after the clash: still on the horse (standing), the sword
+ * raised, sparkling.
+ * @param {1|2|3} level
+ * @param {string} hex
+ */
+export function victor(level, hex){
+  let g = layer(blank(34, 28 + UP), MOUNTED, 0, UP);
+  g = layer(g, GALLOP.b, 0, 23 + UP);
+  g = layer(g, SIDE_HEAD[level] ?? SIDE_HEAD[1], 10, UP);
+  const rows = outlined(layer(g, SWORD_UP, 19, 0));
+  const fx = layer(blank(rows[0].length, rows.length), VICTOR_FX, 15, 0);
+  return art(rows, "victor-art", [
+    pixels(rows, palette(hex)),
+    group("knight-fx", pixels(fx, {}, () => true, THEMED)),
+  ], 3);
+}
+
+/* the knight thrown on the ground, on his back: his head (the side view turned) at the left, feet up at the right */
+const LYING = [
+  "...........",
+  "...........",
+  "...........",
+  "ScccCN...NN",
+  "SccgcNs..NN",
+  "SccccNsssNN",
+  "SCCCCNsSSNN",
+  ".SSS.N.....",
+];
+/* the horse on its back, legs in the air (its head goes on at the right: the charge's, lying on its jaw) */
+const ON_ITS_BACK = [
+  "..hh...hh.........hh...hh.",
+  "...b....b..........b...b..",
+  "...b....b..........b...b..",
+  "...bB..Bb..........bB.Bb..",
+  "....b..b............b.b...",
+  "..bbbbbbbbbbbbbbbbbbbbbbb.",
+  ".bbbbbbbbbbbbbbbbbbbbbbbbB",
+  ".bgggggggggggggggggggggggb",
+  ".bcccgccccccccgcccccccgccb",
+  "mbcCcccccccccccccccccccCcb",
+  "mmcCCCCCCCCCCCCCCCCCCCCCcb",
+  ".m.CNNNNNNNNNNNCCCCCCCCCbb",
+  ".mm.....................bb",
+];
+const HORSE_HEAD = RIDING.slice(8, 15).map(r => r.slice(21));
+/* stars round both heads (in the outlined grid, from row 19) */
+const FALLEN_FX = [
+  "..z.........................................z...",
+  "z...z....................................z.....z",
+];
+
+/**
+ * The loser, after the clash: knocked over with the horse — the horse on
+ * its back, legs in the air, the knight thrown on the ground beside it,
+ * both seeing stars.
+ * @param {1|2|3} level
+ * @param {string} hex
+ */
+export function fallen(level, hex){
+  let g = blank(52, 28 + UP);
+  g = layer(g, ON_ITS_BACK, 16, 18);
+  g = layer(g, HORSE_HEAD, 16 + 23, 24);
+  g = layer(g, turnLeft(SIDE_HEAD[level] ?? SIDE_HEAD[1]), 0, 23);
+  g = layer(g, LYING, 8, 23);
+  const rows = outlined(g);
+  const fx = layer(blank(rows[0].length, rows.length), FALLEN_FX, 1, 19);
+  return art(rows, "fallen-art", [
+    pixels(rows, palette(hex)),
+    group("knight-fx", pixels(fx, {}, () => true, THEMED)),
   ], 3);
 }
 
