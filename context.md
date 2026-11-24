@@ -427,7 +427,12 @@ on the tracker): everything works, but nothing is shared between phones.
   in the desktop column (`setAway("lobby")`) — and held like on the
   sign-in screen: a play from another phone waits (*Sam's computer is
   picking a game — the music plays as soon as they leave it*) and plays
-  once they're in a game.
+  once they're in a game. Opening the app it stays away until the game
+  has loaded and the app knows where you land (3.1.3): on a slow phone the
+  intro can lift before that — it used to lift onto the map, with the
+  music popping up on it until Today's games came. Where you land is now
+  decided before this device's own map is made (the slow part on a
+  phone), so Today's games comes sooner too.
 - **A room's game = its map's seed.** Making a room publishes its map as
   that room's game; every phone in it shows that exact board. **New map**
   starts a new game for everyone in the room (after a confirm if anything
@@ -1565,7 +1570,9 @@ your run created afterwards — never `DELETE /v1` once real data exists.
   `"wins"`, `"join"` (the sign-in screen), `"lobby"` (Today's games, New
   game, Pick your color — 3.0.1; the route's reasons are `MUSIC_AWAY` in
   `App.js`), `"splash"` and
-  `"welcome"` (the intro and the welcome, which cover the whole window);
+  `"welcome"` (the intro and the welcome, which cover the whole window),
+  `"loading"` (3.1.3: from page load until `App.start` knows where you
+  land — the intro can lift first on a slow phone);
   `heldFor` is the screen's reason before the intro's or the welcome's,
   and going from one screen's reason to the other's adds the new one
   before dropping the old, so the hold never lets go in between): body `data-music-away` hides the bar, the mini
@@ -1787,6 +1794,14 @@ shared crown in Season wins for a Dawn win. With the recommended clock,
 ## 11. Changelog
 
 Keep newest first. Every feature PR adds an entry and updates the sections above.
+
+- **3.1.3 — No music popping up before Today's games.** Opening the app
+  on a slow phone, the intro could lift onto the map before Today's games
+  was ready, and the music player popped up there for a few seconds. The
+  music now stays away until the app knows where you land, and that's
+  decided before the app makes its own map in the background, so Today's
+  games also comes sooner (about 3 s instead of 17 s on a throttled test
+  phone).
 
 - **3.1.2 — Knocked off the horse.** The charge gets one more frame: once
   the dust clears, the winner is still on the horse with the sword

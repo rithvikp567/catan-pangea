@@ -143,6 +143,8 @@ export class App {
     this.router = new Router({ mapEl:$("app"), docked:route => !!this.layout?.docks(route), onRoute:route => this.#routed(route) });
     this.music = new MusicBar({ game:this.game, toast:this.toast, storage:this.storage });
     this.music.setAway("splash", true);      /* held back while the intro is up */
+    this.music.setAway("loading", true);     /* …and until the game has loaded and we know where you land
+                                                (on a slow phone the intro lifts first — onto the map) */
     /* knight duels: this player's own pop-up — the mini bar blurred behind it (an open player never is) */
     this.battle = new BattleOverlay({ game:this.game, toast:this.toast, onToggle:shown => this.music.setMiniBlur("battle", shown) });
     const deps = {
@@ -195,6 +197,8 @@ export class App {
     const ready = new Promise(r => { loaded = r; });
     const release = () => this.music.setAway("splash", false);
     this.splash.intro({ until:ready, next:() => this.#greeting(), onReveal:release }).then(release, release);
+    /* we know where you land: the intro may lift, and the music may show if that's in a game */
+    const landed = () => { loaded(); this.music.setAway("loading", false); };
     try{
       const store = await createStore();
       const first = await Promise.race([
@@ -207,12 +211,15 @@ export class App {
         return;
       }
       setInterval(() => this.game.pruneRooms(), PRUNE_EVERY_MS);
-      if(!this.game.room) await this.newGame({ kind:"boot" });     /* outside a room: a map of this device's own */
-      /* nobody signed in starts at choosing an account; someone outside a room, at today's games */
+      /* nobody signed in starts at choosing an account; someone outside a room, at today's games —
+         decided before making this device's own map below, which takes a few seconds on a phone: the
+         intro used to lift onto the map meanwhile, the music popping up on it until today's games came */
       const route = this.router.route;
       if(!this.game.me) this.router.go("join", { replace:true });
       else if(!this.game.room && ["", "tracker", "seat"].includes(route)) this.router.go("rooms", { replace:true });
-    }finally{ loaded(); }
+      landed();
+      if(!this.game.room) await this.newGame({ kind:"boot" });     /* outside a room: a map of this device's own (for New game) */
+    }finally{ landed(); }
   }
 
   /** The welcome after the intro: only for someone signed in here and seated in the game. */
